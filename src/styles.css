@@ -677,5 +677,6 @@ button:disabled { opacity: 0.45; cursor: default; }
   .bar-actions .desktop-only { display: none !important; }
   .bar-actions .icon-button { width: 34px; height: 34px; border-radius: 10px; }
   .bar-actions .top-action { min-width: 34px; height: 34px; display: grid; place-items: center; padding: 0 8px; }
+  .bar-actions .model-menu > .top-action { max-width: 138px; justify-items: start; font-size: 12px; }
   .history-arrow { font-size: 24px; line-height: 1; margin-top: -2px; }
 }

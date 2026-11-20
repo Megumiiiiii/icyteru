@@ -544,10 +544,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
   const current = snapshot.currentModel || 'Model'
   return (
     <div className="model-menu" ref={menu}>
-      <button className="top-action tiny desktop-only" onClick={() => setOpen(value => !value)} type="button" title={current}>{current}</button>
-      <button className="icon-button phone-only" onClick={() => setOpen(value => !value)} type="button" title="Choose model" aria-label="Choose model">
-        <Sliders />
-      </button>
+      <button className="top-action tiny" onClick={() => setOpen(value => !value)} type="button" title={current}>{current}</button>
       {open && (
         <div className="model-pop">
           <input autoFocus value={filter} onChange={event => setFilter(event.target.value)} placeholder="Search models" />
@@ -704,14 +701,6 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery }: {
         </div>
       )}
     </aside>
-  )
-}
-
-function Sliders() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18">
-      <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
   )
 }
 
