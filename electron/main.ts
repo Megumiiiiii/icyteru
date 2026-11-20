@@ -77,6 +77,7 @@ function snapshot(): Snapshot {
   if (state.side.instructionsNote) base.instructionsNote = state.side.instructionsNote
   else if (state.side.memory.instructions) base.instructionsNote = ''
   base.question = state.question
+  base.queued = state.queued
   return base
 }
 
@@ -256,6 +257,9 @@ function registerIpc(): void {
   ipcMain.handle('new-chat', () => client.newChat())
   ipcMain.handle('send-message', (_event, text: string, attachments?: OutgoingAttachment[]) => client.send(text, attachments))
   ipcMain.handle('steer', (_event, text: string) => client.steer(text))
+  ipcMain.handle('queue', (_event, text: string) => client.queue(text))
+  ipcMain.handle('edit-queued', (_event, payload: { id: string; text: string }) => client.editQueued(payload.id, payload.text))
+  ipcMain.handle('delete-queued', (_event, id: string) => client.deleteQueued(id))
   ipcMain.handle('compress', () => client.compress())
   ipcMain.handle('slash', (_event, command: string) => client.slash(command))
   ipcMain.handle('enable-notifications', () => Notification.isSupported())

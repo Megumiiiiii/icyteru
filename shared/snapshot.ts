@@ -26,6 +26,16 @@ export interface TestResult {
   mode?: AuthMode
 }
 
+export interface QueuedMessage {
+  id: string
+  sessionId: string
+  text: string
+  status: 'queued' | 'sending' | 'failed'
+  createdAt: number
+  admissionId?: string
+  error?: string
+}
+
 export interface Snapshot {
   screen: AppScreen
   connection: ConnectionInfo
@@ -49,6 +59,7 @@ export interface Snapshot {
   memory: MemoryView
   instructionsNote: string
   question: PendingQuestion | null
+  queued: QueuedMessage[]
 }
 
 export function emptySnapshot(connection: ConnectionInfo): Snapshot {
@@ -74,6 +85,7 @@ export function emptySnapshot(connection: ConnectionInfo): Snapshot {
     skillsNote: '',
     memory: { available: false, summary: '', notes: '', user: '', instructions: '' },
     instructionsNote: 'Instructions live in SOUL.md on the Hermes machine. Chats on Telegram, Discord, and here all use that same file.',
-    question: null
+    question: null,
+    queued: []
   }
 }

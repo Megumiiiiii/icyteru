@@ -858,3 +858,49 @@ button:disabled { opacity: 0.45; cursor: default; }
 @media (max-width: 720px) {
   .compress-bar { margin-left: 14px; margin-right: 14px; }
 }
+
+/* Tool calls are their own transcript block, not part of the reply bubble. */
+.tool-standalone {
+  width: fit-content;
+  max-width: min(740px, 86%);
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.tool-standalone .tools { margin: 0; }
+.tool-standalone .tool:first-child { border-top: 0; padding-top: 0; }
+.standalone-error { max-width: min(740px, 86%); margin: 0 0 12px; }
+
+/* Queued follow-ups: a compact pill with a list that opens upward. */
+.queue-wrap { position: relative; margin: 0 22px 8px; }
+.queue-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel); color: var(--ink);
+  padding: 6px 11px; font-size: 12px; font-weight: 600;
+}
+.queue-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+.queue-caret { color: var(--muted); font-size: 11px; }
+.queue-list {
+  position: absolute; left: 0; bottom: calc(100% + 7px); z-index: 30;
+  width: min(390px, calc(100vw - 44px)); max-height: 240px; overflow-y: auto;
+  padding: 6px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--panel); box-shadow: 0 12px 34px rgba(0,0,0,.16);
+}
+.queue-item { display: flex; gap: 8px; align-items: flex-start; padding: 7px 6px; border-radius: 9px; }
+.queue-item + .queue-item { border-top: 1px solid var(--line); border-radius: 0 0 9px 9px; }
+.queue-text { min-width: 0; flex: 1; font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.queue-text small { display: block; margin-top: 3px; color: var(--danger); font-size: 11px; }
+.queue-actions { display: flex; gap: 2px; flex: none; }
+.queue-item.failed .queue-dot { background: var(--danger); }
+.queue-edit { display: flex; gap: 5px; width: 100%; align-items: center; }
+.queue-edit input {
+  min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--ink); padding: 6px 8px; font-size: 12px;
+}
+@media (max-width: 720px) {
+  .queue-wrap { margin-left: 14px; margin-right: 14px; }
+  .tool-standalone { max-width: 92%; }
+}

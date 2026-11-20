@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { Fragment, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
 import { approvalLabel, modelIdsMatch, modelShortName, sourceLabel, type OutgoingAttachment, type ToolCall } from '../shared/protocol'
@@ -22,17 +22,25 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
   const [noticeAge, setNoticeAge] = useState(0)
   const [compress, setCompress] = useState<{ status: 'running' | 'done' | 'error'; started: number; message: string } | null>(null)
   const [compressElapsed, setCompressElapsed] = useState(0)
+  const [steerPending, setSteerPending] = useState<{ toolCount: number } | null>(null)
+  const [queueOpen, setQueueOpen] = useState(false)
+  const [editingQueue, setEditingQueue] = useState<string | null>(null)
+  const [queueEditText, setQueueEditText] = useState('')
   const [atBottom, setAtBottom] = useState(true)
   const [files, setFiles] = useState<OutgoingAttachment[]>([])
-  const queue = useRef<Array<{ text: string; files: OutgoingAttachment[] }>>([])
   const scroller = useRef<HTMLDivElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
+  const queueWrap = useRef<HTMLDivElement>(null)
   const atBottomRef = useRef(true)
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const active = snapshot.sessions.find(session => session.id === snapshot.activeSessionId)
   const profile = snapshot.profiles.find(item => item.gatewayId === snapshot.activeGatewayId && item.name === snapshot.activeProfile)
   const streaming = snapshot.transcript.streaming
+  const toolCount = useMemo(
+    () => snapshot.transcript.messages.reduce((count, message) => count + message.tools.length, 0),
+    [snapshot.transcript.messages]
+  )
 
   useEffect(() => {
     const shot = new URLSearchParams(location.search).get('shot') || ''
@@ -141,9 +149,11 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     const timer = setInterval(() => {
       const seconds = Math.floor((Date.now() - started) / 1000)
       if (noticeKind) setNoticeAge(seconds)
-      if (seconds >= (noticeKind ? 6 : 8)) {
+      const limit = noticeKind === 'steer' ? 60 : noticeKind ? 6 : 8
+      if (seconds >= limit) {
         setNotice('')
         setNoticeKind('')
+        if (noticeKind === 'steer') setSteerPending(null)
       }
     }, 500)
     return () => clearInterval(timer)
@@ -153,6 +163,26 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     if (!notice) setNoticeKind('')
     else if (noticeKind && !/^(Steered|Queued)/.test(notice)) setNoticeKind('')
   }, [notice, noticeKind])
+
+  // A steer is read at the agent's next tool call, not on a timer. Keep the
+  // notice until a new tool row appears or the turn ends.
+  useEffect(() => {
+    if (!steerPending) return
+    if (toolCount > steerPending.toolCount || !streaming) {
+      setNotice('')
+      setNoticeKind('')
+      setSteerPending(null)
+    }
+  }, [toolCount, streaming, steerPending])
+
+  useEffect(() => {
+    if (!queueOpen) return
+    const close = (event: MouseEvent) => {
+      if (!queueWrap.current?.contains(event.target as Node)) setQueueOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [queueOpen])
 
   // Compression is one long gateway call, so keep a local status bar alive:
   // the backend does not stream a percentage, but elapsed time and phase are real.
@@ -169,17 +199,6 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     const timer = setTimeout(() => setCompress(null), compress.status === 'error' ? 8000 : 6000)
     return () => clearTimeout(timer)
   }, [compress])
-
-  // Send locally queued /queue messages once the current turn ends.
-  useEffect(() => {
-    if (streaming || sending) return
-    const next = queue.current.shift()
-    if (next) {
-      setNotice('')
-      setNoticeKind('')
-      void submit(next.text, next.files)
-    }
-  }, [streaming, sending])
 
   function showTransient(text: string, kind: 'steer' | 'queue'): void {
     setNotice(text)
@@ -224,11 +243,13 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
           return
         }
         setDraft('')
-        if (streaming || sending) {
-          queue.current.push({ text: arg, files: [] })
-          showTransient(`Queued ${queue.current.length}: ${arg.slice(0, 60)}${arg.length > 60 ? '…' : ''}`, 'queue')
-        } else {
-          await submit(arg, [])
+        setSending(true)
+        try {
+          showTransient(await window.icyteru.queue(arg), 'queue')
+        } catch (error) {
+          setNotice(error instanceof Error ? error.message : 'Could not queue the message.')
+        } finally {
+          setSending(false)
         }
         return
       }
@@ -246,7 +267,9 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
         setSending(true)
         setNotice('')
         try {
-          showTransient(await window.icyteru.steer(arg), 'steer')
+          const note = await window.icyteru.steer(arg)
+          showTransient(note, 'steer')
+          if (/^Steered|^Steer sent/.test(note)) setSteerPending({ toolCount })
         } catch (error) {
           setNotice(error instanceof Error ? error.message : 'Steer failed.')
         } finally {
@@ -314,7 +337,9 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
       setSending(true)
       setNotice('')
       try {
-        showTransient(await window.icyteru.steer(pending.text), 'steer')
+        const note = await window.icyteru.steer(pending.text)
+        showTransient(note, 'steer')
+        if (/^Steered|^Steer sent/.test(note)) setSteerPending({ toolCount })
         setDraft('')
       } catch (error) {
         setNotice(error instanceof Error ? error.message : 'Steer failed.')
@@ -324,10 +349,17 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
       return
     }
     setSendActions(null)
-    queue.current.push({ text: pending.text, files: pending.files })
     setDraft('')
     setFiles([])
-    showTransient(`Queued ${queue.current.length}: ${pending.text.slice(0, 60)}${pending.text.length > 60 ? '…' : ''}`, 'queue')
+    setSending(true)
+    try {
+      await window.icyteru.sendMessage(pending.text, pending.files)
+      showTransient('Queued — it will run after the current turn.', 'queue')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not queue the message.')
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -378,11 +410,22 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
             </div>
           )}
           {snapshot.transcript.messages.map(message => (
-            <article className={`bubble ${message.role}`} key={message.id}>
-              {message.text && <Markdown text={message.text} />}
-              {message.tools.length > 0 && <ToolGroup tools={message.tools} />}
-              {message.error && <p className="inline-error">{message.error}</p>}
-            </article>
+            <Fragment key={message.id}>
+              {message.tools.length > 0 && (
+                <div className="tool-standalone">
+                  <ToolGroup tools={message.tools} />
+                </div>
+              )}
+              {message.text && (
+                <article className={`bubble ${message.role}`}>
+                  <Markdown text={message.text} />
+                  {message.error && <p className="inline-error">{message.error}</p>}
+                </article>
+              )}
+              {!message.text && message.error && (
+                <p className="inline-error standalone-error">{message.error}</p>
+              )}
+            </Fragment>
           ))}
           {streaming && <p className="working">{snapshot.profileName} is working…</p>}
         </div>
@@ -427,6 +470,70 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
                 </button>
               </span>
             ))}
+          </div>
+        )}
+        {snapshot.queued.length > 0 && (
+          <div className="queue-wrap" ref={queueWrap}>
+            <button
+              className="queue-pill"
+              type="button"
+              aria-expanded={queueOpen}
+              onClick={() => setQueueOpen(open => !open)}
+            >
+              <span className="queue-dot" aria-hidden="true" />
+              {snapshot.queued.length} queued
+              <span className="queue-caret" aria-hidden="true">{queueOpen ? '⌄' : '⌃'}</span>
+            </button>
+            {queueOpen && (
+              <div className="queue-list">
+                {snapshot.queued.map(entry => (
+                  <div className={`queue-item ${entry.status}`} key={entry.id}>
+                    {editingQueue === entry.id ? (
+                      <form
+                        className="queue-edit"
+                        onSubmit={event => {
+                          event.preventDefault()
+                          void window.icyteru.editQueued(entry.id, queueEditText)
+                            .then(() => { setEditingQueue(null); setQueueEditText('') })
+                            .catch(error => setNotice(error instanceof Error ? error.message : 'Could not edit the queued message.'))
+                        }}
+                      >
+                        <input
+                          value={queueEditText}
+                          autoFocus
+                          onChange={event => setQueueEditText(event.target.value)}
+                          aria-label="Edit queued message"
+                        />
+                        <button type="submit" className="tiny">Save</button>
+                        <button type="button" className="ghost tiny" onClick={() => setEditingQueue(null)}>Cancel</button>
+                      </form>
+                    ) : (
+                      <>
+                        <div className="queue-text">
+                          <span>{entry.text}</span>
+                          {entry.error && <small>{entry.error}</small>}
+                        </div>
+                        {entry.status === 'queued' && (
+                          <div className="queue-actions">
+                            <button
+                              type="button"
+                              className="ghost tiny"
+                              onClick={() => { setEditingQueue(entry.id); setQueueEditText(entry.text) }}
+                            >Edit</button>
+                            <button
+                              type="button"
+                              className="ghost tiny danger"
+                              aria-label="Delete queued message"
+                              onClick={() => void window.icyteru.deleteQueued(entry.id).catch(error => setNotice(error instanceof Error ? error.message : 'Could not delete the queued message.'))}
+                            >×</button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
         <form className="composer" onSubmit={event => { event.preventDefault(); void send() }}>

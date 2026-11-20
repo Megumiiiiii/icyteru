@@ -32,6 +32,7 @@ import {
   type Transcript
 } from '../shared/protocol'
 import { HermesSocket } from '../shared/gateway-socket'
+import type { QueuedMessage } from '../shared/snapshot'
 
 export interface ProbeResult {
   ok: boolean
@@ -92,6 +93,9 @@ export class HermesClient {
   private transcript: Transcript = emptyTranscript()
   private sessions: SessionRow[] = []
   private question: PendingQuestion | null = null
+  private queued: QueuedMessage[] = []
+  private queuePoll: ReturnType<typeof setInterval> | null = null
+  private queuePolling = false
   private executionGeneration = 0
   private revision = 0
   private wsUrl = ''
@@ -123,6 +127,7 @@ export class HermesClient {
       transcript: this.transcript,
       sessions: this.sessions,
       question: this.question,
+      queued: this.queued.filter(entry => entry.sessionId === this.live?.stored),
       connected: Boolean(this.socket?.isOpen),
       activeSessionId: this.live?.stored || '',
       side: this.side
@@ -341,6 +346,9 @@ export class HermesClient {
   }
 
   disconnect(): void {
+    if (this.queuePoll) clearInterval(this.queuePoll)
+    this.queuePoll = null
+    this.queuePolling = false
     this.socket?.close()
     this.socket = null
     this.live = null
@@ -483,6 +491,139 @@ export class HermesClient {
       }
       this.emit()
       throw error
+    }
+  }
+
+  /** Queue a follow-up on the gateway instead of a renderer-only array. */
+  async queue(text: string): Promise<string> {
+    const body = text.trim()
+    if (!body) throw new Error('Write a message to queue.')
+    await this.ensureLive()
+    const sessionId = this.live!.stored
+    const submissionId = crypto.randomUUID()
+    const entry: QueuedMessage = {
+      id: submissionId,
+      sessionId,
+      text: body,
+      status: 'queued',
+      createdAt: Date.now()
+    }
+    this.queued.push(entry)
+    this.emit()
+    try {
+      const result = await this.rpc('prompt.submit', this.scope({
+        session_id: this.live!.live,
+        text: body,
+        input_id: submissionId,
+        queued: true
+      }))
+      const record = asRecord(result)
+      const admissionId = typeof record.admission_id === 'string' ? record.admission_id : ''
+      if (admissionId) entry.admissionId = admissionId
+      if (record.status === 'rejected') throw new Error('Hermes rejected the queued message.')
+      if (record.status === 'started' || record.status === 'terminal') {
+        this.queued = this.queued.filter(item => item.id !== submissionId)
+      } else {
+        this.startQueuePolling()
+      }
+      this.emit()
+      return record.status === 'started' ? 'Message sent.' : 'Queued — it will run after the current turn.'
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not queue the message.'
+      entry.status = 'failed'
+      entry.error = message
+      this.emit()
+      throw error
+    }
+  }
+
+  async editQueued(id: string, text: string): Promise<void> {
+    const entry = this.queued.find(item => item.id === id)
+    const body = text.trim()
+    if (!entry) throw new Error('That queued message is gone.')
+    if (!body) throw new Error('Write a replacement message.')
+    if (!entry.admissionId || entry.status !== 'queued') throw new Error('That message already started.')
+    const inputId = crypto.randomUUID()
+    try {
+      const result = await this.rpc('prompt.replace_queued', this.scope({
+        session_id: entry.sessionId,
+        admission_id: entry.admissionId,
+        text: body,
+        input_id: inputId
+      }))
+      const record = asRecord(result)
+      entry.text = body
+      entry.id = inputId
+      if (typeof record.admission_id === 'string') entry.admissionId = record.admission_id
+      entry.error = undefined
+      entry.status = 'queued'
+      this.emit()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      // Messaging sessions do not expose replace_queued. Cancel the old row
+      // and enqueue the edited text at the tail instead.
+      if (!/unsupported_control|admission_conflict|invalid_params/.test(message)) throw error
+      await this.rpc('prompt.cancel', { session_id: entry.sessionId, admission_id: entry.admissionId })
+      this.queued = this.queued.filter(item => item.id !== entry.id)
+      this.emit()
+      await this.queue(body)
+    }
+  }
+
+  async deleteQueued(id: string): Promise<void> {
+    const entry = this.queued.find(item => item.id === id)
+    if (!entry) return
+    if (entry.status === 'queued' && entry.admissionId) {
+      await this.rpc('prompt.cancel', {
+        session_id: entry.sessionId,
+        admission_id: entry.admissionId
+      })
+    }
+    this.queued = this.queued.filter(item => item.id !== id)
+    this.emit()
+  }
+
+  private startQueuePolling(): void {
+    if (this.queuePoll) return
+    this.queuePoll = setInterval(() => {
+      void this.refreshQueued()
+    }, 1500)
+  }
+
+  private async refreshQueued(): Promise<void> {
+    if (this.queuePolling) return
+    const pending = this.queued.filter(entry => entry.status === 'queued' && entry.admissionId)
+    if (!pending.length) {
+      if (this.queuePoll) clearInterval(this.queuePoll)
+      this.queuePoll = null
+      return
+    }
+    this.queuePolling = true
+    try {
+      for (const entry of pending) {
+        try {
+          const result = await this.rpc('prompt.receipt', {
+            session_id: entry.sessionId,
+            admission_id: entry.admissionId
+          })
+          const record = asRecord(result)
+          if (record.status === 'started' || record.status === 'terminal') {
+            this.queued = this.queued.filter(item => item.id !== entry.id)
+          } else if (record.status === 'cancelled' || record.status === 'failed') {
+            entry.status = 'failed'
+            entry.error = 'Hermes could not start this queued message.'
+          }
+        } catch {
+          // Keep the entry; a transient receipt error should not drop the user's message.
+        }
+      }
+      this.emit()
+    } finally {
+      this.queuePolling = false
+      if (!this.queued.some(entry => entry.status === 'queued' && entry.admissionId) && this.queuePoll) {
+        clearInterval(this.queuePoll)
+        this.queuePoll = null
+      }
     }
   }
 
