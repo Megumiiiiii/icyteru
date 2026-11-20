@@ -627,6 +627,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 :root[data-theme="dark"] .banner { background: #3a2622; color: #f0b2a8; }
 .banner.ok { background: var(--ok-bg); color: var(--ok); }
 .banner.wrap { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.notice-age { opacity: 0.65; font-variant-numeric: tabular-nums; }
 
 .question {
   margin: 0 22px 8px;

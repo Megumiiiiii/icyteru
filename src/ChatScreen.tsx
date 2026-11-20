@@ -18,6 +18,8 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
   const [sending, setSending] = useState(false)
   const [sendActions, setSendActions] = useState<{ text: string; files: OutgoingAttachment[] } | null>(null)
   const [notice, setNotice] = useState('')
+  const [noticeKind, setNoticeKind] = useState<'' | 'steer' | 'queue'>('')
+  const [noticeAge, setNoticeAge] = useState(0)
   const [atBottom, setAtBottom] = useState(true)
   const [files, setFiles] = useState<OutgoingAttachment[]>([])
   const queue = useRef<Array<{ text: string; files: OutgoingAttachment[] }>>([])
@@ -129,12 +131,43 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     if (!streaming) setSendActions(null)
   }, [streaming])
 
+  // Steer/queue acknowledgements count up and clean themselves up.
+  useEffect(() => {
+    if (!notice || !noticeKind) return
+    setNoticeAge(0)
+    const started = Date.now()
+    const timer = setInterval(() => {
+      const seconds = Math.floor((Date.now() - started) / 1000)
+      setNoticeAge(seconds)
+      if (seconds >= 6) {
+        setNotice('')
+        setNoticeKind('')
+      }
+    }, 500)
+    return () => clearInterval(timer)
+  }, [notice, noticeKind])
+
+  useEffect(() => {
+    if (!notice) setNoticeKind('')
+    else if (noticeKind && !/^(Steered|Queued)/.test(notice)) setNoticeKind('')
+  }, [notice, noticeKind])
+
   // Send locally queued /queue messages once the current turn ends.
   useEffect(() => {
     if (streaming || sending) return
     const next = queue.current.shift()
-    if (next) void submit(next.text, next.files)
+    if (next) {
+      setNotice('')
+      setNoticeKind('')
+      void submit(next.text, next.files)
+    }
   }, [streaming, sending])
+
+  function showTransient(text: string, kind: 'steer' | 'queue'): void {
+    setNotice(text)
+    setNoticeKind(kind)
+    setNoticeAge(0)
+  }
 
   async function send() {
     const text = draft.trim()
@@ -175,7 +208,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
         setDraft('')
         if (streaming || sending) {
           queue.current.push({ text: arg, files: [] })
-          setNotice(`Queued ${queue.current.length}: ${arg.slice(0, 60)}${arg.length > 60 ? '…' : ''}`)
+          showTransient(`Queued ${queue.current.length}: ${arg.slice(0, 60)}${arg.length > 60 ? '…' : ''}`, 'queue')
         } else {
           await submit(arg, [])
         }
@@ -195,7 +228,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
         setSending(true)
         setNotice('')
         try {
-          setNotice(await window.icyteru.steer(arg))
+          showTransient(await window.icyteru.steer(arg), 'steer')
         } catch (error) {
           setNotice(error instanceof Error ? error.message : 'Steer failed.')
         } finally {
@@ -256,7 +289,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
       setSending(true)
       setNotice('')
       try {
-        setNotice(await window.icyteru.steer(pending.text))
+        showTransient(await window.icyteru.steer(pending.text), 'steer')
         setDraft('')
       } catch (error) {
         setNotice(error instanceof Error ? error.message : 'Steer failed.')
@@ -269,7 +302,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     queue.current.push({ text: pending.text, files: pending.files })
     setDraft('')
     setFiles([])
-    setNotice(`Queued ${queue.current.length}: ${pending.text.slice(0, 60)}${pending.text.length > 60 ? '…' : ''}`)
+    showTransient(`Queued ${queue.current.length}: ${pending.text.slice(0, 60)}${pending.text.length > 60 ? '…' : ''}`, 'queue')
   }
 
   return (
@@ -334,7 +367,12 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
           </button>
         )}
         {snapshot.question && <QuestionCard question={snapshot.question} />}
-        {notice && <p className="banner wrap">{notice}</p>}
+        {notice && (
+          <p className="banner wrap">
+            <span>{notice}</span>
+            {noticeKind && <span className="notice-age">{noticeAge}s</span>}
+          </p>
+        )}
         {files.length > 0 && (
           <div className="attachments">
             {files.map((file, index) => (
