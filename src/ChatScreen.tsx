@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
-import { approvalLabel, modelIdsMatch, sourceLabel, type OutgoingAttachment, type ToolCall } from '../shared/protocol'
+import { approvalLabel, modelIdsMatch, modelShortName, sourceLabel, type OutgoingAttachment, type ToolCall } from '../shared/protocol'
 import { Avatar } from './Avatar'
 import { Markdown } from './Markdown'
 import { ago } from './time'
@@ -542,9 +542,10 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
   }, [filter, provider, snapshot.models])
   if (snapshot.models.length === 0) return null
   const current = snapshot.currentModel || 'Model'
+  const currentLabel = modelShortName(current)
   return (
     <div className="model-menu" ref={menu}>
-      <button className="top-action tiny" onClick={() => setOpen(value => !value)} type="button" title={current}>{current}</button>
+      <button className="top-action tiny" onClick={() => setOpen(value => !value)} type="button" title={current}>{currentLabel}</button>
       {open && (
         <div className="model-pop">
           <input autoFocus value={filter} onChange={event => setFilter(event.target.value)} placeholder="Search models" />

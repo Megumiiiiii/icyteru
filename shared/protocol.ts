@@ -420,6 +420,13 @@ export interface NotificationPayload {
 }
 
 /** Model ids often carry the provider prefix in the current-model field but not in the list. */
+/** The model part without the provider prefix, keeping its original casing. */
+export function modelShortName(value: string): string {
+  const trimmed = value.trim()
+  const slash = trimmed.indexOf('/')
+  return slash >= 0 ? trimmed.slice(slash + 1) : trimmed
+}
+
 export function bareModelId(value: string): string {
   const lower = value.trim().toLowerCase()
   const slash = lower.indexOf('/')
