@@ -521,11 +521,8 @@ export class HermesClient {
       const admissionId = typeof record.admission_id === 'string' ? record.admission_id : ''
       if (admissionId) entry.admissionId = admissionId
       if (record.status === 'rejected') throw new Error('Hermes rejected the queued message.')
-      if (record.status === 'started' || record.status === 'terminal') {
-        this.queued = this.queued.filter(item => item.id !== submissionId)
-      } else {
-        this.startQueuePolling()
-      }
+      if (record.status === 'started' || record.status === 'terminal') entry.status = 'sending'
+      this.startQueuePolling()
       this.emit()
       return record.status === 'started' ? 'Message sent.' : 'Queued — it will run after the current turn.'
     } catch (error) {
@@ -592,7 +589,7 @@ export class HermesClient {
 
   private async refreshQueued(): Promise<void> {
     if (this.queuePolling) return
-    const pending = this.queued.filter(entry => entry.status === 'queued' && entry.admissionId)
+    const pending = this.queued.filter(entry => (entry.status === 'queued' || entry.status === 'sending') && entry.admissionId)
     if (!pending.length) {
       if (this.queuePoll) clearInterval(this.queuePoll)
       this.queuePoll = null
@@ -607,8 +604,10 @@ export class HermesClient {
             admission_id: entry.admissionId
           })
           const record = asRecord(result)
-          if (record.status === 'started' || record.status === 'terminal') {
+          if (record.status === 'terminal') {
             this.queued = this.queued.filter(item => item.id !== entry.id)
+          } else if (record.status === 'started') {
+            entry.status = 'sending'
           } else if (record.status === 'cancelled' || record.status === 'failed') {
             entry.status = 'failed'
             entry.error = 'Hermes could not start this queued message.'
@@ -620,7 +619,7 @@ export class HermesClient {
       this.emit()
     } finally {
       this.queuePolling = false
-      if (!this.queued.some(entry => entry.status === 'queued' && entry.admissionId) && this.queuePoll) {
+      if (!this.queued.some(entry => (entry.status === 'queued' || entry.status === 'sending') && entry.admissionId) && this.queuePoll) {
         clearInterval(this.queuePoll)
         this.queuePoll = null
       }

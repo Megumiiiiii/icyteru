@@ -23,6 +23,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
   const [compress, setCompress] = useState<{ status: 'running' | 'done' | 'error'; started: number; message: string } | null>(null)
   const [compressElapsed, setCompressElapsed] = useState(0)
   const [steerPending, setSteerPending] = useState<{ toolCount: number } | null>(null)
+  const [steerNote, setSteerNote] = useState<{ text: string; age: number } | null>(null)
   const [queueOpen, setQueueOpen] = useState(false)
   const [editingQueue, setEditingQueue] = useState<string | null>(null)
   const [queueEditText, setQueueEditText] = useState('')
@@ -149,11 +150,9 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     const timer = setInterval(() => {
       const seconds = Math.floor((Date.now() - started) / 1000)
       if (noticeKind) setNoticeAge(seconds)
-      const limit = noticeKind === 'steer' ? 60 : noticeKind ? 6 : 8
-      if (seconds >= limit) {
+      if (seconds >= (noticeKind ? 6 : 8)) {
         setNotice('')
         setNoticeKind('')
-        if (noticeKind === 'steer') setSteerPending(null)
       }
     }, 500)
     return () => clearInterval(timer)
@@ -169,11 +168,21 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
   useEffect(() => {
     if (!steerPending) return
     if (toolCount > steerPending.toolCount || !streaming) {
-      setNotice('')
-      setNoticeKind('')
       setSteerPending(null)
+      setSteerNote(null)
     }
   }, [toolCount, streaming, steerPending])
+
+  useEffect(() => {
+    if (!steerNote) return
+    const started = Date.now()
+    const timer = setInterval(() => {
+      const age = Math.floor((Date.now() - started) / 1000)
+      if (age >= 60) setSteerNote(null)
+      else setSteerNote(current => current ? { ...current, age } : null)
+    }, 500)
+    return () => clearInterval(timer)
+  }, [steerNote?.text])
 
   useEffect(() => {
     if (!queueOpen) return
@@ -204,6 +213,13 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     setNotice(text)
     setNoticeKind(kind)
     setNoticeAge(0)
+  }
+
+  function beginSteer(text: string): void {
+    setNotice('')
+    setNoticeKind('')
+    setSteerNote({ text, age: 0 })
+    setSteerPending({ toolCount })
   }
 
   async function send() {
@@ -268,8 +284,8 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
         setNotice('')
         try {
           const note = await window.icyteru.steer(arg)
-          showTransient(note, 'steer')
-          if (/^Steered|^Steer sent/.test(note)) setSteerPending({ toolCount })
+          if (/^Steered|^Steer sent/.test(note)) beginSteer(note)
+          else setNotice(note)
         } catch (error) {
           setNotice(error instanceof Error ? error.message : 'Steer failed.')
         } finally {
@@ -338,8 +354,8 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
       setNotice('')
       try {
         const note = await window.icyteru.steer(pending.text)
-        showTransient(note, 'steer')
-        if (/^Steered|^Steer sent/.test(note)) setSteerPending({ toolCount })
+        if (/^Steered|^Steer sent/.test(note)) beginSteer(note)
+        else setNotice(note)
         setDraft('')
       } catch (error) {
         setNotice(error instanceof Error ? error.message : 'Steer failed.')
@@ -411,16 +427,16 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
           )}
           {snapshot.transcript.messages.map(message => (
             <Fragment key={message.id}>
-              {message.tools.length > 0 && (
-                <div className="tool-standalone">
-                  <ToolGroup tools={message.tools} />
-                </div>
-              )}
               {message.text && (
                 <article className={`bubble ${message.role}`}>
                   <Markdown text={message.text} />
                   {message.error && <p className="inline-error">{message.error}</p>}
                 </article>
+              )}
+              {message.tools.length > 0 && (
+                <div className="tool-standalone">
+                  <ToolGroup tools={message.tools} />
+                </div>
               )}
               {!message.text && message.error && (
                 <p className="inline-error standalone-error">{message.error}</p>
@@ -435,6 +451,12 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
           </button>
         )}
         {snapshot.question && <QuestionCard question={snapshot.question} />}
+        {steerNote && (
+          <p className="banner wrap">
+            <span>{steerNote.text}</span>
+            <span className="notice-age">{steerNote.age}s</span>
+          </p>
+        )}
         {notice && (
           <p className="banner wrap">
             <span>{notice}</span>
