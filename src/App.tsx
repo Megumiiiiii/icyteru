@@ -1,4 +1,5 @@
 import { useContext, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { Capacitor } from '@capacitor/core'
 import type { Snapshot, ThemePreference } from '../shared/snapshot'
 import { Avatar } from './Avatar'
 import { ChatScreen } from './ChatScreen'
@@ -45,8 +46,11 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
     const completed = wasStreaming.current && !snapshot.transcript.streaming
     wasStreaming.current = snapshot.transcript.streaming
     const away = document.visibilityState !== 'visible' || !document.hasFocus()
+    // Android receives this turn through FCM; desktop/web should still show a
+    // notification when the window is focused, like any other native app.
+    const canNotify = Capacitor.getPlatform() !== 'android' || away
     const sessionTitle = snapshot.sessions.find(session => session.id === snapshot.activeSessionId)?.title || 'New chat'
-    if (completed && fresh.length > 0 && !muted && away) {
+    if (completed && fresh.length > 0 && !muted && canNotify) {
       const last = fresh[fresh.length - 1]
       void window.icyteru.notify({
         title: `${snapshot.profileName} · ${sessionTitle}`,
@@ -54,7 +58,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
       })
     }
     const question = snapshot.question
-    if (question && question.id !== lastQuestion.current && !muted && away) {
+    if (question && question.id !== lastQuestion.current && !muted && canNotify) {
       void window.icyteru.notify({
         title: `${snapshot.profileName} needs you`,
         body: plainText(question.body || question.title).slice(0, 180)
