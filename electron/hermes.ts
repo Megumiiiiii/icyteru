@@ -425,7 +425,7 @@ export class HermesClient {
   }
 
   async setSessionPinned(id: string, pinned: boolean): Promise<void> {
-    await this.patchJson(`/api/sessions/${encodeURIComponent(id)}`, { pinned })
+    await this.postJson('/api/plugins/icyteru-push/session-pin', { session_id: id, pinned })
     this.sessions = sortSessions(this.sessions.map(row => row.id === id ? { ...row, pinned } : row))
     this.emit()
     await this.refreshSessions()

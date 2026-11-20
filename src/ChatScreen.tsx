@@ -456,7 +456,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
             : <button className="solid" disabled={snapshot.phase !== 'ready' || sending || (!draft.trim() && files.length === 0)} type="submit">Send</button>}
         </form>
       </section>
-      {panel && <SidePanel snapshot={snapshot} pane={pane} setPane={setPane} query={query} setQuery={setQuery} />}
+      {panel && <SidePanel snapshot={snapshot} pane={pane} setPane={setPane} query={query} setQuery={setQuery} onNotice={setNotice} />}
     </>
   )
 }
@@ -743,12 +743,13 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
   )
 }
 
-function SidePanel({ snapshot, pane, setPane, query, setQuery }: {
+function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
   snapshot: Snapshot
   pane: 'history' | 'profile'
   setPane: (pane: 'history' | 'profile') => void
   query: string
   setQuery: (query: string) => void
+  onNotice: (text: string) => void
 }) {
   const phone = useContext(PhoneNav)
   const [closedGroups, setClosedGroups] = useState<Set<string>>(() => new Set())
@@ -828,7 +829,11 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery }: {
                         type="button"
                         title={session.pinned ? 'Unpin session' : 'Pin session'}
                         aria-label={session.pinned ? 'Unpin session' : 'Pin session'}
-                        onClick={() => void window.icyteru.setSessionPinned(session.id, !session.pinned)}
+                        onClick={() => {
+                          void window.icyteru.setSessionPinned(session.id, !session.pinned).catch(error => {
+                            onNotice(error instanceof Error ? error.message : 'Could not change the session pin.')
+                          })
+                        }}
                       >
                         {session.pinned ? 'Unpin' : 'Pin'}
                       </button>

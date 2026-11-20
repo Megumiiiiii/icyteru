@@ -32,6 +32,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
     }
   })
   const seenMessages = useRef<Set<string> | null>(null)
+  const activeSessionRef = useRef(snapshot.activeSessionId)
   const wasStreaming = useRef(snapshot.transcript.streaming)
   const lastQuestion = useRef<string | null>(null)
   const sizeRef = useRef({ left: leftWidth, right: rightWidth })
@@ -47,7 +48,10 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   }, [muted])
   useEffect(() => {
     const assistant = snapshot.transcript.messages.filter(message => message.role === 'assistant' && message.text.trim())
-    if (!seenMessages.current) {
+    // Opening a different stored session loads its history at once. Mark that
+    // history as seen so old replies never look like fresh notifications.
+    if (!seenMessages.current || activeSessionRef.current !== snapshot.activeSessionId) {
+      activeSessionRef.current = snapshot.activeSessionId
       seenMessages.current = new Set(assistant.map(message => message.id))
       wasStreaming.current = snapshot.transcript.streaming
       lastQuestion.current = snapshot.question?.id || null
