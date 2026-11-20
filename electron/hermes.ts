@@ -93,6 +93,7 @@ export class HermesClient {
   private sessions: SessionRow[] = []
   private question: PendingQuestion | null = null
   private executionGeneration = 0
+  private revision = 0
   private wsUrl = ''
   private protocols: string[] = []
   private baseUrl = ''
@@ -408,6 +409,7 @@ export class HermesClient {
       ? body.stored_session_id
       : id
     this.executionGeneration = typeof body.execution_generation === 'number' ? body.execution_generation : 0
+    this.revision = typeof body.revision === 'number' ? body.revision : 0
     this.live = {
       live: ids.live,
       stored,
@@ -435,6 +437,7 @@ export class HermesClient {
     await this.detach()
     this.live = null
     this.executionGeneration = 0
+    this.revision = 0
     this.transcript = emptyTranscript()
     this.question = null
     this.emit()
@@ -508,7 +511,15 @@ export class HermesClient {
   /** Run the gateway's dedicated compression RPC, then show its new history. */
   async compress(): Promise<string> {
     await this.ensureLive()
-    const result = await this.rpc('session.compress', { session_id: this.live!.live }, 300_000)
+    let revision = this.revision
+    if (!Number.isFinite(revision)) revision = 0
+    const result = await this.rpc('session.mutate', {
+      session_id: this.live!.live,
+      request_id: `compress:${crypto.randomUUID()}`,
+      expected_revision: revision,
+      operation: 'compress',
+      payload: {}
+    }, 300_000)
     const record = asRecord(result)
     const rows = Array.isArray(record.messages) ? record.messages : null
     if (rows) {
@@ -686,6 +697,7 @@ export class HermesClient {
     if (!ids) throw new Error('Hermes did not return a session id.')
     const createdBody = asRecord(created)
     if (typeof createdBody.execution_generation === 'number') this.executionGeneration = createdBody.execution_generation
+    if (typeof createdBody.revision === 'number') this.revision = createdBody.revision
     await this.tryRpc('onboarding.skip', this.scope({ session_id: ids.live }))
     return ids
   }

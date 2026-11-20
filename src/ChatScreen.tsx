@@ -133,13 +133,13 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
 
   // Steer/queue acknowledgements count up and clean themselves up.
   useEffect(() => {
-    if (!notice || !noticeKind) return
+    if (!notice) return
     setNoticeAge(0)
     const started = Date.now()
     const timer = setInterval(() => {
       const seconds = Math.floor((Date.now() - started) / 1000)
-      setNoticeAge(seconds)
-      if (seconds >= 6) {
+      if (noticeKind) setNoticeAge(seconds)
+      if (seconds >= (noticeKind ? 6 : 8)) {
         setNotice('')
         setNoticeKind('')
       }
