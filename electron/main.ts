@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, Notification, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import { installNodeWebSocket } from './node-websocket'
 
 installNodeWebSocket()
@@ -7,7 +7,7 @@ import { clearBackground, loadAppearance, saveBackdrop, saveBackground, type Bac
 import { HermesClient, type ConnectionCredentials } from './hermes'
 import { clearConnection, loadConnection, saveConnection, type SavedConnection } from './store'
 import { emptySnapshot, type AppScreen, type Snapshot, type ThemePreference } from '../shared/snapshot'
-import type { AuthMode, OutgoingAttachment } from '../shared/protocol'
+import type { AuthMode, NotificationPayload, OutgoingAttachment } from '../shared/protocol'
 
 type ConnectionInput = { url?: string; token?: string; username?: string; password?: string; method?: 'password' | 'token' }
 
@@ -221,6 +221,17 @@ function registerIpc(): void {
   ipcMain.handle('steer', (_event, text: string) => client.steer(text))
   ipcMain.handle('compress', () => client.compress())
   ipcMain.handle('slash', (_event, command: string) => client.slash(command))
+  ipcMain.handle('enable-notifications', () => Notification.isSupported())
+  ipcMain.handle('notify', (_event, payload: NotificationPayload) => {
+    if (!Notification.isSupported()) return
+    const note = new Notification({ title: payload.title, body: payload.body })
+    note.on('click', () => {
+      if (window?.isMinimized()) window.restore()
+      window?.show()
+      window?.focus()
+    })
+    note.show()
+  })
   ipcMain.handle('interrupt', () => client.interrupt())
   ipcMain.handle('answer', (_event, payload: { id: string; result: unknown }) => client.answer(payload.id, payload.result))
   ipcMain.handle('set-model', (_event, payload: { model: string; provider: string; confirm?: boolean }) => (
@@ -274,6 +285,8 @@ function registerIpc(): void {
     return snapshot()
   })
 }
+
+if (process.platform === 'win32') app.setAppUserModelId('dev.megumii.icyteru')
 
 app.whenReady().then(() => {
   saved = loadConnection()

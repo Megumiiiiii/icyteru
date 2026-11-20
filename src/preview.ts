@@ -180,6 +180,8 @@ export function installPreview(shot: string): void {
     steer: () => Promise.resolve('Steered.'),
     compress: () => Promise.resolve('Compressed the conversation.'),
     slash: (command: string) => Promise.resolve(`Ran ${command}.`),
+    enableNotifications: () => Promise.resolve(true),
+    notify: () => Promise.resolve(),
     interrupt: () => Promise.resolve(),
     answer: () => Promise.resolve(),
     setModel: () => Promise.resolve(''),

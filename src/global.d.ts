@@ -1,4 +1,4 @@
-import type { AuthDiscovery, OutgoingAttachment } from '../shared/protocol'
+import type { AuthDiscovery, NotificationPayload, OutgoingAttachment } from '../shared/protocol'
 import type { AppScreen, Snapshot, TestResult, ThemePreference } from '../shared/snapshot'
 
 export interface ConnectionInput {
@@ -27,6 +27,8 @@ declare global {
       steer: (text: string) => Promise<string>
       compress: () => Promise<string>
       slash: (command: string) => Promise<string>
+      enableNotifications: () => Promise<boolean>
+      notify: (payload: NotificationPayload) => Promise<void>
       interrupt: () => Promise<void>
       answer: (id: string, result: unknown) => Promise<void>
       setModel: (model: string, provider: string, confirm?: boolean) => Promise<string>

@@ -413,6 +413,12 @@ export interface ModelChoice {
   label: string
 }
 
+/** A native notification the renderer asks the host to show. */
+export interface NotificationPayload {
+  title: string
+  body: string
+}
+
 /** Model ids often carry the provider prefix in the current-model field but not in the list. */
 export function bareModelId(value: string): string {
   const lower = value.trim().toLowerCase()

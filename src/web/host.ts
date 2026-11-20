@@ -5,7 +5,8 @@
  */
 import { HermesClient } from '../../electron/hermes'
 import { emptySnapshot, type AppScreen, type Snapshot, type ThemePreference } from '../../shared/snapshot'
-import type { AuthDiscovery, OutgoingAttachment } from '../../shared/protocol'
+import type { AuthDiscovery, NotificationPayload, OutgoingAttachment } from '../../shared/protocol'
+import { enableNotifications, sendNotification } from '../notifications'
 import type { ConnectionInput } from '../global'
 
 type BackdropMode = 'light' | 'dark'
@@ -303,6 +304,8 @@ export function installWebHost(): void {
     steer: async (text: string) => client.steer(text),
     compress: async () => client.compress(),
     slash: async (command: string) => client.slash(command),
+    enableNotifications: () => enableNotifications(),
+    notify: async (payload: NotificationPayload) => sendNotification(payload),
     interrupt: () => client.interrupt(),
     answer: (id: string, result: unknown) => client.answer(id, result),
     setModel: (model: string, provider: string, confirm = false) => client.setModel(model, provider, confirm),

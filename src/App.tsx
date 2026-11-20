@@ -16,6 +16,10 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   const [leftWidth, setLeftWidth] = useState(() => readSize('icyteru-left-width', 272, 200, 440))
   const [rightWidth, setRightWidth] = useState(() => readSize('icyteru-details-width', 320, 240, 560))
   const [leftTitle, setLeftTitle] = useState(() => localStorage.getItem('icyteru-left-title') || 'Agents')
+  const [muted, setMuted] = useState(() => localStorage.getItem('icyteru-muted') !== '0')
+  const seenMessages = useRef<Set<string> | null>(null)
+  const wasStreaming = useRef(snapshot.transcript.streaming)
+  const lastQuestion = useRef<string | null>(null)
   const sizeRef = useRef({ left: leftWidth, right: rightWidth })
   const dark = useDark(snapshot.connection.theme)
   useEffect(() => {
@@ -24,6 +28,40 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   useEffect(() => {
     sizeRef.current = { left: leftWidth, right: rightWidth }
   }, [leftWidth, rightWidth])
+  useEffect(() => {
+    localStorage.setItem('icyteru-muted', muted ? '1' : '0')
+  }, [muted])
+  useEffect(() => {
+    const assistant = snapshot.transcript.messages.filter(message => message.role === 'assistant' && message.text.trim())
+    if (!seenMessages.current) {
+      seenMessages.current = new Set(assistant.map(message => message.id))
+      wasStreaming.current = snapshot.transcript.streaming
+      lastQuestion.current = snapshot.question?.id || null
+      return
+    }
+    const seen = seenMessages.current
+    const fresh = assistant.filter(message => !seen.has(message.id))
+    for (const message of assistant) seen.add(message.id)
+    const completed = wasStreaming.current && !snapshot.transcript.streaming
+    wasStreaming.current = snapshot.transcript.streaming
+    const away = document.visibilityState !== 'visible' || !document.hasFocus()
+    const sessionTitle = snapshot.sessions.find(session => session.id === snapshot.activeSessionId)?.title || 'New chat'
+    if (completed && fresh.length > 0 && !muted && away) {
+      const last = fresh[fresh.length - 1]
+      void window.icyteru.notify({
+        title: `${snapshot.profileName} · ${sessionTitle}`,
+        body: plainText(last.text).slice(0, 180)
+      })
+    }
+    const question = snapshot.question
+    if (question && question.id !== lastQuestion.current && !muted && away) {
+      void window.icyteru.notify({
+        title: `${snapshot.profileName} needs you`,
+        body: plainText(question.body || question.title).slice(0, 180)
+      })
+    }
+    lastQuestion.current = question?.id || null
+  }, [snapshot, muted])
   useEffect(() => {
     const root = document.documentElement
     const image = dark ? appearance?.dark : appearance?.light
@@ -91,7 +129,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
               aria-label="Resize agents panel"
               onPointerDown={event => startResize('left', event)}
             />
-            <Sidebar snapshot={snapshot} title={leftTitle} />
+            <Sidebar snapshot={snapshot} title={leftTitle} muted={muted} onMuted={setMuted} />
             {snapshot.screen === 'settings'
               ? <SettingsScreen snapshot={snapshot} appearance={appearance} onAppearance={setAppearance} leftTitle={leftTitle} onLeftTitle={changeLeftTitle} />
               : <ChatScreen snapshot={snapshot} />}
@@ -109,9 +147,8 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   )
 }
 
-function Sidebar({ snapshot, title }: { snapshot: Snapshot; title: string }) {
+function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; title: string; muted: boolean; onMuted: (muted: boolean) => void }) {
   const phone = useContext(PhoneNav)
-  const [muted, setMuted] = useState(() => localStorage.getItem('icyteru-muted') === '1')
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const [error, setError] = useState('')
@@ -133,14 +170,17 @@ function Sidebar({ snapshot, title }: { snapshot: Snapshot; title: string }) {
         <span>{title.trim() || 'Agents'}</span>
         <span className="bots-tools">
           <button
-            className={muted ? 'icon-button on' : 'icon-button'}
+            className={muted ? 'icon-button' : 'icon-button on'}
             type="button"
-            aria-pressed={muted}
-            title={muted ? 'Notifications off' : 'Notifications on'}
-            onClick={() => {
-              const next = !muted
-              setMuted(next)
-              localStorage.setItem('icyteru-muted', next ? '1' : '0')
+            aria-pressed={!muted}
+            title={muted ? 'Notifications off — tap to enable' : 'Notifications on'}
+            onClick={async () => {
+              if (muted) {
+                const granted = await window.icyteru.enableNotifications()
+                onMuted(!granted)
+              } else {
+                onMuted(true)
+              }
             }}
           >
             {muted ? <BellOff /> : <Bell />}
@@ -266,4 +306,12 @@ function readSize(key: string, fallback: number, min: number, max: number): numb
 
 function clampSize(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
+}
+
+function plainText(value: string): string {
+  return value
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[`*_>#|~]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }

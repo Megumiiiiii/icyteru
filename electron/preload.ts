@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AuthDiscovery, OutgoingAttachment } from '../shared/protocol'
+import type { AuthDiscovery, NotificationPayload, OutgoingAttachment } from '../shared/protocol'
 import type { AppScreen, Snapshot, TestResult, ThemePreference } from '../shared/snapshot'
 import type { ConnectionInput } from '../src/global'
 
@@ -26,6 +26,8 @@ const api = {
   steer: (text: string): Promise<string> => ipcRenderer.invoke('steer', text),
   compress: (): Promise<string> => ipcRenderer.invoke('compress'),
   slash: (command: string): Promise<string> => ipcRenderer.invoke('slash', command),
+  enableNotifications: (): Promise<boolean> => ipcRenderer.invoke('enable-notifications'),
+  notify: (payload: NotificationPayload): Promise<void> => ipcRenderer.invoke('notify', payload),
   interrupt: (): Promise<void> => ipcRenderer.invoke('interrupt'),
   answer: (id: string, result: unknown): Promise<void> => ipcRenderer.invoke('answer', { id, result }),
   setModel: (model: string, provider: string, confirm = false): Promise<string> => ipcRenderer.invoke('set-model', { model, provider, confirm }),
