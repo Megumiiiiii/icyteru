@@ -655,6 +655,7 @@ export class HermesClient {
     if (this.live) {
       await this.tryRpc('command.dispatch', this.scope({ session_id: this.live.live, name: 'model', arg: model }))
     }
+    await this.refreshSideData()
     return 'Model saved on Hermes. New messages use it.'
   }
 
