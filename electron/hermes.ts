@@ -214,7 +214,6 @@ export class HermesClient {
     if (home) this.applyProfile(home)
     await this.refreshSideData()
     await this.refreshSessions()
-    if (this.sessions[0]) await this.openSession(this.sessions[0].id)
   }
 
   async setExtraGateways(extras: GatewayInput[]): Promise<void> {
@@ -310,8 +309,6 @@ export class HermesClient {
     await this.newChat()
     await this.refreshSideData()
     await this.refreshSessions()
-    const newest = this.sessions[0]
-    if (newest) await this.openSession(newest.id)
   }
 
   async setPinned(gatewayId: string, name: string, pinned: boolean): Promise<void> {

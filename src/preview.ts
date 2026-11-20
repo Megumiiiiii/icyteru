@@ -31,6 +31,7 @@ function session(id: string, title: string, source: string, minutesAgo: number):
     source,
     model: '',
     updatedAt: now - minutesAgo * 60,
+    messageCount: 0,
     running: false,
     pinned: false
   }

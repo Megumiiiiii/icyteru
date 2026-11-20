@@ -179,7 +179,7 @@ async function syncPushToken(): Promise<void> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.22' })
+      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.23' })
     })
     const pending = await IcyteruPush.consumeSession()
     if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)

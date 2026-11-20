@@ -371,6 +371,7 @@ export interface SessionRow {
   source: string
   model: string
   updatedAt: number | null
+  messageCount: number
   running: boolean
   pinned: boolean
 }
@@ -400,6 +401,7 @@ export function normalizeSessions(payload: unknown): SessionRow[] {
       source: typeof record.source === 'string' ? record.source : '',
       model: typeof record.model === 'string' ? record.model : '',
       updatedAt: updated,
+      messageCount: numberOrNull(record.message_count) ?? numberOrNull(record.messages_count) ?? numberOrNull(record.messageCount) ?? numberOrNull(record.num_messages) ?? 0,
       running: record.running === true,
       pinned: record.pinned === true
     })

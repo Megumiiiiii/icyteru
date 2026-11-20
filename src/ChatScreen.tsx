@@ -731,6 +731,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery }: {
                         {session.title}
                       </span>
                       <span className="session-meta">
+                        <span>{session.messageCount.toLocaleString()} msgs</span>
                         {session.updatedAt ? <time>{ago(session.updatedAt)}</time> : null}
                       </span>
                     </button>
