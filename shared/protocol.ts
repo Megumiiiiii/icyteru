@@ -426,6 +426,7 @@ export function normalizeSessions(payload: unknown): SessionRow[] {
 
 export interface ModelChoice {
   provider: string
+  providerId?: string
   id: string
   label: string
 }
@@ -469,12 +470,12 @@ export function normalizeModels(payload: unknown): { currentModel: string; curre
     if (!Array.isArray(listed)) continue
     for (const model of listed) {
       if (typeof model === 'string') {
-        models.push({ provider: name, id: model, label: model })
+        models.push({ provider: name, providerId: String(record.slug || record.id || record.provider || name), id: model, label: model })
       } else if (model && typeof model === 'object') {
         const item = model as Record<string, unknown>
         const id = String(item.id || item.name || item.model || '')
         if (!id) continue
-        models.push({ provider: name, id, label: String(item.label || item.name || id) })
+        models.push({ provider: name, providerId: String(record.slug || record.id || record.provider || name), id, label: String(item.label || item.name || id) })
       }
     }
   }

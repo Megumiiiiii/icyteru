@@ -278,7 +278,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
 }
 
 function appVersion(): string {
-  return '0.0.38'
+  return '0.0.39'
 }
 
 function BackgroundCard({ title, image, onPick, onReset }: {

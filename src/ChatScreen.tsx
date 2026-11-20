@@ -51,7 +51,11 @@ function MediaAttachment({ path, name, image }: IncomingAttachment) {
   if (error) return <span className="incoming-file error">{error}</span>
   if (dataUrl) {
     return image
-      ? <img className="incoming-image" src={dataUrl} alt={name} />
+      ? (
+        <a className="incoming-image-link" href={dataUrl} download={name} title={`Download ${name}`}>
+          <img className="incoming-image" src={dataUrl} alt={name} />
+        </a>
+      )
       : <a className="incoming-file" href={dataUrl} download={name}>{name}</a>
   }
   return <span className="incoming-file">{name}</span>
@@ -773,17 +777,19 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
   const dragged = useRef(false)
   const currentProvider = (snapshot.currentProvider || '').toLowerCase()
 
-  function isModelActive(model: { id: string; provider: string }): boolean {
+  function isModelActive(model: { id: string; provider: string; providerId?: string }): boolean {
     if (!modelIdsMatch(model.id, snapshot.currentModel)) return false
     if (!currentProvider) return true
-    const name = model.provider.toLowerCase()
-    return name === currentProvider || name.includes(currentProvider) || currentProvider.includes(name)
+    const providerId = (model.providerId || model.provider).toLowerCase()
+    const providerName = model.provider.toLowerCase()
+    return providerId === currentProvider || providerName === currentProvider ||
+      providerId.includes(currentProvider) || currentProvider.includes(providerId)
   }
 
   function isProviderActive(name: string): boolean {
     const lower = name.toLowerCase()
     if (currentProvider && (lower === currentProvider || lower.includes(currentProvider) || currentProvider.includes(lower))) return true
-    return snapshot.models.some(model => isModelActive(model) && model.provider === name)
+    return snapshot.models.some(model => isModelActive(model) && (model.providerId || model.provider) === name)
   }
 
   function chooseProvider(name: string) {
@@ -831,14 +837,18 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
     }
   }, [open])
 
-  const providers = useMemo(
-    () => [...new Set(snapshot.models.map(model => model.provider || 'other'))],
-    [snapshot.models]
-  )
+  const providerRows = useMemo(() => {
+    const labels = new Map<string, string>()
+    for (const model of snapshot.models) {
+      const id = model.providerId || model.provider || 'other'
+      if (!labels.has(id)) labels.set(id, model.provider || id)
+    }
+    return [...labels].map(([id, label]) => ({ id, label }))
+  }, [snapshot.models])
   const models = useMemo(() => {
     const needle = filter.trim().toLowerCase()
     return snapshot.models.filter(model => {
-      if (provider !== 'all' && (model.provider || 'other') !== provider) return false
+      if (provider !== 'all' && (model.providerId || model.provider || 'other') !== provider) return false
       return `${model.label} ${model.provider} ${model.id}`.toLowerCase().includes(needle)
     })
   }, [filter, provider, snapshot.models])
@@ -851,7 +861,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
       {open && (
         <div className="model-pop">
           <input autoFocus value={filter} onChange={event => setFilter(event.target.value)} placeholder="Search models" />
-          {providers.length > 1 && (
+          {providerRows.length > 1 && (
             <div
               className="provider-tabs"
               role="tablist"
@@ -871,17 +881,17 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
               >
                 All
               </button>
-              {providers.map(name => (
+              {providerRows.map(item => (
                 <button
-                  key={name}
-                  className={provider === name ? 'active' : ''}
-                  onClick={() => chooseProvider(name)}
+                  key={item.id}
+                  className={provider === item.id ? 'active' : ''}
+                  onClick={() => chooseProvider(item.id)}
                   type="button"
                   role="tab"
-                  aria-selected={provider === name}
+                  aria-selected={provider === item.id}
                 >
-                  {name}
-                  {isProviderActive(name) && <span className="provider-inuse" aria-label="in use">•</span>}
+                  {item.label}
+                  {isProviderActive(item.id) && <span className="provider-inuse" aria-label="in use">•</span>}
                 </button>
               ))}
             </div>
@@ -895,7 +905,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
                   className={active ? 'active' : ''}
                   onClick={() => {
                     setOpen(false)
-                    void window.icyteru.setModel(model.id, model.provider).then(onNotice).catch(error => {
+                    void window.icyteru.setModel(model.id, model.providerId || model.provider).then(onNotice).catch(error => {
                       onNotice(error instanceof Error ? error.message : 'Could not change the model.')
                     })
                   }}

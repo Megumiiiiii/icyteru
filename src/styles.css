@@ -476,6 +476,8 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
 
 /* Incoming media: MEDIA: tags render as chips/images, not raw text. */
 .incoming-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; max-width: min(740px, 86%); }
+.incoming-image-link { display: inline-flex; border-radius: 12px; }
+.incoming-image-link:hover .incoming-image { border-color: var(--ink); }
 .incoming-image { max-width: min(360px, 70vw); max-height: 320px; border-radius: 12px; border: 1px solid var(--line); object-fit: contain; background: var(--panel); }
 .incoming-file {
   display: inline-flex; align-items: center; gap: 8px;
