@@ -622,8 +622,30 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery }: {
   setQuery: (query: string) => void
 }) {
   const phone = useContext(PhoneNav)
+  const [closedGroups, setClosedGroups] = useState<Set<string>>(() => new Set())
   const needle = query.trim().toLowerCase()
   const sessions = snapshot.sessions.filter(session => `${session.title} ${session.preview} ${session.source}`.toLowerCase().includes(needle))
+  const bySource = new Map<string, typeof sessions>()
+  for (const session of sessions) {
+    const label = sourceLabel(session.source)
+    const list = bySource.get(label) || []
+    list.push(session)
+    bySource.set(label, list)
+  }
+  const order = ['Telegram', 'Discord', 'Slack', 'WhatsApp', 'Signal', 'Schedule', 'Desktop', 'API', 'Editor']
+  const groups = [...bySource.entries()]
+    .map(([label, list]) => [label, [...list].sort((a, b) => Number(b.pinned) - Number(a.pinned) || (b.updatedAt || 0) - (a.updatedAt || 0))] as const)
+    .sort(([a], [b]) => {
+      const ia = order.indexOf(a)
+      const ib = order.indexOf(b)
+      return (ia < 0 ? order.length : ia) - (ib < 0 ? order.length : ib) || a.localeCompare(b)
+    })
+  const toggleGroup = (label: string) => setClosedGroups(prev => {
+    const next = new Set(prev)
+    if (next.has(label)) next.delete(label)
+    else next.add(label)
+    return next
+  })
   return (
     <aside className="details">
       <button className="top-action tiny phone-only back-link" type="button" onClick={() => phone.setView('chat')}>Back to chat</button>
@@ -642,23 +664,39 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery }: {
           </div>
           <div className="session-list">
             {sessions.length === 0 && <p className="empty-list">No chats for {snapshot.profileName} yet. Telegram and Discord chats show up here when Hermes has them.</p>}
-            {sessions.map(session => (
-              <button
-                className={session.id === snapshot.activeSessionId ? 'session active' : 'session'}
-                key={session.id}
-                type="button"
-                onClick={() => { phone.setView('chat'); void window.icyteru.openSession(session.id) }}
-              >
-                <span className="session-title">
-                  {session.running && <i className="dot" />}
-                  {session.title}
-                </span>
-                <span className="session-meta">
-                  <em>{sourceLabel(session.source)}</em>
-                  {session.updatedAt ? <time>{ago(session.updatedAt)}</time> : null}
-                </span>
-              </button>
-            ))}
+            {groups.map(([label, group]) => {
+              const closed = closedGroups.has(label)
+              return (
+                <div className="session-group" key={label}>
+                  <button
+                    className={closed ? 'session-group-title closed' : 'session-group-title'}
+                    type="button"
+                    aria-expanded={!closed}
+                    onClick={() => toggleGroup(label)}
+                  >
+                    <span>{label}</span>
+                    <span className="session-group-count">{group.length}</span>
+                    <i aria-hidden="true">›</i>
+                  </button>
+                  {!closed && group.map(session => (
+                    <button
+                      className={session.id === snapshot.activeSessionId ? 'session active' : 'session'}
+                      key={session.id}
+                      type="button"
+                      onClick={() => { phone.setView('chat'); void window.icyteru.openSession(session.id) }}
+                    >
+                      <span className="session-title">
+                        {session.running && <i className="dot" />}
+                        {session.title}
+                      </span>
+                      <span className="session-meta">
+                        {session.updatedAt ? <time>{ago(session.updatedAt)}</time> : null}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )
+            })}
           </div>
         </>
       ) : (
@@ -694,6 +732,20 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery }: {
                   ? <Markdown text={snapshot.memory.user} />
                   : <p>This gateway does not share a user profile yet.</p>)
                 : <p>This gateway does not share a memory view.</p>}
+            </div>
+          </details>
+          <details className="profile-doc">
+            <summary>Skills</summary>
+            <div className="profile-doc-body">
+              {snapshot.skillsNote && <p>{snapshot.skillsNote}</p>}
+              <ul className="skills">
+                {snapshot.skills.slice(0, 80).map(skill => (
+                  <li key={skill.name}>
+                    <strong>{skill.name}</strong>
+                    {skill.description && <span>{skill.description}</span>}
+                  </li>
+                ))}
+              </ul>
             </div>
           </details>
         </div>
