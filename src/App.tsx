@@ -17,7 +17,20 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   const [leftWidth, setLeftWidth] = useState(() => readSize('icyteru-left-width', 272, 200, 440))
   const [rightWidth, setRightWidth] = useState(() => readSize('icyteru-details-width', 320, 240, 560))
   const [leftTitle, setLeftTitle] = useState(() => localStorage.getItem('icyteru-left-title') || 'Agents')
-  const [muted, setMuted] = useState(() => localStorage.getItem('icyteru-muted') !== '0')
+  const [muted, setMuted] = useState(() => {
+    try {
+      // Older builds started muted; unmute once so desktop notifications are
+      // discoverable, then respect whatever the user picks afterwards.
+      if (localStorage.getItem('icyteru-notify-on-v1') !== '1') {
+        localStorage.setItem('icyteru-notify-on-v1', '1')
+        localStorage.removeItem('icyteru-muted')
+        return false
+      }
+      return localStorage.getItem('icyteru-muted') === '1'
+    } catch {
+      return false
+    }
+  })
   const seenMessages = useRef<Set<string> | null>(null)
   const wasStreaming = useRef(snapshot.transcript.streaming)
   const lastQuestion = useRef<string | null>(null)
@@ -46,9 +59,9 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
     const completed = wasStreaming.current && !snapshot.transcript.streaming
     wasStreaming.current = snapshot.transcript.streaming
     const away = document.visibilityState !== 'visible' || !document.hasFocus()
-    // Android receives this turn through FCM; desktop/web should still show a
-    // notification when the window is focused, like any other native app.
-    const canNotify = Capacitor.getPlatform() !== 'android' || away
+    // Android receives every turn through FCM. A second local notification would
+    // duplicate it, so only desktop/web notify from the renderer.
+    const canNotify = Capacitor.getPlatform() !== 'android' 
     const sessionTitle = snapshot.sessions.find(session => session.id === snapshot.activeSessionId)?.title || 'New chat'
     if (completed && fresh.length > 0 && !muted && canNotify) {
       const last = fresh[fresh.length - 1]
