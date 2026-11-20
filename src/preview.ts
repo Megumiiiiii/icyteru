@@ -182,6 +182,7 @@ export function installPreview(shot: string): void {
     slash: (command: string) => Promise.resolve(`Ran ${command}.`),
     enableNotifications: () => Promise.resolve(true),
     notify: () => Promise.resolve(),
+    testApproval: () => Promise.resolve({ ok: true, session_id: 'preview' }),
     interrupt: () => Promise.resolve(),
     answer: () => Promise.resolve(),
     setModel: () => Promise.resolve(''),

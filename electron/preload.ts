@@ -28,6 +28,7 @@ const api = {
   slash: (command: string): Promise<string> => ipcRenderer.invoke('slash', command),
   enableNotifications: (): Promise<boolean> => ipcRenderer.invoke('enable-notifications'),
   notify: (payload: NotificationPayload): Promise<void> => ipcRenderer.invoke('notify', payload),
+  testApproval: (): Promise<{ ok: boolean; session_id: string }> => ipcRenderer.invoke('test-approval'),
   interrupt: (): Promise<void> => ipcRenderer.invoke('interrupt'),
   answer: (id: string, result: unknown): Promise<void> => ipcRenderer.invoke('answer', { id, result }),
   setModel: (model: string, provider: string, confirm = false): Promise<string> => ipcRenderer.invoke('set-model', { model, provider, confirm }),

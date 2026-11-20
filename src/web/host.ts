@@ -179,7 +179,7 @@ async function syncPushToken(): Promise<void> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.20' })
+      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.21' })
     })
     const pending = await IcyteruPush.consumeSession()
     if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)
@@ -349,6 +349,17 @@ export function installWebHost(): void {
     steer: async (text: string) => client.steer(text),
     compress: async () => client.compress(),
     slash: async (command: string) => client.slash(command),
+    testApproval: async () => {
+      if (!saved.url) throw new Error('Connect to Hermes first.')
+      const response = await fetch(`${normalizeUrl(saved.url)}/api/plugins/icyteru-push/test-approval`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      })
+      if (!response.ok) throw new Error(`Approval test returned ${response.status}.`)
+      return await response.json() as { ok: boolean; session_id: string }
+    },
     enableNotifications: () => enableNotifications(),
     notify: async (payload: NotificationPayload) => sendNotification(payload),
     interrupt: () => client.interrupt(),

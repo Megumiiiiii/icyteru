@@ -350,6 +350,10 @@ export class HermesClient {
     this.transcript = emptyTranscript()
   }
 
+  async testApproval(): Promise<{ ok: boolean; session_id: string }> {
+    return await this.postJson('/api/plugins/icyteru-push/test-approval', {}) as { ok: boolean; session_id: string }
+  }
+
   /** Recent gateway notifications for desktop clients (Android uses FCM). */
   async notificationFeed(since: number): Promise<Array<{ at: number; title: string; body: string; session_id: string }>> {
     try {

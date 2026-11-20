@@ -22,6 +22,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
   const [method, setMethod] = useState<Method>(snapshot.connection.method || (snapshot.connection.authMode === 'token' ? 'token' : 'password'))
   const [message, setMessage] = useState('')
   const [notifyNote, setNotifyNote] = useState('')
+  const [approvalNote, setApprovalNote] = useState('')
   const [busy, setBusy] = useState(false)
   const picked = useRef(false)
 
@@ -246,6 +247,24 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
             </button>
           </div>
           {notifyNote && <p className="hint">{notifyNote}</p>}
+          <div className="row">
+            <button
+              className="ghost"
+              onClick={async () => {
+                setApprovalNote('')
+                try {
+                  const result = await window.icyteru.testApproval()
+                  setApprovalNote(result.ok ? 'Test approval card published to the connected session.' : 'The gateway did not accept the test approval.')
+                } catch (error) {
+                  setApprovalNote(error instanceof Error ? error.message : 'Could not publish the test approval.')
+                }
+              }}
+              type="button"
+            >
+              Test approval card
+            </button>
+          </div>
+          {approvalNote && <p className="hint">{approvalNote}</p>}
         </section>
         <section>
           <h2>About</h2>
@@ -259,7 +278,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
 }
 
 function appVersion(): string {
-  return '0.0.20'
+  return '0.0.21'
 }
 
 function BackgroundCard({ title, image, onPick, onReset }: {

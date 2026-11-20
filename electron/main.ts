@@ -258,6 +258,7 @@ function registerIpc(): void {
   ipcMain.handle('compress', () => client.compress())
   ipcMain.handle('slash', (_event, command: string) => client.slash(command))
   ipcMain.handle('enable-notifications', () => Notification.isSupported())
+  ipcMain.handle('test-approval', () => client.testApproval())
   ipcMain.handle('notify', (_event, payload: NotificationPayload) => {
     if (!Notification.isSupported()) return
     const note = new Notification({ title: payload.title, body: payload.body })

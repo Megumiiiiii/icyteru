@@ -29,6 +29,7 @@ declare global {
       slash: (command: string) => Promise<string>
       enableNotifications: () => Promise<boolean>
       notify: (payload: NotificationPayload) => Promise<void>
+      testApproval: () => Promise<{ ok: boolean; session_id: string }>
       interrupt: () => Promise<void>
       answer: (id: string, result: unknown) => Promise<void>
       setModel: (model: string, provider: string, confirm?: boolean) => Promise<string>
