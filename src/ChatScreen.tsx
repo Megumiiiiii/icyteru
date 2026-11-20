@@ -663,41 +663,39 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery }: {
         </>
       ) : (
         <div className="profile-pane">
-          <section>
-            <h2>Instructions</h2>
-            {snapshot.memory.instructions
-              ? <Markdown text={snapshot.memory.instructions} />
-              : <p>{snapshot.instructionsNote}</p>}
-          </section>
-          <section>
-            <h2>Memory</h2>
-            {snapshot.memory.available
-              ? (
-                <>
-                  {snapshot.memory.summary && <p>{snapshot.memory.summary}</p>}
-                  {snapshot.memory.notes && <Markdown text={snapshot.memory.notes} />}
-                  {snapshot.memory.user && (
-                    <>
-                      <h3>About you</h3>
-                      <Markdown text={snapshot.memory.user} />
-                    </>
-                  )}
-                </>
-              )
-              : <p>This gateway does not share a memory view.</p>}
-          </section>
-          <section>
-            <h2>Skills</h2>
-            {snapshot.skillsNote && <p>{snapshot.skillsNote}</p>}
-            <ul className="skills">
-              {snapshot.skills.slice(0, 80).map(skill => (
-                <li key={skill.name}>
-                  <strong>{skill.name}</strong>
-                  {skill.description && <span>{skill.description}</span>}
-                </li>
-              ))}
-            </ul>
-          </section>
+          <details className="profile-doc">
+            <summary>SOUL.md</summary>
+            <div className="profile-doc-body">
+              {snapshot.memory.instructions
+                ? <Markdown text={snapshot.memory.instructions} />
+                : <p>{snapshot.instructionsNote}</p>}
+            </div>
+          </details>
+          <details className="profile-doc">
+            <summary>MEMORY.md</summary>
+            <div className="profile-doc-body">
+              {snapshot.memory.available
+                ? (
+                  <>
+                    {snapshot.memory.summary && <p>{snapshot.memory.summary}</p>}
+                    {snapshot.memory.notes
+                      ? <Markdown text={snapshot.memory.notes} />
+                      : <p>This gateway does not share memory notes yet.</p>}
+                  </>
+                )
+                : <p>This gateway does not share a memory view.</p>}
+            </div>
+          </details>
+          <details className="profile-doc">
+            <summary>USER.md</summary>
+            <div className="profile-doc-body">
+              {snapshot.memory.available
+                ? (snapshot.memory.user
+                  ? <Markdown text={snapshot.memory.user} />
+                  : <p>This gateway does not share a user profile yet.</p>)
+                : <p>This gateway does not share a memory view.</p>}
+            </div>
+          </details>
         </div>
       )}
     </aside>
