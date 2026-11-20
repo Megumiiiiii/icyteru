@@ -202,7 +202,7 @@ npm run cap:sync
 npx cap open android
 ```
 
-6. In Android Studio, choose **Build**, then **Build Bundle(s) / APK(s)**, then **Build APK(s)**. The debug APK is `android\app\build\outputs\apk\debug\Icyteru-0.0.25.apk`. Copy it to the phone and open it. Android will ask you to allow installs from that source.
+6. In Android Studio, choose **Build**, then **Build Bundle(s) / APK(s)**, then **Build APK(s)**. The debug APK is `android\app\build\outputs\apk\debug\Icyteru-0.0.26.apk`. Copy it to the phone and open it. Android will ask you to allow installs from that source.
 
 From a terminal, with `JAVA_HOME` and `ANDROID_HOME` set, the same debug APK is:
 
@@ -241,7 +241,7 @@ You do not upload the installers yourself. GitHub Actions builds them when you p
    ```
 
 3. Open the **Actions** tab and wait until the **Release** workflow is green. It builds a Windows NSIS installer (`.exe`), a macOS disk image and zip, a Linux AppImage and `.deb` package, and an Android debug APK. The desktop build jobs run `electron-builder --publish never`, so they only write those files. They do not upload them and they do not need a personal access token.
-4. The last job, **Publish GitHub Release**, attaches those files, including `Icyteru-0.0.25.apk`, to a Release named after the tag. It uses the `GITHUB_TOKEN` that Actions already provides. You do not add a `GH_TOKEN` secret. Return to **Releases** and download the installers from that version. The Windows file is named like `Icyteru Setup 0.1.0.exe`. The Android file is the debug-signed APK described above.
+4. The last job, **Publish GitHub Release**, attaches those files, including `Icyteru-0.0.26.apk`, to a Release named after the tag. It uses the `GITHUB_TOKEN` that Actions already provides. You do not add a `GH_TOKEN` secret. Return to **Releases** and download the installers from that version. The Windows file is named like `Icyteru Setup 0.1.0.exe`. The Android file is the debug-signed APK described above.
 
 The tag has to start with `v`, as in `v1.2.3`. A tag without the `v` does not start the workflow. The macOS files are not signed with an Apple certificate, so the first time you open the app macOS may ask you to approve it in System Settings.
 

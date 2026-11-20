@@ -16,6 +16,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
   })
   const [query, setQuery] = useState('')
   const [sending, setSending] = useState(false)
+  const [sendActions, setSendActions] = useState<{ text: string; files: OutgoingAttachment[] } | null>(null)
   const [notice, setNotice] = useState('')
   const [atBottom, setAtBottom] = useState(true)
   const [files, setFiles] = useState<OutgoingAttachment[]>([])
@@ -124,6 +125,10 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     }
   }
 
+  useEffect(() => {
+    if (!streaming) setSendActions(null)
+  }, [streaming])
+
   // Send locally queued /queue messages once the current turn ends.
   useEffect(() => {
     if (streaming || sending) return
@@ -227,13 +232,44 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     }
 
     if (streaming) {
-      queue.current.push({ text, files: [...files] })
-      setDraft('')
-      setFiles([])
-      setNotice(`Queued ${queue.current.length}: ${text.slice(0, 60)}${text.length > 60 ? '…' : ''}`)
+      setSendActions({ text, files: [...files] })
       return
     }
     await submit(text, files)
+  }
+
+  async function chooseSendAction(action: 'stop' | 'steer' | 'queue'): Promise<void> {
+    const pending = sendActions
+    if (!pending) return
+    if (action === 'stop') {
+      setSendActions(null)
+      await window.icyteru.interrupt()
+      setNotice('Stopped the current task. Your message is still in the composer.')
+      return
+    }
+    if (action === 'steer') {
+      if (pending.files.length > 0) {
+        setNotice('Steer only sends text. Use Queue for attachments.')
+        return
+      }
+      setSendActions(null)
+      setSending(true)
+      setNotice('')
+      try {
+        setNotice(await window.icyteru.steer(pending.text))
+        setDraft('')
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : 'Steer failed.')
+      } finally {
+        setSending(false)
+      }
+      return
+    }
+    setSendActions(null)
+    queue.current.push({ text: pending.text, files: pending.files })
+    setDraft('')
+    setFiles([])
+    setNotice(`Queued ${queue.current.length}: ${pending.text.slice(0, 60)}${pending.text.length > 60 ? '…' : ''}`)
   }
 
   return (
@@ -316,6 +352,20 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
           </div>
         )}
         <form className="composer" onSubmit={event => { event.preventDefault(); void send() }}>
+          {sendActions && (
+            <div className="send-menu" role="menu" aria-label="What should happen to this message?">
+              <button className="danger" type="button" onClick={() => void chooseSendAction('stop')}>
+                <span aria-hidden="true">■</span> Stop current task
+              </button>
+              <span className="send-menu-line" />
+              <button type="button" disabled={sendActions.files.length > 0} onClick={() => void chooseSendAction('steer')}>
+                <span aria-hidden="true">↪</span> Steer current task
+              </button>
+              <button type="button" onClick={() => void chooseSendAction('queue')}>
+                <span aria-hidden="true">⇥</span> Queue for next turn
+              </button>
+            </div>
+          )}
           <input
             ref={fileInput}
             type="file"
