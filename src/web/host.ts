@@ -144,6 +144,7 @@ function snapshot(): Snapshot {
   if (state.side.instructionsNote) base.instructionsNote = state.side.instructionsNote
   else if (state.side.memory.instructions) base.instructionsNote = ''
   base.question = state.question
+  base.queued = state.queued
   return base
 }
 
@@ -179,7 +180,7 @@ async function syncPushToken(): Promise<void> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.35' })
+      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.36' })
     })
     const pending = await IcyteruPush.consumeSession()
     if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)
@@ -348,7 +349,7 @@ export function installWebHost(): void {
     newChat: () => client.newChat(),
     sendMessage: async (text: string, attachments?: OutgoingAttachment[]) => client.send(text, attachments),
     steer: async (text: string) => client.steer(text),
-    queue: async (text: string) => client.queue(text),
+    queue: async (text: string, attachments?: OutgoingAttachment[]) => client.queue(text, attachments),
     editQueued: async (id: string, text: string) => client.editQueued(id, text),
     deleteQueued: async (id: string) => client.deleteQueued(id),
     compress: async () => client.compress(),

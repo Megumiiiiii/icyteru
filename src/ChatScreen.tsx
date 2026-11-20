@@ -1,7 +1,7 @@
 import { Fragment, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
-import { approvalLabel, modelIdsMatch, modelShortName, sourceLabel, type OutgoingAttachment, type ToolCall } from '../shared/protocol'
+import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, sourceLabel, type OutgoingAttachment, type ToolCall } from '../shared/protocol'
 import { Avatar } from './Avatar'
 import { Markdown } from './Markdown'
 import { ago } from './time'
@@ -18,8 +18,6 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
   const [sending, setSending] = useState(false)
   const [sendActions, setSendActions] = useState<{ text: string; files: OutgoingAttachment[] } | null>(null)
   const [notice, setNotice] = useState('')
-  const [noticeKind, setNoticeKind] = useState<'' | 'steer' | 'queue'>('')
-  const [noticeAge, setNoticeAge] = useState(0)
   const [compress, setCompress] = useState<{ status: 'running' | 'done' | 'error'; started: number; message: string } | null>(null)
   const [compressElapsed, setCompressElapsed] = useState(0)
   const [steerPending, setSteerPending] = useState<{ toolCount: number } | null>(null)
@@ -142,26 +140,11 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     if (!streaming) setSendActions(null)
   }, [streaming])
 
-  // Steer/queue acknowledgements count up and clean themselves up.
   useEffect(() => {
     if (!notice) return
-    setNoticeAge(0)
-    const started = Date.now()
-    const timer = setInterval(() => {
-      const seconds = Math.floor((Date.now() - started) / 1000)
-      if (noticeKind) setNoticeAge(seconds)
-      if (seconds >= (noticeKind ? 6 : 8)) {
-        setNotice('')
-        setNoticeKind('')
-      }
-    }, 500)
-    return () => clearInterval(timer)
-  }, [notice, noticeKind])
-
-  useEffect(() => {
-    if (!notice) setNoticeKind('')
-    else if (noticeKind && !/^(Steered|Queued)/.test(notice)) setNoticeKind('')
-  }, [notice, noticeKind])
+    const timer = setTimeout(() => setNotice(''), 8000)
+    return () => clearTimeout(timer)
+  }, [notice])
 
   // A steer is read at the agent's next tool call, not on a timer. Keep the
   // notice until a new tool row appears or the turn ends.
@@ -209,15 +192,22 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     return () => clearTimeout(timer)
   }, [compress])
 
-  function showTransient(text: string, kind: 'steer' | 'queue'): void {
-    setNotice(text)
-    setNoticeKind(kind)
-    setNoticeAge(0)
+  async function enqueue(text: string, attachments: OutgoingAttachment[]): Promise<void> {
+    setSending(true)
+    setNotice('')
+    try {
+      await window.icyteru.queue(text, attachments)
+      setDraft(current => current === draft ? '' : current)
+      setFiles(current => current.filter(file => !attachments.includes(file)))
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not queue the message.')
+    } finally {
+      setSending(false)
+    }
   }
 
   function beginSteer(text: string): void {
     setNotice('')
-    setNoticeKind('')
     setSteerNote({ text, age: 0 })
     setSteerPending({ toolCount })
   }
@@ -245,28 +235,20 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     }
 
     if (text.startsWith('/')) {
-      if (files.length) {
-        setNotice('Slash commands do not take attachments.')
-        return
-      }
       const match = text.match(/^\/([^\s]+)(?:\s+([\s\S]*))?$/)
       const name = (match?.[1] || '').toLowerCase()
       const arg = (match?.[2] || '').trim()
 
       if (name === 'queue') {
-        if (!arg) {
+        if (!arg && !files.length) {
           setNotice('Usage: /queue <message>')
           return
         }
-        setDraft('')
-        setSending(true)
-        try {
-          showTransient(await window.icyteru.queue(arg), 'queue')
-        } catch (error) {
-          setNotice(error instanceof Error ? error.message : 'Could not queue the message.')
-        } finally {
-          setSending(false)
-        }
+        await enqueue(arg, files)
+        return
+      }
+      if (files.length) {
+        setNotice('Slash commands do not take attachments.')
         return
       }
 
@@ -365,17 +347,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
       return
     }
     setSendActions(null)
-    setDraft('')
-    setFiles([])
-    setSending(true)
-    try {
-      await window.icyteru.sendMessage(pending.text, pending.files)
-      showTransient('Queued — it will run after the current turn.', 'queue')
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Could not queue the message.')
-    } finally {
-      setSending(false)
-    }
+    await enqueue(pending.text, pending.files)
   }
 
   return (
@@ -427,18 +399,13 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
           )}
           {snapshot.transcript.messages.map(message => (
             <Fragment key={message.id}>
-              {message.text && (
-                <article className={`bubble ${message.role}`}>
-                  <Markdown text={message.text} />
-                  {message.error && <p className="inline-error">{message.error}</p>}
-                </article>
-              )}
-              {message.tools.length > 0 && (
-                <div className="tool-standalone">
-                  <ToolGroup tools={message.tools} />
-                </div>
-              )}
-              {!message.text && message.error && (
+              {orderedParts(message).map((part, i) => (
+                <Fragment key={i}>
+                  {part.text.trim() && <article className={`bubble ${message.role}`}><Markdown text={part.text} /></article>}
+                  {part.tools.length > 0 && <div className="tool-standalone"><ToolGroup tools={part.tools} /></div>}
+                </Fragment>
+              ))}
+              {message.error && (
                 <p className="inline-error standalone-error">{message.error}</p>
               )}
             </Fragment>
@@ -460,7 +427,6 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
         {notice && (
           <p className="banner wrap">
             <span>{notice}</span>
-            {noticeKind && <span className="notice-age">{noticeAge}s</span>}
           </p>
         )}
         {compress && (
@@ -503,7 +469,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
               onClick={() => setQueueOpen(open => !open)}
             >
               <span className="queue-dot" aria-hidden="true" />
-              {snapshot.queued.length} queued
+              {snapshot.queued.length} {snapshot.queued.every(entry => entry.status === 'queued') ? 'queued' : 'queue updates'}
               <span className="queue-caret" aria-hidden="true">{queueOpen ? '⌄' : '⌃'}</span>
             </button>
             {queueOpen && (
@@ -532,20 +498,24 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
                     ) : (
                       <>
                         <div className="queue-text">
-                          <span>{entry.text}</span>
+                          <span>{[entry.text, ...(entry.attachmentNames || [])].filter(Boolean).join(' · ')}</span>
+                          {entry.status === 'unknown' && <small>Gateway status unknown</small>}
                           {entry.error && <small>{entry.error}</small>}
                         </div>
-                        {entry.status === 'queued' && (
+                        {entry.status !== 'unknown' && (
                           <div className="queue-actions">
-                            <button
+                            {entry.status === 'queued' && <button
                               type="button"
                               className="ghost tiny"
+                              disabled={Boolean(entry.attachmentNames?.length)}
                               onClick={() => { setEditingQueue(entry.id); setQueueEditText(entry.text) }}
-                            >Edit</button>
+                            >Edit</button>}
                             <button
                               type="button"
                               className="ghost tiny danger"
-                              aria-label="Delete queued message"
+                              disabled={entry.status !== 'failed'}
+                              title={entry.status === 'failed' ? 'Dismiss' : 'The gateway cannot delete this without risking interruption of a started turn.'}
+                              aria-label={entry.status === 'failed' ? 'Dismiss failed message' : 'Delete queued message'}
                               onClick={() => void window.icyteru.deleteQueued(entry.id).catch(error => setNotice(error instanceof Error ? error.message : 'Could not delete the queued message.'))}
                             >×</button>
                           </div>
@@ -630,6 +600,10 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
   )
 }
 
+function ToolStatus({ running }: { running: boolean }) {
+  return <span className={`tool-status ${running ? 'running' : 'done'}`} role="img" aria-label={running ? 'Running' : 'Done'}>{running ? null : '✓'}</span>
+}
+
 function ToolGroup({ tools }: { tools: ToolCall[] }) {
   const [open, setOpen] = useState(false)
   const running = tools.some(tool => tool.status === 'running')
@@ -640,6 +614,7 @@ function ToolGroup({ tools }: { tools: ToolCall[] }) {
     <div className="tools">
       <button className="tool-toggle" onClick={() => setOpen(value => !value)} type="button">
         <span>{open ? '▾' : '▸'}</span>
+        <ToolStatus running={running} />
         {running ? 'Using tools' : `${tools.length} tool ${tools.length === 1 ? 'call' : 'calls'}`}
       </button>
       {open && tools.map(tool => <ToolRow key={tool.id} tool={tool} />)}
@@ -654,7 +629,7 @@ function ToolRow({ tool }: { tool: ToolCall }) {
       <button onClick={() => setOpen(value => !value)} type="button">
         <span>{open ? '▾' : '▸'}</span>
         <strong>{tool.name}</strong>
-        <em>{tool.status === 'running' ? 'running' : 'done'}</em>
+        <ToolStatus running={tool.status === 'running'} />
       </button>
       {open && (
         <div className="tool-body">

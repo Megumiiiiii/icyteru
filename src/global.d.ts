@@ -26,7 +26,7 @@ declare global {
       newChat: () => Promise<void>
       sendMessage: (text: string, attachments?: OutgoingAttachment[]) => Promise<void>
       steer: (text: string) => Promise<string>
-      queue: (text: string) => Promise<string>
+      queue: (text: string, attachments?: OutgoingAttachment[]) => Promise<void>
       editQueued: (id: string, text: string) => Promise<void>
       deleteQueued: (id: string) => Promise<void>
       compress: () => Promise<string>

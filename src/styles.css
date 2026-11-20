@@ -441,6 +441,11 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
 }
 
 .tools { margin-top: 8px; }
+.tool-status { display: inline-grid; place-items: center; flex: none; width: 1em; height: 1em; line-height: 1; }
+.tool-status.running { box-sizing: border-box; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: tool-spin .8s linear infinite; }
+.tool-status.done { color: var(--ok); font-weight: bold; }
+@keyframes tool-spin { to { transform: rotate(1turn); } }
+@media (prefers-reduced-motion: reduce) { .tool-status.running { animation: none; } }
 .tool-toggle, .tool > button {
   border: 0; background: transparent; padding: 4px 0; color: var(--muted); display: flex; gap: 8px; align-items: center;
   min-width: 0; max-width: 100%;

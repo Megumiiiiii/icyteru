@@ -180,7 +180,7 @@ export function installPreview(shot: string): void {
     newChat: () => Promise.resolve(),
     sendMessage: () => Promise.resolve(),
     steer: () => Promise.resolve('Steered.'),
-    queue: () => Promise.resolve('Queued — it will run after the current turn.'),
+    queue: () => Promise.resolve(),
     editQueued: () => Promise.resolve(),
     deleteQueued: () => Promise.resolve(),
     compress: () => Promise.resolve('Compressed the conversation.'),

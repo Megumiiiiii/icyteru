@@ -103,6 +103,7 @@ export function redactSecrets(text: string): string {
 }
 
 export interface ToolCall {
+  textOffset?: number
   id: string
   name: string
   argsText: string
@@ -122,6 +123,19 @@ export interface TranscriptMessage {
 export interface Transcript {
   messages: TranscriptMessage[]
   streaming: boolean
+}
+
+export function orderedParts(message: TranscriptMessage) {
+  const parts: Array<{text: string; tools: ToolCall[]}> = []
+  let cursor = 0
+  for (const tool of message.tools) {
+    const at = Math.max(cursor, Math.min(message.text.length, tool.textOffset ?? message.text.length))
+    if (at > cursor || !parts.length) parts.push({text: message.text.slice(cursor, at), tools: []})
+    parts[parts.length - 1].tools.push(tool)
+    cursor = at
+  }
+  if (cursor < message.text.length) parts.push({text: message.text.slice(cursor), tools: []})
+  return parts
 }
 
 export function emptyTranscript(): Transcript {
@@ -243,7 +257,7 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
       if (argsText) existing.argsText = argsText
       existing.status = 'running'
     } else {
-      message.tools.push({ id, name, argsText, resultText: '', status: 'running' })
+      message.tools.push({ textOffset: message.text.length, id, name, argsText, resultText: '', status: 'running' })
     }
     next.streaming = true
     return next
@@ -254,7 +268,7 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
     const name = String(payload.name || 'tool')
     let tool = message.tools.find(item => item.id === id) || message.tools.find(item => item.name === name && item.status === 'running')
     if (!tool) {
-      tool = { id: id || `tool-${message.tools.length}`, name, argsText: '', resultText: '', status: 'running' }
+      tool = { textOffset: message.text.length, id: id || `tool-${message.tools.length}`, name, argsText: '', resultText: '', status: 'running' }
       message.tools.push(tool)
     }
     if (type === 'tool.complete') {
@@ -324,6 +338,7 @@ export function historyFromRows(rows: unknown): Transcript {
           return created
         })()
       assistant.tools.push({
+        textOffset: assistant.text.length,
         id: toolId || `h-tool-${assistant.tools.length}`,
         name: toolName || 'tool',
         argsText: previewValue(record.args ?? record.arguments),

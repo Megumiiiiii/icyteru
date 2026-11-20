@@ -30,7 +30,8 @@ export interface QueuedMessage {
   id: string
   sessionId: string
   text: string
-  status: 'queued' | 'sending' | 'failed'
+  status: 'queued' | 'unknown' | 'failed'
+  attachmentNames?: string[]
   createdAt: number
   admissionId?: string
   error?: string
