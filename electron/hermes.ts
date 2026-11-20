@@ -350,6 +350,28 @@ export class HermesClient {
     this.transcript = emptyTranscript()
   }
 
+  /** Recent gateway notifications for desktop clients (Android uses FCM). */
+  async notificationFeed(since: number): Promise<Array<{ at: number; title: string; body: string; session_id: string }>> {
+    try {
+      const payload = await this.getJson(`/api/plugins/icyteru-push/events?since=${encodeURIComponent(String(since))}`)
+      const body = asRecord(payload)
+      if (!Array.isArray(body.events)) return []
+      return body.events.flatMap(item => {
+        const event = asRecord(item)
+        const at = Number(event.at)
+        if (!Number.isFinite(at)) return []
+        return [{
+          at,
+          title: typeof event.title === 'string' ? event.title : 'Icyteru',
+          body: typeof event.body === 'string' ? event.body : '',
+          session_id: typeof event.session_id === 'string' ? event.session_id : ''
+        }]
+      })
+    } catch {
+      return []
+    }
+  }
+
   async refreshSessions(): Promise<void> {
     if (this.listStyle === 'picker') {
       const listed = await this.listSessions({ scope: 'stored', limit: 60, picker: true })

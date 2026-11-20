@@ -19,6 +19,8 @@ let phase: Snapshot['phase'] = 'idle'
 let error = ''
 let status = ''
 let publishTimer: NodeJS.Timeout | null = null
+let notifyTimer: NodeJS.Timeout | null = null
+let notifyCursor = 0
 
 const client = new HermesClient(() => {
   if (client.lastError) {
@@ -125,6 +127,38 @@ function createWindow(): void {
   })
 }
 
+function showDesktopNotification(title: string, body: string): void {
+  if (!Notification.isSupported()) return
+  const note = new Notification({ title, body })
+  note.on('click', () => {
+    if (window?.isMinimized()) window.restore()
+    window?.show()
+    window?.focus()
+  })
+  note.show()
+}
+
+function stopDesktopNotifications(): void {
+  if (notifyTimer) clearInterval(notifyTimer)
+  notifyTimer = null
+}
+
+function startDesktopNotifications(): void {
+  stopDesktopNotifications()
+  notifyCursor = Math.floor(Date.now() / 1000)
+  notifyTimer = setInterval(async () => {
+    const events = await client.notificationFeed(notifyCursor)
+    const activeSession = client.state.activeSessionId
+    for (const event of events) {
+      notifyCursor = Math.max(notifyCursor, event.at)
+      // The open session is already handled by the renderer's local notifier;
+      // other sessions (Telegram, Discord, schedule) arrive through this feed.
+      if (event.session_id && event.session_id === activeSession) continue
+      showDesktopNotification(event.title, event.body)
+    }
+  }, 4000)
+}
+
 async function connectSaved(): Promise<void> {
   if (!saved.url) {
     screen = 'connect'
@@ -148,6 +182,7 @@ async function connectSaved(): Promise<void> {
     status = ''
     error = ''
     client.lastError = ''
+    startDesktopNotifications()
   } catch (err) {
     phase = 'error'
     error = err instanceof Error ? err.message : 'Could not connect to Hermes.'
@@ -190,6 +225,7 @@ function registerIpc(): void {
     return snapshot()
   })
   ipcMain.handle('forget-connection', async () => {
+    stopDesktopNotifications()
     client.disconnect()
     saved = { ...saved, url: '', token: '', username: '', password: '', method: undefined, gateways: [] }
     authMode = 'none'
@@ -304,5 +340,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  stopDesktopNotifications()
   client.disconnect()
 })
