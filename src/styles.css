@@ -603,8 +603,18 @@ button:disabled { opacity: 0.45; cursor: default; }
   background: var(--surface);
 }
 .question h2 { margin: 0 0 6px; font-size: 15px; }
+.question-body { margin: 0 0 4px; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.clarify { margin-top: 10px; }
+.clarify { margin-top: 12px; }
+.clarify p { margin: 0 0 8px; }
+.question .custom-answer { margin-top: 10px; width: 100%; }
+.question-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
 
 .model-menu { position: relative; }
 .model-pop {

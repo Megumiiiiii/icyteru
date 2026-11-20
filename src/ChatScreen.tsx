@@ -135,6 +135,24 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     const text = draft.trim()
     if ((!text && files.length === 0) || sending) return
 
+    // A free-text reply while a clarify card is open is the answer to that card,
+    // not a new chat turn.
+    if (text && files.length === 0 && snapshot.question?.questions.length === 1) {
+      const item = snapshot.question.questions[0]
+      setDraft('')
+      setSending(true)
+      setNotice('')
+      try {
+        await window.icyteru.answer(snapshot.question.id, { answers: { [item.id]: text }, outcome: 'submitted' })
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : 'Message was not sent.')
+        setDraft(text)
+      } finally {
+        setSending(false)
+      }
+      return
+    }
+
     if (text.startsWith('/')) {
       if (files.length) {
         setNotice('Slash commands do not take attachments.')
@@ -394,6 +412,7 @@ function ToolRow({ tool }: { tool: ToolCall }) {
 function QuestionCard({ question }: { question: NonNullable<Snapshot['question']> }) {
   const [secret, setSecret] = useState('')
   const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [custom, setCustom] = useState<Record<string, string>>({})
   const [note, setNote] = useState('')
 
   async function send(result: unknown) {
@@ -408,7 +427,7 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
   return (
     <section className="question">
       <h2>{question.title}</h2>
-      {question.body && <p>{question.body}</p>}
+      {question.body && question.body !== question.questions[0]?.question && <p className="question-body">{question.body}</p>}
       {question.choices.length > 0 && (
         <div className="row">
           {question.choices.map(choice => (
@@ -444,10 +463,31 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
               onChange={event => setAnswers(current => ({ ...current, [item.id]: event.target.value }))}
             />
           )}
+          <input
+            className="custom-answer"
+            value={custom[item.id] || ''}
+            onChange={event => setCustom(current => ({ ...current, [item.id]: event.target.value }))}
+            placeholder="Or type your own answer"
+            aria-label="Custom answer"
+          />
         </div>
       ))}
       {question.questions.length > 0 && (
-        <button className="solid" onClick={() => void send({ answers, outcome: 'submitted' })} type="button">Send answers</button>
+        <div className="question-actions">
+          <button
+            className="solid"
+            onClick={() => {
+              const merged = { ...answers }
+              for (const [id, value] of Object.entries(custom)) {
+                if (value.trim()) merged[id] = value.trim()
+              }
+              void send({ answers: merged, outcome: 'submitted' })
+            }}
+            type="button"
+          >
+            Send answers
+          </button>
+        </div>
       )}
       {question.secret && (
         <form onSubmit={event => { event.preventDefault(); void send({ value: secret }) }}>
