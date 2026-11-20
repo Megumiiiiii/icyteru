@@ -176,6 +176,7 @@ export function installPreview(shot: string): void {
     reconnect: () => Promise.resolve(),
     refreshSessions: () => Promise.resolve(),
     openSession: () => Promise.resolve(),
+    setSessionPinned: () => Promise.resolve(),
     newChat: () => Promise.resolve(),
     sendMessage: () => Promise.resolve(),
     steer: () => Promise.resolve('Steered.'),

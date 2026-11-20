@@ -424,6 +424,13 @@ export class HermesClient {
     this.emit()
   }
 
+  async setSessionPinned(id: string, pinned: boolean): Promise<void> {
+    await this.patchJson(`/api/sessions/${encodeURIComponent(id)}`, { pinned })
+    this.sessions = sortSessions(this.sessions.map(row => row.id === id ? { ...row, pinned } : row))
+    this.emit()
+    await this.refreshSessions()
+  }
+
   async newChat(): Promise<void> {
     await this.detach()
     this.live = null
@@ -1066,6 +1073,19 @@ export class HermesClient {
     return parsed
   }
 
+  private async patchJson(path: string, body: unknown): Promise<unknown> {
+    const send = () => this.httpPatch(path, body)
+    let response = await send()
+    if (response.status === 401 && await this.renewSession()) response = await send()
+    const text = await response.text()
+    const parsed = text ? JSON.parse(text) as unknown : {}
+    if (!response.ok) {
+      const detail = asRecord(parsed).detail
+      throw new Error(typeof detail === 'string' ? detail : `Hermes returned ${response.status}.`)
+    }
+    return parsed
+  }
+
   private httpGet(path: string): Promise<Response> {
     return this.authFetch(buildGatewayHttpUrl(this.baseUrl, this.withProfile(path)), { headers: this.headers() })
   }
@@ -1073,6 +1093,14 @@ export class HermesClient {
   private httpPost(path: string, body: unknown): Promise<Response> {
     return this.authFetch(buildGatewayHttpUrl(this.baseUrl, this.withProfile(path)), {
       method: 'POST',
+      headers: { ...this.headers(), 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+  }
+
+  private httpPatch(path: string, body: unknown): Promise<Response> {
+    return this.authFetch(buildGatewayHttpUrl(this.baseUrl, this.withProfile(path)), {
+      method: 'PATCH',
       headers: { ...this.headers(), 'content-type': 'application/json' },
       body: JSON.stringify(body)
     })

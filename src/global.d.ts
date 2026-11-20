@@ -22,6 +22,7 @@ declare global {
       reconnect: () => Promise<void>
       refreshSessions: () => Promise<void>
       openSession: (id: string) => Promise<void>
+      setSessionPinned: (id: string, pinned: boolean) => Promise<void>
       newChat: () => Promise<void>
       sendMessage: (text: string, attachments?: OutgoingAttachment[]) => Promise<void>
       steer: (text: string) => Promise<string>

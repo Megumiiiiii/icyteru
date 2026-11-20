@@ -252,6 +252,7 @@ function registerIpc(): void {
   ipcMain.handle('reconnect', () => connectSaved())
   ipcMain.handle('refresh-sessions', () => client.refreshSessions())
   ipcMain.handle('open-session', (_event, id: string) => client.openSession(id))
+  ipcMain.handle('set-session-pinned', (_event, payload: { id: string; pinned: boolean }) => client.setSessionPinned(payload.id, payload.pinned))
   ipcMain.handle('new-chat', () => client.newChat())
   ipcMain.handle('send-message', (_event, text: string, attachments?: OutgoingAttachment[]) => client.send(text, attachments))
   ipcMain.handle('steer', (_event, text: string) => client.steer(text))

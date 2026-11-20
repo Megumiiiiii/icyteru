@@ -21,6 +21,7 @@ const api = {
   reconnect: (): Promise<void> => ipcRenderer.invoke('reconnect'),
   refreshSessions: (): Promise<void> => ipcRenderer.invoke('refresh-sessions'),
   openSession: (id: string): Promise<void> => ipcRenderer.invoke('open-session', id),
+  setSessionPinned: (id: string, pinned: boolean): Promise<void> => ipcRenderer.invoke('set-session-pinned', { id, pinned }),
   newChat: (): Promise<void> => ipcRenderer.invoke('new-chat'),
   sendMessage: (text: string, attachments?: OutgoingAttachment[]): Promise<void> => ipcRenderer.invoke('send-message', text, attachments),
   steer: (text: string): Promise<string> => ipcRenderer.invoke('steer', text),

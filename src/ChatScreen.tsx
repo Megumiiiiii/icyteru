@@ -808,21 +808,31 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery }: {
                     <i aria-hidden="true">›</i>
                   </button>
                   {!closed && group.map(session => (
-                    <button
-                      className={session.id === snapshot.activeSessionId ? 'session active' : 'session'}
-                      key={session.id}
-                      type="button"
-                      onClick={() => { phone.setView('chat'); void window.icyteru.openSession(session.id) }}
-                    >
-                      <span className="session-title">
-                        {session.running && <i className="dot" />}
-                        {session.title}
-                      </span>
-                      <span className="session-meta">
-                        <span>{session.messageCount.toLocaleString()} msgs</span>
-                        {session.updatedAt ? <time>{ago(session.updatedAt)}</time> : null}
-                      </span>
-                    </button>
+                    <div className={session.id === snapshot.activeSessionId ? 'session-row active' : 'session-row'} key={session.id}>
+                      <button
+                        className={session.id === snapshot.activeSessionId ? 'session active' : 'session'}
+                        type="button"
+                        onClick={() => { phone.setView('chat'); void window.icyteru.openSession(session.id) }}
+                      >
+                        <span className="session-title">
+                          {session.running && <i className="dot" />}
+                          {session.title}
+                        </span>
+                        <span className="session-meta">
+                          <span>{session.messageCount.toLocaleString()} msgs</span>
+                          {session.updatedAt ? <time>{ago(session.updatedAt)}</time> : null}
+                        </span>
+                      </button>
+                      <button
+                        className={session.pinned ? 'session-pin on' : 'session-pin'}
+                        type="button"
+                        title={session.pinned ? 'Unpin session' : 'Pin session'}
+                        aria-label={session.pinned ? 'Unpin session' : 'Pin session'}
+                        onClick={() => void window.icyteru.setSessionPinned(session.id, !session.pinned)}
+                      >
+                        {session.pinned ? 'Unpin' : 'Pin'}
+                      </button>
+                    </div>
                   ))}
                 </div>
               )

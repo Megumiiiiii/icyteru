@@ -637,7 +637,10 @@ export function sortProfiles(profiles: AgentProfile[]): AgentProfile[] {
 }
 
 export function sortSessions(sessions: SessionRow[]): SessionRow[] {
-  return [...sessions].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+  return [...sessions].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+    return (b.updatedAt || 0) - (a.updatedAt || 0)
+  })
 }
 
 export function acceptAvatar(data: unknown): string {

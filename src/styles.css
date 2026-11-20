@@ -290,6 +290,18 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
   transition: transform 0.18s ease;
 }
 .session-group-title.closed i { transform: rotate(0deg); }
+.session-row { display: flex; align-items: stretch; gap: 2px; border-radius: 12px; }
+.session-row .session { width: auto; flex: 1; min-width: 0; }
+.session-pin {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 0 7px;
+  border-radius: 9px;
+}
+.session-pin:hover { background: var(--panel); color: var(--ink); }
+.session-pin.on { color: var(--ink); font-weight: 600; }
 .session {
   width: 100%;
   text-align: left;
