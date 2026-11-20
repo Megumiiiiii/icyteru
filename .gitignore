@@ -16,3 +16,7 @@ android/.idea/
 # Local codebase-memory index
 .codebase-memory/
 .cbmignore
+
+# Signing material is injected in CI, never committed
+android/app/*.keystore
+android/app/icyteru.keystore
