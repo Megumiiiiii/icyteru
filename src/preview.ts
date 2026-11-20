@@ -52,7 +52,7 @@ export function previewSnapshot(shot: string): Snapshot {
     base.screen = 'connect'
     return base
   }
-  base.screen = 'chat'
+  base.screen = shot === 'settings' || shot === 'dark-settings' ? 'settings' : 'chat'
   base.phase = 'ready'
   base.hermesVersion = '0.1.0'
   base.profileName = 'Hermes'

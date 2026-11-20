@@ -95,8 +95,8 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
           <p>{snapshot.hermesVersion ? `Hermes ${snapshot.hermesVersion}` : 'Gateway'}</p>
         </div>
         <div className="bar-actions">
-          <button className="ghost tiny phone-only" onClick={() => { phone.setView('roster'); void window.icyteru.showScreen('chat') }} type="button">Bots</button>
-          <button className="ghost tiny" onClick={() => { phone.setView('chat'); void window.icyteru.showScreen('chat') }} type="button">Back to chat</button>
+          <button className="top-action tiny phone-only" onClick={() => { phone.setView('roster'); void window.icyteru.showScreen('chat') }} type="button">Bots</button>
+          <button className="top-action tiny" onClick={() => { phone.setView('chat'); void window.icyteru.showScreen('chat') }} type="button">Back to chat</button>
         </div>
       </header>
       <div className="settings-body">
@@ -259,7 +259,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
 }
 
 function appVersion(): string {
-  return '0.0.5'
+  return '0.0.6'
 }
 
 function BackgroundCard({ title, image, onPick, onReset }: {

@@ -603,8 +603,35 @@ button:disabled { opacity: 0.45; cursor: default; }
 .connect-card label, .settings label { display: grid; gap: 6px; margin: 12px 0; font-size: 13px; font-weight: 560; }
 .connect-card .banner { margin: 8px 0 0; }
 
-.settings-body { overflow: auto; padding: 8px 22px 32px; max-width: 720px; }
+.settings-body {
+  overflow: auto;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 8px 22px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-body > section {
+  background: color-mix(in srgb, var(--panel) 76%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 6px 20px rgba(48, 36, 18, 0.05);
+}
+:root[data-theme="dark"] .settings-body > section {
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
+  box-shadow: 0 8px 24px rgba(8, 4, 20, 0.18);
+}
+.settings-body > section > h2:first-child { margin-bottom: 12px; }
+.settings-body .hint:last-child, .settings-body section > p:last-child { margin-bottom: 0; }
+.settings .chat-bar { width: 100%; max-width: 720px; margin: 0 auto; }
+.settings-body .auth-tabs { margin: 12px 0 4px; }
+.settings label { margin: 12px 0; }
+.settings .row { margin-top: 12px; }
 .theme-choices { display: flex; gap: 8px; flex-wrap: wrap; }
+.theme-choices button { flex: 1; min-width: 96px; }
 
 .auth-tabs {
   display: grid;
@@ -671,6 +698,9 @@ button:disabled { opacity: 0.45; cursor: default; }
   .composer { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
   .jump-latest { bottom: calc(72px + env(safe-area-inset-bottom)); }
   .settings-link { margin-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .settings-body { padding: 0 14px max(28px, env(safe-area-inset-bottom)); gap: 12px; }
+  .settings-body > section { padding: 14px; border-radius: 14px; }
+  .settings .chat-bar { max-width: none; padding-bottom: 10px; }
   .connect-card h1 { font-size: 24px; }
   .model-pop { width: min(280px, 70vw); }
   .bar-actions { gap: 4px; }
