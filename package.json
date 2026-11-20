@@ -1,7 +1,7 @@
 {
   "name": "icyteru",
   "productName": "Icyteru",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "description": "A simple desktop and Android client for an existing Hermes Agent gateway.",
   "author": "Megumiiiiii",
   "license": "MIT",

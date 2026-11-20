@@ -233,7 +233,6 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
                     <i className={isRecent(profile.lastActive) ? 'presence live' : 'presence'} />
                     {profile.label}
                   </span>
-                  {profile.preview && <span className="bot-preview">{profile.preview}</span>}
                 </span>
                 {profile.lastActive != null && <time>{ago(profile.lastActive)}</time>}
               </button>
