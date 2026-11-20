@@ -21,6 +21,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
   const [mode, setMode] = useState<AuthMode>(snapshot.connection.authMode)
   const [method, setMethod] = useState<Method>(snapshot.connection.method || (snapshot.connection.authMode === 'token' ? 'token' : 'password'))
   const [message, setMessage] = useState('')
+  const [notifyNote, setNotifyNote] = useState('')
   const [busy, setBusy] = useState(false)
   const picked = useRef(false)
 
@@ -224,6 +225,29 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
           </label>
         </section>
         <section>
+          <h2>Notifications</h2>
+          <p className="hint">The bell in the Agents panel asks the system for permission. Use this button to check that a native notification reaches this device.</p>
+          <div className="row">
+            <button
+              className="ghost"
+              onClick={async () => {
+                setNotifyNote('')
+                const granted = await window.icyteru.enableNotifications()
+                if (!granted) {
+                  setNotifyNote('Notifications are blocked. Allow Icyteru in the system notification settings, then try again.')
+                  return
+                }
+                await window.icyteru.notify({ title: 'Icyteru test', body: 'If you can see this, notifications are working.' })
+                setNotifyNote('Test notification sent. Check your notification shade or toast.')
+              }}
+              type="button"
+            >
+              Send test notification
+            </button>
+          </div>
+          {notifyNote && <p className="hint">{notifyNote}</p>}
+        </section>
+        <section>
           <h2>About</h2>
           <p>
             Icyteru {appVersion()} talks to the Hermes gateway the same way Hermes Desktop does: HTTP <code>/api/status</code> and the <code>/api/ws</code> JSON-RPC chat socket. Models, memory, tools, skills, and chat history stay on your Hermes.
@@ -235,7 +259,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
 }
 
 function appVersion(): string {
-  return '0.0.4'
+  return '0.0.5'
 }
 
 function BackgroundCard({ title, image, onPick, onReset }: {
