@@ -20,3 +20,6 @@ android/.idea/
 # Signing material is injected in CI, never committed
 android/app/*.keystore
 android/app/icyteru.keystore
+
+# Local working notes
+STATUS.md
