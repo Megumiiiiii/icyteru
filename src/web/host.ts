@@ -15,6 +15,7 @@ type BackdropMode = 'light' | 'dark'
 interface IcyteruPushBridge {
   getToken: () => Promise<{ token: string }>
   consumeSession: () => Promise<{ session_id: string }>
+  setConnectionActive: (options: { active: boolean }) => Promise<void>
 }
 
 const IcyteruPush = registerPlugin<IcyteruPushBridge>('IcyteruPush')
@@ -170,6 +171,7 @@ async function ensureConnected(): Promise<void> {
 async function syncPushToken(): Promise<void> {
   if (Capacitor.getPlatform() !== 'android' || !saved.url) return
   try {
+    await IcyteruPush.setConnectionActive({ active: true })
     await enableNotifications()
     const { token } = await IcyteruPush.getToken()
     if (!token) return
@@ -177,7 +179,7 @@ async function syncPushToken(): Promise<void> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.14' })
+      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.15' })
     })
     const pending = await IcyteruPush.consumeSession()
     if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)
@@ -314,6 +316,9 @@ export function installWebHost(): void {
       return snapshot()
     },
     forgetConnection: async () => {
+      if (Capacitor.getPlatform() === 'android') {
+        void IcyteruPush.setConnectionActive({ active: false }).catch(() => undefined)
+      }
       client.disconnect()
       saved = { ...saved, url: '', token: '', username: '', password: '', method: undefined, gateways: [] }
       persist()

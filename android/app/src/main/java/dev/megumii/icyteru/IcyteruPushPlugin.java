@@ -1,6 +1,9 @@
 package dev.megumii.icyteru;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
+
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -22,6 +25,18 @@ public class IcyteruPushPlugin extends Plugin {
             result.put("token", task.getResult());
             call.resolve(result);
         });
+    }
+
+    @PluginMethod
+    public void setConnectionActive(PluginCall call) {
+        boolean active = Boolean.TRUE.equals(call.getBoolean("active", false));
+        Intent service = new Intent(getContext(), IcyteruConnectionService.class);
+        if (active) {
+            ContextCompat.startForegroundService(getContext(), service);
+        } else {
+            getContext().stopService(service);
+        }
+        call.resolve();
     }
 
     @PluginMethod
