@@ -34,7 +34,6 @@ public class IcyteruMessagingService extends FirebaseMessagingService {
 
     @Override
     public void onMessageReceived(RemoteMessage message) {
-        if (MainActivity.isVisible()) return;
         if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return;
 
         Map<String, String> data = message.getData();

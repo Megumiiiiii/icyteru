@@ -155,6 +155,18 @@ function publish(): void {
   }, 30)
 }
 
+let reconnecting = false
+
+async function ensureConnected(): Promise<void> {
+  if (!saved.url || reconnecting || phase === 'connecting' || client.state.connected) return
+  reconnecting = true
+  try {
+    await connectSaved()
+  } finally {
+    reconnecting = false
+  }
+}
+
 async function syncPushToken(): Promise<void> {
   if (Capacitor.getPlatform() !== 'android' || !saved.url) return
   try {
@@ -165,7 +177,7 @@ async function syncPushToken(): Promise<void> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.12' })
+      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.13' })
     })
     const pending = await IcyteruPush.consumeSession()
     if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)
@@ -396,6 +408,8 @@ export function installWebHost(): void {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && phase === 'ready') void syncPushToken()
+    if (document.hidden) return
+    void ensureConnected()
+    if (phase === 'ready') void syncPushToken()
   })
 }
