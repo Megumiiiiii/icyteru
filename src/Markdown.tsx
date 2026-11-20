@@ -125,7 +125,7 @@ function Block({ block }: { block: Block }) {
   )
 }
 
-const INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_|\[[^\]]+\]\(https?:\/\/[^\s)]+\))/g
+const INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_|\[[^\]]+\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s<>`]+)/g
 
 function Inline({ text }: { text: string }): ReactNode {
   const parts = text.split(INLINE)
@@ -141,6 +141,16 @@ function Inline({ text }: { text: string }): ReactNode {
         if (part.startsWith('_') && part.endsWith('_')) return <em key={index}><Inline text={part.slice(1, -1)} /></em>
         const link = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/)
         if (link) return <a key={index} href={link[2]} target="_blank" rel="noreferrer">{link[1]}</a>
+        if (/^https?:\/\//.test(part)) {
+          const url = part.replace(/[.,;:!?*]+$/, '')
+          const tail = part.slice(url.length)
+          return (
+            <span key={index}>
+              <a href={url} target="_blank" rel="noreferrer">{url}</a>
+              {tail}
+            </span>
+          )
+        }
         return <span key={index}>{part}</span>
       })}
     </>
