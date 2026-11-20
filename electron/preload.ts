@@ -28,6 +28,7 @@ const api = {
   queue: (text: string, attachments?: OutgoingAttachment[]): Promise<void> => ipcRenderer.invoke('queue', text, attachments),
   deleteQueued: (id: string): Promise<void> => ipcRenderer.invoke('delete-queued', id),
   mediaUrl: (path: string): Promise<string> => ipcRenderer.invoke('media-url', path),
+  mediaData: (path: string): Promise<string> => ipcRenderer.invoke('media-data', path),
   compress: (): Promise<string> => ipcRenderer.invoke('compress'),
   slash: (command: string): Promise<string> => ipcRenderer.invoke('slash', command),
   enableNotifications: (): Promise<boolean> => ipcRenderer.invoke('enable-notifications'),

@@ -260,6 +260,7 @@ function registerIpc(): void {
   ipcMain.handle('queue', (_event, text: string, attachments?: OutgoingAttachment[]) => client.queue(text, attachments))
   ipcMain.handle('delete-queued', (_event, id: string) => client.deleteQueued(id))
   ipcMain.handle('media-url', (_event, path: string) => client.mediaUrl(path))
+  ipcMain.handle('media-data', (_event, path: string) => client.mediaData(path))
   ipcMain.handle('compress', () => client.compress())
   ipcMain.handle('slash', (_event, command: string) => client.slash(command))
   ipcMain.handle('enable-notifications', () => Notification.isSupported())

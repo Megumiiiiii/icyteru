@@ -183,6 +183,7 @@ export function installPreview(shot: string): void {
     queue: () => Promise.resolve(),
     deleteQueued: () => Promise.resolve(),
     mediaUrl: () => Promise.resolve(''),
+    mediaData: () => Promise.resolve('data:text/plain;base64,'),
     compress: () => Promise.resolve('Compressed the conversation.'),
     slash: (command: string) => Promise.resolve(`Ran ${command}.`),
     enableNotifications: () => Promise.resolve(true),

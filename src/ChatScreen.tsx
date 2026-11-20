@@ -31,36 +31,28 @@ function splitMedia(text: string): { text: string; attachments: IncomingAttachme
 }
 
 function MediaAttachment({ path, name, image }: IncomingAttachment) {
-  const [url, setUrl] = useState('')
+  const [dataUrl, setDataUrl] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
-    let objectUrl = ''
     let cancelled = false
     const load = async () => {
       try {
-        const target = await window.icyteru.mediaUrl(path)
-        const response = await fetch(target, { credentials: 'include' })
-        if (!response.ok) throw new Error('Hermes did not send that file.')
-        const blob = await response.blob()
-        objectUrl = URL.createObjectURL(blob)
-        if (!cancelled) setUrl(objectUrl)
+        const data = await window.icyteru.mediaData(path)
+        if (!cancelled) setDataUrl(data)
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load that file.')
       }
     }
     void load()
-    return () => {
-      cancelled = true
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
+    return () => { cancelled = true }
   }, [path])
 
   if (error) return <span className="incoming-file error">{error}</span>
-  if (url) {
+  if (dataUrl) {
     return image
-      ? <img className="incoming-image" src={url} alt={name} />
-      : <a className="incoming-file" href={url} download={name}>{name}</a>
+      ? <img className="incoming-image" src={dataUrl} alt={name} />
+      : <a className="incoming-file" href={dataUrl} download={name}>{name}</a>
   }
   return <span className="incoming-file">{name}</span>
 }

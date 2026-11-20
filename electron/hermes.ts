@@ -33,6 +33,7 @@ import {
 } from '../shared/protocol'
 import { HermesSocket } from '../shared/gateway-socket'
 import type { QueuedMessage } from '../shared/snapshot'
+import { Buffer } from 'buffer'
 
 export interface ProbeResult {
   ok: boolean
@@ -385,6 +386,18 @@ export class HermesClient {
   /** Build the authenticated media URL for a MEDIA: path. */
   mediaUrl(path: string): string {
     return buildGatewayHttpUrl(this.baseUrl, `/api/plugins/icyteru-push/media?path=${encodeURIComponent(path)}`)
+  }
+
+  /** Fetch an authenticated MEDIA: file and return it as a data URL. */
+  async mediaData(path: string): Promise<string> {
+    const response = await this.authFetch(this.mediaUrl(path), { headers: this.headers() })
+    if (!response.ok) throw new Error(`Hermes did not send that file (${response.status}).`)
+    const blob = await response.blob()
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    let binary = ''
+    for (const byte of bytes) binary += String.fromCharCode(byte)
+    const base64 = typeof btoa === 'function' ? btoa(binary) : Buffer.from(bytes).toString('base64')
+    return `data:${blob.type || 'application/octet-stream'};base64,${base64}`
   }
 
   async refreshSessions(): Promise<void> {

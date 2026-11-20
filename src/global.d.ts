@@ -29,6 +29,7 @@ declare global {
       queue: (text: string, attachments?: OutgoingAttachment[]) => Promise<void>
       deleteQueued: (id: string) => Promise<void>
       mediaUrl: (path: string) => Promise<string>
+      mediaData: (path: string) => Promise<string>
       compress: () => Promise<string>
       slash: (command: string) => Promise<string>
       enableNotifications: () => Promise<boolean>
