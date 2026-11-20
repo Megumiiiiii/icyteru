@@ -795,7 +795,11 @@ export function questionFromRequest(id: string, method: string, params: unknown)
         question: String(question.question || 'Hermes has a question'),
         choices: Array.isArray(question.choices) ? question.choices.map(choice => String(choice)) : []
       }]
-    }) : []
+    }) : (typeof body.question === 'string' ? [{
+      id: String(body.prompt_id || body.request_id || id),
+      question: String(body.question),
+      choices: Array.isArray(body.choices) ? body.choices.map(choice => String(choice)) : []
+    }] : [])
     return {
       id,
       method,

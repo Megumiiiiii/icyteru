@@ -104,6 +104,7 @@ export class HermesClient {
   private loginProvider = 'basic'
   private readonly browser = typeof window !== 'undefined'
   private listStyle: 'picker' | 'plain' = 'picker'
+  private reconnecting = false
   lastError = ''
 
   constructor(private readonly emit: () => void) {}
@@ -182,6 +183,15 @@ export class HermesClient {
   }
 
   async connect(baseUrl: string, creds: ConnectionCredentials, extras: GatewayInput[] = []): Promise<void> {
+    this.reconnecting = true
+    try {
+      await this.connectInner(baseUrl, creds, extras)
+    } finally {
+      this.reconnecting = false
+    }
+  }
+
+  private async connectInner(baseUrl: string, creds: ConnectionCredentials, extras: GatewayInput[] = []): Promise<void> {
     this.disconnect()
     const discovery = await this.discover(baseUrl)
     if (!discovery.ok) throw new Error(discovery.message)
@@ -925,12 +935,11 @@ export class HermesClient {
   private onEvent(event: GatewayEventFrame): void {
     if (event.type === 'gateway.ready') return
     const sessionId = event.session_id
-    if (sessionId && this.live && sessionId !== this.live.live && sessionId !== this.live.stored) {
-      if (event.type === 'session.title' || event.type === 'message.complete') void this.refreshSessions()
-      return
-    }
-    if (typeof event.execution_generation === 'number') this.executionGeneration = event.execution_generation
+    // Control events belong to the turn, not to the session list. A prompt can
+    // arrive while the client is between a stored and a live session id, so do
+    // not drop it on that mismatch alone.
     if (event.type === 'approval.request' || event.type === 'clarify.request') {
+      if (typeof event.execution_generation === 'number') this.executionGeneration = event.execution_generation
       const question = questionFromControlEvent(event.type, sessionId || this.live?.live || '', event.payload || {})
       if (question) {
         this.question = question
@@ -938,6 +947,11 @@ export class HermesClient {
       }
       return
     }
+    if (sessionId && this.live && sessionId !== this.live.live && sessionId !== this.live.stored) {
+      if (event.type === 'session.title' || event.type === 'message.complete') void this.refreshSessions()
+      return
+    }
+    if (typeof event.execution_generation === 'number') this.executionGeneration = event.execution_generation
     if (event.type === 'approval.settled' || event.type === 'clarify.settled') {
       const promptId = typeof event.payload?.prompt_id === 'string' ? event.payload.prompt_id : ''
       if (this.question && (!promptId || this.question.promptId === promptId || this.question.id === promptId)) {
@@ -961,6 +975,9 @@ export class HermesClient {
   }
 
   private onLost(message: string): void {
+    // A deliberate reconnect closes the old socket first; its close event must
+    // not overwrite the new socket's ready state.
+    if (this.reconnecting) return
     this.lastError = message
     this.transcript = { ...this.transcript, streaming: false }
     this.emit()
