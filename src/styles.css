@@ -473,6 +473,17 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
 }
 .composer .attach:hover { background: var(--panel); color: var(--ink); }
 .attachments { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 22px 8px; }
+
+/* Incoming media: MEDIA: tags render as chips/images, not raw text. */
+.incoming-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; max-width: min(740px, 86%); }
+.incoming-image { max-width: min(360px, 70vw); max-height: 320px; border-radius: 12px; border: 1px solid var(--line); object-fit: contain; background: var(--panel); }
+.incoming-file {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel); color: var(--ink); font-size: 12px; text-decoration: none;
+}
+.incoming-file.error { color: var(--danger); border-style: dashed; }
+.incoming-file.loading { color: var(--muted); }
 .attachment-chip {
   display: inline-flex;
   align-items: center;
@@ -900,11 +911,6 @@ button:disabled { opacity: 0.45; cursor: default; }
 .queue-text small { display: block; margin-top: 3px; color: var(--danger); font-size: 11px; }
 .queue-actions { display: flex; gap: 2px; flex: none; }
 .queue-item.failed .queue-dot { background: var(--danger); }
-.queue-edit { display: flex; gap: 5px; width: 100%; align-items: center; }
-.queue-edit input {
-  min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 8px;
-  background: var(--surface); color: var(--ink); padding: 6px 8px; font-size: 12px;
-}
 @media (max-width: 720px) {
   .queue-wrap { margin-left: 14px; margin-right: 14px; }
   .tool-standalone { max-width: 92%; }

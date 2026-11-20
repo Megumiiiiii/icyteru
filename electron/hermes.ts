@@ -382,9 +382,14 @@ export class HermesClient {
     }
   }
 
+  /** Build the authenticated media URL for a MEDIA: path. */
+  mediaUrl(path: string): string {
+    return buildGatewayHttpUrl(this.baseUrl, `/api/plugins/icyteru-push/media?path=${encodeURIComponent(path)}`)
+  }
+
   async refreshSessions(): Promise<void> {
     if (this.listStyle === 'picker') {
-      const listed = await this.listSessions({ scope: 'stored', limit: 60, picker: true })
+      const listed = await this.listSessions({ scope: 'stored', limit: 200, picker: true })
       if (listed.ok) {
         this.sessions = sortSessions(normalizeSessions(listed.value))
         this.emit()
@@ -392,13 +397,13 @@ export class HermesClient {
       }
       this.listStyle = 'plain'
     }
-    const fallback = await this.listSessions({ limit: 60 })
+    const fallback = await this.listSessions({ limit: 200 })
     if (fallback.ok) {
       this.sessions = sortSessions(normalizeSessions(fallback.value))
       this.emit()
       return
     }
-    const rest = await this.getJson('/api/sessions?limit=60&order=recent').catch(() => null)
+    const rest = await this.getJson('/api/sessions?limit=200&order=recent').catch(() => null)
     if (rest) this.sessions = sortSessions(normalizeSessions(rest))
     this.emit()
   }
@@ -531,24 +536,6 @@ export class HermesClient {
     entry.admissionId = receipt.admission_id
     this.queued.push(entry)
     this.startQueuePolling()
-    this.emit()
-  }
-
-  async editQueued(id: string, text: string): Promise<void> {
-    const entry = this.queued.find(item => item.id === id)
-    const body = text.trim()
-    if (!entry || entry.sessionId !== this.live?.stored || entry.status !== 'queued' || !entry.admissionId) {
-      throw new Error('That message is no longer queued.')
-    }
-    if (entry.attachmentNames?.length) throw new Error('Messages with attachments cannot be edited.')
-    if (!body) throw new Error('Write a replacement message.')
-    const inputId = crypto.randomUUID()
-    // Atomic replacement refuses a claimed admission. Never cancel and resubmit.
-    const receipt = asRecord(await this.rpc('prompt.replace_queued', this.scope({
-      session_id: this.live.live, admission_id: entry.admissionId, text: body, submission_id: inputId
-    })))
-    this.queued = this.queued.filter(item => item !== entry)
-    this.trackReceipt({ ...entry, id: inputId, text: body }, receipt)
     this.emit()
   }
 

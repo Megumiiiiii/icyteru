@@ -180,7 +180,7 @@ async function syncPushToken(): Promise<void> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.36' })
+      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.37' })
     })
     const pending = await IcyteruPush.consumeSession()
     if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)
@@ -350,8 +350,8 @@ export function installWebHost(): void {
     sendMessage: async (text: string, attachments?: OutgoingAttachment[]) => client.send(text, attachments),
     steer: async (text: string) => client.steer(text),
     queue: async (text: string, attachments?: OutgoingAttachment[]) => client.queue(text, attachments),
-    editQueued: async (id: string, text: string) => client.editQueued(id, text),
     deleteQueued: async (id: string) => client.deleteQueued(id),
+    mediaUrl: async (path: string) => client.mediaUrl(path),
     compress: async () => client.compress(),
     slash: async (command: string) => client.slash(command),
     testApproval: async () => {

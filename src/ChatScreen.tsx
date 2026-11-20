@@ -6,6 +6,65 @@ import { Avatar } from './Avatar'
 import { Markdown } from './Markdown'
 import { ago } from './time'
 
+type IncomingAttachment = {
+  path: string
+  name: string
+  image: boolean
+}
+
+const MEDIA_TAG_RE = /(?:^|\s)MEDIA:\s*([^\s]+)/g
+
+function cleanMediaPath(raw: string): string {
+  return raw.replace(/[)\]};.,]+$/g, '')
+}
+
+function splitMedia(text: string): { text: string; attachments: IncomingAttachment[] } {
+  const attachments: IncomingAttachment[] = []
+  const stripped = text.replace(MEDIA_TAG_RE, (_match, raw: string) => {
+    const path = cleanMediaPath(raw)
+    if (!path) return ''
+    const name = path.split(/[\\/]/).pop() || path
+    attachments.push({ path, name, image: /\.(png|jpe?g|webp|gif)$/i.test(path) })
+    return ''
+  })
+  return { text: stripped.replace(/\n{3,}/g, '\n\n').trim(), attachments }
+}
+
+function MediaAttachment({ path, name, image }: IncomingAttachment) {
+  const [url, setUrl] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let objectUrl = ''
+    let cancelled = false
+    const load = async () => {
+      try {
+        const target = await window.icyteru.mediaUrl(path)
+        const response = await fetch(target, { credentials: 'include' })
+        if (!response.ok) throw new Error('Hermes did not send that file.')
+        const blob = await response.blob()
+        objectUrl = URL.createObjectURL(blob)
+        if (!cancelled) setUrl(objectUrl)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load that file.')
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [path])
+
+  if (error) return <span className="incoming-file error">{error}</span>
+  if (url) {
+    return image
+      ? <img className="incoming-image" src={url} alt={name} />
+      : <a className="incoming-file" href={url} download={name}>{name}</a>
+  }
+  return <span className="incoming-file">{name}</span>
+}
+
 export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
   const phone = useContext(PhoneNav)
   const [draft, setDraft] = useState('')
@@ -23,8 +82,6 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
   const [steerPending, setSteerPending] = useState<{ toolCount: number } | null>(null)
   const [steerNote, setSteerNote] = useState<{ text: string; age: number } | null>(null)
   const [queueOpen, setQueueOpen] = useState(false)
-  const [editingQueue, setEditingQueue] = useState<string | null>(null)
-  const [queueEditText, setQueueEditText] = useState('')
   const [atBottom, setAtBottom] = useState(true)
   const [files, setFiles] = useState<OutgoingAttachment[]>([])
   const scroller = useRef<HTMLDivElement>(null)
@@ -399,12 +456,22 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
           )}
           {snapshot.transcript.messages.map(message => (
             <Fragment key={message.id}>
-              {orderedParts(message).map((part, i) => (
-                <Fragment key={i}>
-                  {part.text.trim() && <article className={`bubble ${message.role}`}><Markdown text={part.text} /></article>}
-                  {part.tools.length > 0 && <div className="tool-standalone"><ToolGroup tools={part.tools} /></div>}
-                </Fragment>
-              ))}
+              {orderedParts(message).map((part, i) => {
+                const media = splitMedia(part.text)
+                return (
+                  <Fragment key={i}>
+                    {media.attachments.length > 0 && (
+                      <div className="incoming-attachments">
+                        {media.attachments.map(attachment => (
+                          <MediaAttachment key={attachment.path} path={attachment.path} name={attachment.name} image={attachment.image} />
+                        ))}
+                      </div>
+                    )}
+                    {media.text.trim() && <article className={`bubble ${message.role}`}><Markdown text={media.text} /></article>}
+                    {part.tools.length > 0 && <div className="tool-standalone"><ToolGroup tools={part.tools} /></div>}
+                  </Fragment>
+                )
+              })}
               {message.error && (
                 <p className="inline-error standalone-error">{message.error}</p>
               )}
@@ -476,51 +543,22 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
               <div className="queue-list">
                 {snapshot.queued.map(entry => (
                   <div className={`queue-item ${entry.status}`} key={entry.id}>
-                    {editingQueue === entry.id ? (
-                      <form
-                        className="queue-edit"
-                        onSubmit={event => {
-                          event.preventDefault()
-                          void window.icyteru.editQueued(entry.id, queueEditText)
-                            .then(() => { setEditingQueue(null); setQueueEditText('') })
-                            .catch(error => setNotice(error instanceof Error ? error.message : 'Could not edit the queued message.'))
-                        }}
-                      >
-                        <input
-                          value={queueEditText}
-                          autoFocus
-                          onChange={event => setQueueEditText(event.target.value)}
-                          aria-label="Edit queued message"
-                        />
-                        <button type="submit" className="tiny">Save</button>
-                        <button type="button" className="ghost tiny" onClick={() => setEditingQueue(null)}>Cancel</button>
-                      </form>
-                    ) : (
-                      <>
-                        <div className="queue-text">
-                          <span>{[entry.text, ...(entry.attachmentNames || [])].filter(Boolean).join(' · ')}</span>
-                          {entry.status === 'unknown' && <small>Gateway status unknown</small>}
-                          {entry.error && <small>{entry.error}</small>}
-                        </div>
-                        {entry.status !== 'unknown' && (
-                          <div className="queue-actions">
-                            {entry.status === 'queued' && <button
-                              type="button"
-                              className="ghost tiny"
-                              disabled={Boolean(entry.attachmentNames?.length)}
-                              onClick={() => { setEditingQueue(entry.id); setQueueEditText(entry.text) }}
-                            >Edit</button>}
-                            <button
-                              type="button"
-                              className="ghost tiny danger"
-                              disabled={entry.status !== 'failed'}
-                              title={entry.status === 'failed' ? 'Dismiss' : 'The gateway cannot delete this without risking interruption of a started turn.'}
-                              aria-label={entry.status === 'failed' ? 'Dismiss failed message' : 'Delete queued message'}
-                              onClick={() => void window.icyteru.deleteQueued(entry.id).catch(error => setNotice(error instanceof Error ? error.message : 'Could not delete the queued message.'))}
-                            >×</button>
-                          </div>
-                        )}
-                      </>
+                    <div className="queue-text">
+                      <span>{[entry.text, ...(entry.attachmentNames || [])].filter(Boolean).join(' · ')}</span>
+                      {entry.status === 'unknown' && <small>Gateway status unknown</small>}
+                      {entry.error && <small>{entry.error}</small>}
+                    </div>
+                    {entry.status !== 'unknown' && (
+                      <div className="queue-actions">
+                        <button
+                          type="button"
+                          className="ghost tiny danger"
+                          disabled={entry.status !== 'failed'}
+                          title={entry.status === 'failed' ? 'Dismiss' : 'The gateway cannot delete this without risking interruption of a started turn.'}
+                          aria-label={entry.status === 'failed' ? 'Dismiss failed message' : 'Delete queued message'}
+                          onClick={() => void window.icyteru.deleteQueued(entry.id).catch(error => setNotice(error instanceof Error ? error.message : 'Could not delete the queued message.'))}
+                        >×</button>
+                      </div>
                     )}
                   </div>
                 ))}

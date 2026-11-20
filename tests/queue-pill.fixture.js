@@ -40,23 +40,13 @@ client.rpc = async (method, params) => {
   if (method === 'prompt.submit' && params.queued === true) return admit(params.submission_id ?? params.input_id)
   const old = admissions.get(params.admission_id)
   if (!old) invalid(`Unknown admission in ${method}`)
-  if (method === 'prompt.replace_queued') {
-    // CanonicalReplaceQueuedParams requires submission_id, unlike submit. The old
-    // receipt stays queryable; the replacement gets a new sequence at the FIFO tail.
-    if (!params.submission_id || 'input_id' in params) invalid('prompt.replace_queued requires submission_id, not input_id')
-    if (old.status !== 'queued') throw Error('admission_started')
-    const next = admit(params.submission_id)
-    Object.assign(old, { status: 'terminal', outcome: 'cancelled' })
-    return next
-  }
   if (method === 'prompt.receipt') return structuredClone(old)
   invalid(`Unexpected ${method}; prompt.cancel is not pending-only`)
 }
 Object.assign(api, {
   getSnapshot: async () => snapshot(),
   onSnapshot: listener => { listeners.add(listener); return () => listeners.delete(listener) },
-  sendMessage: client.send.bind(client), queue: client.queue.bind(client),
-  editQueued: client.editQueued.bind(client), deleteQueued: client.deleteQueued.bind(client)
+  sendMessage: client.send.bind(client), queue: client.queue.bind(client), deleteQueued: client.deleteQueued.bind(client)
 })
 window.queueHarness = { calls, errors, finishNext() {
   const next = [...admissions.values()].find(row => row.status === 'queued')

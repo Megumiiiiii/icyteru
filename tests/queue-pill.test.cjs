@@ -69,24 +69,18 @@ test('queue pill in Chromium (production renderer and client)', async t => {
         assert.deepEqual(await page.evaluate(() => window.queueHarness.errors), [])
         assert.deepEqual(await rows.locator('.queue-text span').allTextContents(), ['From the busy menu', 'From the slash command'])
       })
-      await t.test('atomic edit goes to FIFO tail; terminal receipts drain the pill', async () => {
-        await rows.first().getByRole('button', { name: 'Edit', exact: true }).click()
-        await page.getByLabel('Edit queued message').fill('Revised follow-up')
-        await page.getByRole('button', { name: 'Save', exact: true }).click()
-        await page.waitForFunction(() => window.queueHarness.errors.length ||
-          document.querySelector('.queue-item:last-child .queue-text span')?.textContent === 'Revised follow-up')
-        assert.deepEqual(await page.evaluate(() => window.queueHarness.errors), [])
-        assert.deepEqual(await rows.locator('.queue-text span').allTextContents(), ['From the slash command', 'Revised follow-up'])
+      await t.test('pill has no edit controls and terminal receipts drain it', async () => {
+        assert.equal(await rows.getByRole('button', { name: 'Edit', exact: true }).count(), 0)
+        assert.equal(await page.getByLabel('Edit queued message').count(), 0)
         await page.evaluate(() => window.queueHarness.finishNext())
         await pill(1).waitFor()
-        assert.deepEqual(await rows.locator('.queue-text span').allTextContents(), ['Revised follow-up'])
+        assert.deepEqual(await rows.locator('.queue-text span').allTextContents(), ['From the slash command'])
         await page.evaluate(() => window.queueHarness.finishNext())
         await page.locator('.queue-pill').waitFor({ state: 'detached' })
         assert.equal(await rows.count(), 0)
         const writes = await page.evaluate(() => window.queueHarness.calls.filter(c => c.method !== 'prompt.receipt'))
         assert.deepEqual(writes.map(c => [c.method, c.params.text]), [
-          ['prompt.submit', 'From the busy menu'], ['prompt.submit', 'From the slash command'],
-          ['prompt.replace_queued', 'Revised follow-up']
+          ['prompt.submit', 'From the busy menu'], ['prompt.submit', 'From the slash command']
         ])
         assert.deepEqual(pageErrors, [])
       })
