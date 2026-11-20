@@ -12,3 +12,7 @@ android/captures/
 android/.idea/
 *.keystore
 !android/app/debug.keystore
+
+# Local codebase-memory index
+.codebase-memory/
+.cbmignore

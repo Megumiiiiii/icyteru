@@ -3,6 +3,7 @@
  * The renderer keeps calling window.icyteru. On Android that object is this host,
  * which runs the same Hermes client inside the WebView.
  */
+import { Capacitor, registerPlugin } from '@capacitor/core'
 import { HermesClient } from '../../electron/hermes'
 import { emptySnapshot, type AppScreen, type Snapshot, type ThemePreference } from '../../shared/snapshot'
 import type { AuthDiscovery, NotificationPayload, OutgoingAttachment } from '../../shared/protocol'
@@ -10,6 +11,13 @@ import { enableNotifications, sendNotification } from '../notifications'
 import type { ConnectionInput } from '../global'
 
 type BackdropMode = 'light' | 'dark'
+
+interface IcyteruPushBridge {
+  getToken: () => Promise<{ token: string }>
+  consumeSession: () => Promise<{ session_id: string }>
+}
+
+const IcyteruPush = registerPlugin<IcyteruPushBridge>('IcyteruPush')
 
 interface SavedGateway {
   id: string
@@ -147,6 +155,25 @@ function publish(): void {
   }, 30)
 }
 
+async function syncPushToken(): Promise<void> {
+  if (Capacitor.getPlatform() !== 'android' || !saved.url) return
+  try {
+    await enableNotifications()
+    const { token } = await IcyteruPush.getToken()
+    if (!token) return
+    await fetch(`${normalizeUrl(saved.url)}/api/plugins/icyteru-push/register`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.10' })
+    })
+    const pending = await IcyteruPush.consumeSession()
+    if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)
+  } catch {
+    // Push registration is a courtesy; a gateway or FCM hiccup must not block chat.
+  }
+}
+
 async function connectSaved(): Promise<void> {
   if (!saved.url) {
     screen = 'connect'
@@ -170,6 +197,7 @@ async function connectSaved(): Promise<void> {
     status = ''
     error = ''
     client.lastError = ''
+    await syncPushToken()
   } catch (err) {
     phase = 'error'
     error = err instanceof Error ? err.message : 'Could not connect to Hermes.'
@@ -363,4 +391,11 @@ export function installWebHost(): void {
   window.icyteru = api
   if (saved.url) void connectSaved()
   else publish()
+}
+
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && phase === 'ready') void syncPushToken()
+  })
 }
