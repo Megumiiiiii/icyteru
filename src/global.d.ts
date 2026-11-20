@@ -1,0 +1,47 @@
+import type { AuthDiscovery, OutgoingAttachment } from '../shared/protocol'
+import type { AppScreen, Snapshot, TestResult, ThemePreference } from '../shared/snapshot'
+
+export interface ConnectionInput {
+  url?: string
+  token?: string
+  username?: string
+  password?: string
+  method?: 'password' | 'token'
+}
+
+declare global {
+  interface Window {
+    icyteru: {
+      getSnapshot: () => Promise<Snapshot>
+      testConnection: (input: ConnectionInput) => Promise<TestResult>
+      probeAuth: (input: ConnectionInput) => Promise<AuthDiscovery>
+      saveConnection: (input: ConnectionInput) => Promise<Snapshot>
+      forgetConnection: () => Promise<Snapshot>
+      setTheme: (theme: ThemePreference) => Promise<Snapshot>
+      showScreen: (screen: AppScreen) => Promise<Snapshot>
+      reconnect: () => Promise<void>
+      refreshSessions: () => Promise<void>
+      openSession: (id: string) => Promise<void>
+      newChat: () => Promise<void>
+      sendMessage: (text: string, attachments?: OutgoingAttachment[]) => Promise<void>
+      steer: (text: string) => Promise<string>
+      compress: () => Promise<string>
+      slash: (command: string) => Promise<string>
+      interrupt: () => Promise<void>
+      answer: (id: string, result: unknown) => Promise<void>
+      setModel: (model: string, provider: string, confirm?: boolean) => Promise<string>
+      selectProfile: (gatewayId: string, name: string) => Promise<void>
+      setPinned: (gatewayId: string, name: string, pinned: boolean) => Promise<void>
+      createProfile: (label: string) => Promise<void>
+      getAppearance: () => Promise<{ dim: number; blur: number; light: string | null; dark: string | null }>
+      setBackground: (mode: 'light' | 'dark', image: string) => Promise<{ dim: number; blur: number; light: string | null; dark: string | null }>
+      clearBackground: (mode: 'light' | 'dark') => Promise<{ dim: number; blur: number; light: string | null; dark: string | null }>
+      setBackdrop: (dim: number, blur: number) => Promise<{ dim: number; blur: number; light: string | null; dark: string | null }>
+      addGateway: (input: ConnectionInput) => Promise<Snapshot>
+      removeGateway: (id: string) => Promise<void>
+      onSnapshot: (listener: (snapshot: Snapshot) => void) => () => void
+    }
+  }
+}
+
+export {}
