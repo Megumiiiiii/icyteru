@@ -826,3 +826,35 @@ button:disabled { opacity: 0.45; cursor: default; }
   .bar-actions .model-menu > .top-action { max-width: 138px; justify-items: start; font-size: 12px; }
   .history-arrow { font-size: 24px; line-height: 1; margin-top: -2px; }
 }
+
+/* Compression status bar: compression is one long RPC, so show phase + elapsed time. */
+.compress-bar {
+  margin: 0 22px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink);
+}
+.compress-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.compress-label { font-size: 13px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.compress-time { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.compress-spinner {
+  width: 13px; height: 13px; flex: none; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--ink);
+  animation: compress-spin .8s linear infinite;
+}
+.compress-bar.done .compress-spinner { border-color: var(--ok); background: var(--ok); animation: none; }
+.compress-bar.error .compress-spinner { border-color: var(--bad, #c45); animation: none; }
+.compress-track { height: 4px; margin-top: 9px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.compress-track span {
+  display: block; width: 38%; height: 100%; border-radius: inherit;
+  background: var(--ink); animation: compress-slide 1.25s ease-in-out infinite;
+}
+.compress-message { margin: 8px 0 0; color: var(--muted); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.compress-bar.error .compress-message { color: var(--bad, #c45); }
+@keyframes compress-spin { to { transform: rotate(360deg); } }
+@keyframes compress-slide { 0% { transform: translateX(-120%); } 100% { transform: translateX(390%); } }
+@media (max-width: 720px) {
+  .compress-bar { margin-left: 14px; margin-right: 14px; }
+}

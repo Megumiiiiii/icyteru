@@ -20,6 +20,8 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
   const [notice, setNotice] = useState('')
   const [noticeKind, setNoticeKind] = useState<'' | 'steer' | 'queue'>('')
   const [noticeAge, setNoticeAge] = useState(0)
+  const [compress, setCompress] = useState<{ status: 'running' | 'done' | 'error'; started: number; message: string } | null>(null)
+  const [compressElapsed, setCompressElapsed] = useState(0)
   const [atBottom, setAtBottom] = useState(true)
   const [files, setFiles] = useState<OutgoingAttachment[]>([])
   const queue = useRef<Array<{ text: string; files: OutgoingAttachment[] }>>([])
@@ -152,6 +154,22 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     else if (noticeKind && !/^(Steered|Queued)/.test(notice)) setNoticeKind('')
   }, [notice, noticeKind])
 
+  // Compression is one long gateway call, so keep a local status bar alive:
+  // the backend does not stream a percentage, but elapsed time and phase are real.
+  useEffect(() => {
+    if (!compress || compress.status !== 'running') return
+    const tick = () => setCompressElapsed(Math.floor((Date.now() - compress.started) / 1000))
+    tick()
+    const timer = setInterval(tick, 500)
+    return () => clearInterval(timer)
+  }, [compress])
+
+  useEffect(() => {
+    if (!compress || compress.status === 'running') return
+    const timer = setTimeout(() => setCompress(null), compress.status === 'error' ? 8000 : 6000)
+    return () => clearTimeout(timer)
+  }, [compress])
+
   // Send locally queued /queue messages once the current turn ends.
   useEffect(() => {
     if (streaming || sending) return
@@ -240,11 +258,18 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
       if (name === 'compress' || name === 'compact') {
         setDraft('')
         setSending(true)
-        setNotice('Compressing context…')
+        setNotice('')
+        setCompress({ status: 'running', started: Date.now(), message: '' })
+        setCompressElapsed(0)
         try {
-          setNotice(await window.icyteru.compress())
+          const summary = await window.icyteru.compress()
+          setCompress({ status: 'done', started: Date.now(), message: summary })
         } catch (error) {
-          setNotice(error instanceof Error ? error.message : 'Compression failed.')
+          setCompress({
+            status: 'error',
+            started: Date.now(),
+            message: error instanceof Error ? error.message : 'Compression failed.'
+          })
         } finally {
           setSending(false)
         }
@@ -372,6 +397,21 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
             <span>{notice}</span>
             {noticeKind && <span className="notice-age">{noticeAge}s</span>}
           </p>
+        )}
+        {compress && (
+          <div className={`compress-bar ${compress.status}`} role="status" aria-live="polite">
+            <div className="compress-head">
+              <span className="compress-spinner" aria-hidden="true" />
+              <span className="compress-label">
+                {compress.status === 'running'
+                  ? (compressElapsed < 2 ? 'Preparing compression…' : compressElapsed < 8 ? 'Summarizing the conversation…' : 'Summarizing a long conversation…')
+                  : compress.status === 'done' ? 'Compression complete' : 'Compression failed'}
+              </span>
+              {compress.status === 'running' && <span className="compress-time">{compressElapsed}s</span>}
+            </div>
+            {compress.status === 'running' && <div className="compress-track"><span /></div>}
+            {compress.status !== 'running' && <p className="compress-message">{compress.message}</p>}
+          </div>
         )}
         {files.length > 0 && (
           <div className="attachments">
