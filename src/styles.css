@@ -303,7 +303,8 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
 }
 .session.active, .session:hover { background: color-mix(in srgb, var(--surface) 78%, transparent); }
 .session-title { display: flex; gap: 8px; align-items: center; font-weight: 560; }
-.session-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+.session-meta { display: flex; align-items: baseline; gap: 8px; color: var(--muted); font-size: 12px; }
+.session-meta time { margin-left: auto; }
 .session-meta em { font-style: normal; }
 .dot { width: 7px; height: 7px; border-radius: 99px; background: #2f7d52; display: inline-block; }
 .empty-list { color: var(--muted); font-size: 13px; padding: 8px; line-height: 1.45; }

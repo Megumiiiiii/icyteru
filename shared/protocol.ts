@@ -710,7 +710,8 @@ export function questionFromControlEvent(type: string, sessionId: string, payloa
       secret: false,
       questions: [],
       promptId,
-      executionGeneration: generation
+      executionGeneration: generation,
+      ...(body.test === true ? { test: true } : {})
     }
   }
   if (type === 'clarify.request' && promptId) {
@@ -766,6 +767,8 @@ export interface PendingQuestion {
   promptId?: string
   executionGeneration?: number
   multiSelect?: boolean
+  /** Display-only test prompt; answering clears it locally. */
+  test?: boolean
 }
 
 export function questionFromRequest(id: string, method: string, params: unknown): PendingQuestion | null {

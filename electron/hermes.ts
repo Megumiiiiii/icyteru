@@ -594,6 +594,11 @@ export class HermesClient {
 
   async answer(id: string, result: unknown): Promise<void> {
     const question = this.question
+    if (question?.id === id && question.test) {
+      this.question = null
+      this.emit()
+      return
+    }
     if (question?.id === id && question.promptId) {
       const record = asRecord(result)
       if (question.method === 'approval.request') {
