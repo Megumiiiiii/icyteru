@@ -38,6 +38,7 @@ declare global {
       interrupt: () => Promise<void>
       answer: (id: string, result: unknown) => Promise<void>
       setModel: (model: string, provider: string, confirm?: boolean) => Promise<string>
+      setReasoning: (value: string) => Promise<string>
       selectProfile: (gatewayId: string, name: string) => Promise<void>
       setPinned: (gatewayId: string, name: string, pinned: boolean) => Promise<void>
       createProfile: (label: string) => Promise<void>

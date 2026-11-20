@@ -842,10 +842,50 @@ button:disabled { opacity: 0.45; cursor: default; }
   .bar-actions .icon-button { width: 34px; height: 34px; border-radius: 10px; }
   .bar-actions .top-action { min-width: 34px; height: 34px; display: grid; place-items: center; padding: 0 8px; }
   .bar-actions .model-menu > .top-action { max-width: 138px; justify-items: start; font-size: 12px; }
+  .bar-actions .reasoning-menu > .top-action { max-width: 86px; justify-items: start; font-size: 12px; }
+  .reasoning-menu .model-pop { width: min(240px, 66vw); }
   .history-arrow { font-size: 24px; line-height: 1; margin-top: -2px; }
 }
 
-/* Compression status bar: compression is one long RPC, so show phase + elapsed time. */
+/* Generic status bar: used for steer and errors, mirrors the compress bar. */
+.statusbar {
+  margin: 0 22px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink);
+}
+.statusbar-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.statusbar-label { font-size: 13px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.statusbar-time { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.statusbar-spinner {
+  width: 13px; height: 13px; flex: none; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--ink);
+  animation: statusbar-spin .8s linear infinite;
+}
+.statusbar-icon {
+  width: 15px; height: 15px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 700; color: #fff;
+}
+.statusbar-icon.done { background: var(--ok); }
+.statusbar-icon.error { background: var(--bad, #c45); }
+.statusbar-icon.info { background: var(--muted); color: var(--panel); }
+.statusbar-message { margin: 8px 0 0; color: var(--muted); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.statusbar.error .statusbar-message { color: var(--bad, #c45); }
+.statusbar-track { height: 4px; margin-top: 9px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.statusbar-track span {
+  display: block; width: 38%; height: 100%; border-radius: inherit;
+  background: var(--ink); animation: statusbar-slide 1.25s ease-in-out infinite;
+}
+.statusbar.error { border-color: color-mix(in srgb, var(--bad, #c45) 55%, var(--line)); }
+@keyframes statusbar-spin { to { transform: rotate(360deg); } }
+@keyframes statusbar-slide { 0% { transform: translateX(-120%); } 100% { transform: translateX(390%); } }
+@media (max-width: 720px) {
+  .statusbar { margin-left: 14px; margin-right: 14px; }
+}
+
 .compress-bar {
   margin: 0 22px 10px;
   padding: 10px 12px;

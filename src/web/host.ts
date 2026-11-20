@@ -138,6 +138,7 @@ function snapshot(): Snapshot {
   base.models = state.side.models.models
   base.currentModel = state.side.models.currentModel
   base.currentProvider = state.side.models.currentProvider
+  base.currentReasoning = state.side.reasoning
   base.skills = state.side.skills
   base.skillsNote = state.side.skillsNote
   base.memory = state.side.memory
@@ -180,7 +181,7 @@ async function syncPushToken(): Promise<void> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.39' })
+      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.40' })
     })
     const pending = await IcyteruPush.consumeSession()
     if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)
@@ -371,6 +372,7 @@ export function installWebHost(): void {
     interrupt: () => client.interrupt(),
     answer: (id: string, result: unknown) => client.answer(id, result),
     setModel: (model: string, provider: string, confirm = false) => client.setModel(model, provider, confirm),
+    setReasoning: (value: string) => client.setReasoning(value),
     selectProfile: (gatewayId: string, name: string) => client.selectProfile(gatewayId, name),
     setPinned: (gatewayId: string, name: string, pinned: boolean) => client.setPinned(gatewayId, name, pinned),
     createProfile: (label: string) => client.createProfile(label),

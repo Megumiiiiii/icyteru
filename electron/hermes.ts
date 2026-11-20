@@ -449,6 +449,7 @@ export class HermesClient {
       if (rows) this.transcript = historyFromRows(rows)
     }
     this.question = null
+    await this.readReasoning().catch(() => undefined)
     this.emit()
   }
 
@@ -466,6 +467,7 @@ export class HermesClient {
     this.revision = 0
     this.transcript = emptyTranscript()
     this.question = null
+    this.side.reasoning = ''
     this.emit()
   }
 
@@ -695,6 +697,7 @@ export class HermesClient {
     const created = await this.createSession()
     this.live = { ...created, subscriptionId: '' }
     await this.refreshSessions()
+    await this.readReasoning().catch(() => undefined)
   }
 
   /** Stage bytes in the session workspace, the same RPCs Hermes Desktop uses. */
@@ -798,6 +801,44 @@ export class HermesClient {
     return 'Model saved on Hermes. New messages use it.'
   }
 
+  /** Read the live session's current reasoning effort from the gateway. */
+  private async readReasoning(): Promise<void> {
+    if (!this.live?.live || !this.socket?.isOpen) return
+    try {
+      const result = await this.rpc('config.get', this.scope({
+        session_id: this.live.live,
+        key: 'reasoning'
+      }))
+      const body = asRecord(result)
+      const value = body.value
+      this.side.reasoning = typeof value === 'string' ? value : ''
+    } catch {
+      // A gateway without the reasoning control keeps the menu but leaves it unset.
+    }
+  }
+
+  /** Change this session's reasoning effort, the same ``/reasoning`` the CLI uses. */
+  async setReasoning(value: string): Promise<string> {
+    const level = value.trim().toLowerCase()
+    const allowed = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'reset'])
+    if (!allowed.has(level)) throw new Error('Choose a reasoning level from the menu.')
+    if (!this.live?.live) await this.ensureLive()
+    const sessionId = this.live!.live
+    const result = await this.rpc('config.set', this.scope({
+      session_id: sessionId,
+      key: 'reasoning',
+      value: level,
+      scope: 'session'
+    }))
+    const body = asRecord(result)
+    const reported = typeof body.value === 'string' ? body.value : level
+    this.side.reasoning = level === 'reset' ? 'medium' : reported
+    await this.readReasoning().catch(() => undefined)
+    this.emit()
+    if (level === 'reset') return 'Reasoning reset to the profile default on Hermes.'
+    return `Reasoning set to ${reported} on Hermes. New messages use it.`
+  }
+
   private async createSession(): Promise<{ live: string; stored: string }> {
     const params = buildCreateParams(this.contract, crypto.randomUUID(), undefined, undefined, this.activeProfile || undefined)
     let created: unknown
@@ -838,25 +879,30 @@ export class HermesClient {
       this.getJson(soulPath).catch(() => null)
     ])
     const soulText = typeof asRecord(soul).content === 'string' ? String(asRecord(soul).content).trim() : ''
+    const reasoning = this.side.reasoning
     this.side = {
       models: models ? normalizeModels(models) : { currentModel: '', currentProvider: '', models: [] },
+      reasoning,
       skills: skills ? normalizeSkills(skills) : [],
       skillsNote: skills ? '' : 'This gateway does not share a skill list.',
       memory: memory ? normalizeMemory(memory) : { available: false, summary: '', notes: '', user: '', instructions: '' },
       instructionsNote: soulText
     }
     if (soulText) this.side.memory = { ...this.side.memory, instructions: soulText }
+    await this.readReasoning().catch(() => undefined)
     this.emit()
   }
 
   side: {
     models: ReturnType<typeof normalizeModels>
+    reasoning: string
     skills: ReturnType<typeof normalizeSkills>
     skillsNote: string
     memory: MemoryView
     instructionsNote?: string
   } = {
     models: { currentModel: '', currentProvider: '', models: [] },
+    reasoning: '',
     skills: [],
     skillsNote: '',
     memory: { available: false, summary: '', notes: '', user: '', instructions: '' },

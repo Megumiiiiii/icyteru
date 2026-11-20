@@ -37,6 +37,7 @@ const api = {
   interrupt: (): Promise<void> => ipcRenderer.invoke('interrupt'),
   answer: (id: string, result: unknown): Promise<void> => ipcRenderer.invoke('answer', { id, result }),
   setModel: (model: string, provider: string, confirm = false): Promise<string> => ipcRenderer.invoke('set-model', { model, provider, confirm }),
+  setReasoning: (value: string): Promise<string> => ipcRenderer.invoke('set-reasoning', value),
   selectProfile: (gatewayId: string, name: string): Promise<void> => ipcRenderer.invoke('select-profile', { gatewayId, name }),
   setPinned: (gatewayId: string, name: string, pinned: boolean): Promise<void> => ipcRenderer.invoke('set-pinned', { gatewayId, name, pinned }),
   createProfile: (label: string): Promise<void> => ipcRenderer.invoke('create-profile', label),

@@ -30,6 +30,40 @@ function splitMedia(text: string): { text: string; attachments: IncomingAttachme
   return { text: stripped.replace(/\n{3,}/g, '\n\n').trim(), attachments }
 }
 
+function StatusBar({
+  state,
+  title,
+  message,
+  elapsed,
+  track
+}: {
+  state: 'running' | 'done' | 'error' | 'info'
+  title: string
+  message?: string
+  elapsed?: number
+  track?: boolean
+}) {
+  const icon = state === 'running'
+    ? <span className="statusbar-spinner" aria-hidden="true" />
+    : state === 'error'
+      ? <span className="statusbar-icon error" aria-hidden="true">✕</span>
+      : state === 'done'
+        ? <span className="statusbar-icon done" aria-hidden="true">✓</span>
+        : <span className="statusbar-icon info" aria-hidden="true">i</span>
+
+  return (
+    <div className={`statusbar ${state}`} role="status" aria-live="polite">
+      <div className="statusbar-head">
+        {icon}
+        <span className="statusbar-label">{title}</span>
+        {typeof elapsed === 'number' && <span className="statusbar-time">{elapsed}s</span>}
+      </div>
+      {message && <p className="statusbar-message">{message}</p>}
+      {track && <div className="statusbar-track"><span /></div>}
+    </div>
+  )
+}
+
 function MediaAttachment({ path, name, image }: IncomingAttachment) {
   const [dataUrl, setDataUrl] = useState('')
   const [error, setError] = useState('')
@@ -418,6 +452,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
               </div>
             </div>
           <div className="bar-actions">
+            <ReasoningMenu snapshot={snapshot} onNotice={setNotice} />
             <ModelMenu snapshot={snapshot} onNotice={setNotice} />
             <button
               className="top-action tiny"
@@ -482,15 +517,19 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
         )}
         {snapshot.question && <QuestionCard question={snapshot.question} />}
         {steerNote && (
-          <p className="banner wrap">
-            <span>{steerNote.text}</span>
-            <span className="notice-age">{steerNote.age}s</span>
-          </p>
+          <StatusBar
+            state="running"
+            title="Steering the current turn…"
+            message={steerNote.text}
+            elapsed={steerNote.age}
+            track
+          />
         )}
         {notice && (
-          <p className="banner wrap">
-            <span>{notice}</span>
-          </p>
+          <StatusBar
+            state={/error|failed|could not|did not|refused|invalid|too many|not connected/i.test(notice) ? 'error' : 'info'}
+            title={notice}
+          />
         )}
         {compress && (
           <div className={`compress-bar ${compress.status}`} role="status" aria-live="polite">
@@ -920,6 +959,85 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
               )
             })}
             {models.length === 0 && <p className="hint">No models in this provider.</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReasoningMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const menu = useRef<HTMLDivElement>(null)
+  const levels = [
+    { id: 'none', label: 'Off' },
+    { id: 'minimal', label: 'Minimal' },
+    { id: 'low', label: 'Low' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'high', label: 'High' },
+    { id: 'xhigh', label: 'X-High' },
+    { id: 'max', label: 'Max' },
+    { id: 'ultra', label: 'Ultra' }
+  ]
+  const current = snapshot.currentReasoning || 'medium'
+
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (event: PointerEvent) => {
+      if (!menu.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div className="model-menu reasoning-menu" ref={menu}>
+      <button className="top-action tiny" onClick={() => setOpen(value => !value)} type="button" title={`Reasoning: ${current}`}>
+        Reasoning
+      </button>
+      {open && (
+        <div className="model-pop">
+          <div className="model-list">
+            {levels.map(level => (
+              <button
+                key={level.id}
+                className={current === level.id ? 'active' : ''}
+                onClick={() => {
+                  setOpen(false)
+                  void window.icyteru.setReasoning(level.id).then(onNotice).catch(error => {
+                    onNotice(error instanceof Error ? error.message : 'Could not change reasoning.')
+                  })
+                }}
+                type="button"
+              >
+                <span className="model-label">
+                  <strong>{level.label}</strong>
+                  <em>Effort</em>
+                </span>
+                {current === level.id && <span className="model-check" aria-label="Current reasoning">✓</span>}
+              </button>
+            ))}
+            <button
+              onClick={() => {
+                setOpen(false)
+                void window.icyteru.setReasoning('reset').then(onNotice).catch(error => {
+                  onNotice(error instanceof Error ? error.message : 'Could not reset reasoning.')
+                })
+              }}
+              type="button"
+            >
+              <span className="model-label">
+                <strong>Reset</strong>
+                <em>Back to profile default</em>
+              </span>
+            </button>
           </div>
         </div>
       )}

@@ -71,6 +71,7 @@ function snapshot(): Snapshot {
   base.models = state.side.models.models
   base.currentModel = state.side.models.currentModel
   base.currentProvider = state.side.models.currentProvider
+  base.currentReasoning = state.side.reasoning
   base.skills = state.side.skills
   base.skillsNote = state.side.skillsNote
   base.memory = state.side.memory
@@ -280,6 +281,7 @@ function registerIpc(): void {
   ipcMain.handle('set-model', (_event, payload: { model: string; provider: string; confirm?: boolean }) => (
     client.setModel(payload.model, payload.provider, Boolean(payload.confirm))
   ))
+  ipcMain.handle('set-reasoning', (_event, value: string) => client.setReasoning(value))
   ipcMain.handle('select-profile', (_event, payload: { gatewayId: string; name: string }) => (
     client.selectProfile(payload.gatewayId, payload.name)
   ))

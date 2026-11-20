@@ -55,6 +55,7 @@ export interface Snapshot {
   models: ModelChoice[]
   currentModel: string
   currentProvider: string
+  currentReasoning: string
   skills: SkillRow[]
   skillsNote: string
   memory: MemoryView
@@ -82,6 +83,7 @@ export function emptySnapshot(connection: ConnectionInfo): Snapshot {
     models: [],
     currentModel: '',
     currentProvider: '',
+    currentReasoning: '',
     skills: [],
     skillsNote: '',
     memory: { available: false, summary: '', notes: '', user: '', instructions: '' },
