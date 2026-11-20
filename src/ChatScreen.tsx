@@ -626,7 +626,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery }: {
   const sessions = snapshot.sessions.filter(session => `${session.title} ${session.preview} ${session.source}`.toLowerCase().includes(needle))
   return (
     <aside className="details">
-      <button className="ghost tiny phone-only back-link" type="button" onClick={() => phone.setView('chat')}>Back to chat</button>
+      <button className="top-action tiny phone-only back-link" type="button" onClick={() => phone.setView('chat')}>Back to chat</button>
       <div className="pane-switch">
         <button className={pane === 'history' ? 'on' : ''} type="button" onClick={() => setPane('history')}>History</button>
         <button className={pane === 'profile' ? 'on' : ''} type="button" onClick={() => setPane('profile')}>Profile</button>
