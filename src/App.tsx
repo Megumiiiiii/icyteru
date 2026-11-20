@@ -58,16 +58,17 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
       return
     }
     const seen = seenMessages.current
+    // A streaming snapshot can arrive before its final assistant row. Keep
+    // fresh rows pending until streaming is over instead of dropping them.
     const fresh = assistant.filter(message => !seen.has(message.id))
-    for (const message of assistant) seen.add(message.id)
-    const completed = wasStreaming.current && !snapshot.transcript.streaming
-    wasStreaming.current = snapshot.transcript.streaming
-    const away = document.visibilityState !== 'visible' || !document.hasFocus()
+    const nowStreaming = snapshot.transcript.streaming
+    wasStreaming.current = nowStreaming
     // Android receives every turn through FCM. A second local notification would
     // duplicate it, so only desktop/web notify from the renderer.
     const canNotify = Capacitor.getPlatform() !== 'android' 
     const sessionTitle = snapshot.sessions.find(session => session.id === snapshot.activeSessionId)?.title || 'New chat'
-    if (completed && fresh.length > 0 && !muted && canNotify) {
+    if (!nowStreaming && fresh.length > 0 && !muted && canNotify) {
+      for (const message of fresh) seen.add(message.id)
       const last = fresh[fresh.length - 1]
       void window.icyteru.notify({
         title: `${snapshot.profileName} · ${sessionTitle}`,
