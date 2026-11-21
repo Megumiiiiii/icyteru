@@ -16,6 +16,13 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   const [phoneView, setPhoneView] = useState<PhoneView>(initialPhone)
   const [leftWidth, setLeftWidth] = useState(() => readSize('icyteru-left-width', 272, 200, 440))
   const [rightWidth, setRightWidth] = useState(() => readSize('icyteru-details-width', 320, 240, 560))
+  const [leftOpen, setLeftOpen] = useState(() => {
+    try {
+      return localStorage.getItem('icyteru-left-open') !== '0'
+    } catch {
+      return true
+    }
+  })
   const [leftTitle, setLeftTitle] = useState(() => localStorage.getItem('icyteru-left-title') || 'Agents')
   const [muted, setMuted] = useState(() => {
     try {
@@ -46,6 +53,9 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   useEffect(() => {
     localStorage.setItem('icyteru-muted', muted ? '1' : '0')
   }, [muted])
+  useEffect(() => {
+    localStorage.setItem('icyteru-left-open', leftOpen ? '1' : '0')
+  }, [leftOpen])
   useEffect(() => {
     const assistant = snapshot.transcript.messages.filter(message => message.role === 'assistant' && message.text.trim())
     // Opening a different stored session loads its history at once. Mark that
@@ -143,7 +153,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
         ? <ConnectScreen snapshot={snapshot} />
         : (
           <PhoneNav.Provider value={{ view: phoneView, setView: setPhoneView }}>
-          <div className="shell" data-phone={phoneView} style={shellStyle}>
+          <div className={`shell ${leftOpen ? '' : 'left-hidden'}`} data-phone={phoneView} style={shellStyle}>
             <div
               className="resize-handle resize-left"
               role="separator"
@@ -154,7 +164,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
             <Sidebar snapshot={snapshot} title={leftTitle} muted={muted} onMuted={setMuted} />
             {snapshot.screen === 'settings'
               ? <SettingsScreen snapshot={snapshot} appearance={appearance} onAppearance={setAppearance} leftTitle={leftTitle} onLeftTitle={changeLeftTitle} />
-              : <ChatScreen snapshot={snapshot} />}
+              : <ChatScreen snapshot={snapshot} leftHidden={!leftOpen} onToggleLeft={() => setLeftOpen(open => !open)} />}
             <div
               className="resize-handle resize-right"
               role="separator"

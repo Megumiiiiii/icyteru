@@ -115,6 +115,11 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
   grid-template-columns: var(--sidebar-width, 272px) minmax(0, 1fr);
 }
 .shell:has(.details) { grid-template-columns: var(--sidebar-width, 272px) minmax(0, 1fr) var(--details-width, 320px); }
+.shell.left-hidden { grid-template-columns: 0 minmax(0, 1fr); }
+.shell.left-hidden:has(.details) { grid-template-columns: 0 minmax(0, 1fr) var(--details-width, 320px); }
+.shell.left-hidden .sidebar { display: none; }
+.shell.left-hidden .resize-left { display: none; }
+.left-toggle { display: inline-flex; }
 .resize-handle {
   position: absolute;
   top: 0;
@@ -241,6 +246,7 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
 }
 .settings-link:hover { background: var(--panel); color: var(--ink); }
 .settings-link:hover .settings-label { max-width: 120px; opacity: 1; }
+.history-arrow { font-size: 22px; line-height: 1; display: inline-block; margin-top: -1px; }
 .top-action {
   border: 0;
   background: transparent;
@@ -844,7 +850,8 @@ button:disabled { opacity: 0.45; cursor: default; }
   .bar-actions .model-menu > .top-action { max-width: 138px; justify-items: start; font-size: 12px; }
   .bar-actions .reasoning-menu > .top-action { max-width: 86px; justify-items: start; font-size: 12px; }
   .reasoning-menu .model-pop { width: min(240px, 66vw); }
-  .history-arrow { font-size: 24px; line-height: 1; margin-top: -2px; }
+  .bar-actions .history-button { min-width: 42px; height: 42px; padding: 0 14px; margin-right: 2px; }
+  .history-arrow { font-size: 26px; margin-top: -2px; }
 }
 
 /* Generic status bar: used for steer and errors, mirrors the compress bar. */

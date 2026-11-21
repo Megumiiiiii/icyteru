@@ -95,7 +95,11 @@ function MediaAttachment({ path, name, image }: IncomingAttachment) {
   return <span className="incoming-file">{name}</span>
 }
 
-export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
+export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
+  snapshot: Snapshot
+  leftHidden?: boolean
+  onToggleLeft?: () => void
+}) {
   const phone = useContext(PhoneNav)
   const [draft, setDraft] = useState('')
   const [panel, setPanel] = useState(true)
@@ -441,8 +445,20 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
     <>
       <section className="chat">
         <header className="chat-bar">
-          <button className="icon-button phone-only" type="button" aria-label="Bots" onClick={() => phone.setView('roster')}>
-            <span aria-hidden="true">‹</span>
+          <button
+            className="icon-button left-toggle"
+            type="button"
+            aria-label={leftHidden ? 'Show agents panel' : 'Hide agents panel'}
+            title={leftHidden ? 'Show agents panel' : 'Hide agents panel'}
+            onClick={() => {
+              if (window.matchMedia('(max-width: 760px)').matches) {
+                phone.setView('roster')
+                return
+              }
+              onToggleLeft?.()
+            }}
+          >
+            <span aria-hidden="true">{leftHidden ? '›' : '‹'}</span>
           </button>
           <div className="chat-title">
               <Avatar label={snapshot.profileName} initial={profile?.initial || snapshot.profileName.slice(0, 1)} src={snapshot.avatar} size={28} />
@@ -455,7 +471,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
             <ReasoningMenu snapshot={snapshot} onNotice={setNotice} />
             <ModelMenu snapshot={snapshot} onNotice={setNotice} />
             <button
-              className="top-action tiny"
+              className="top-action tiny history-button"
               onClick={() => {
                 if (window.matchMedia('(max-width: 760px)').matches) {
                   setPanel(true)
@@ -467,8 +483,7 @@ export function ChatScreen({ snapshot }: { snapshot: Snapshot }) {
               type="button"
               aria-label="Open chat history"
             >
-              <span className="desktop-only">{panel ? 'Hide history' : 'History'}</span>
-              <span className="phone-only history-arrow" aria-hidden="true">›</span>
+              <span className="history-arrow" aria-hidden="true">›</span>
             </button>
           </div>
         </header>
@@ -980,6 +995,17 @@ function ReasoningMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (
     { id: 'ultra', label: 'Ultra' }
   ]
   const current = snapshot.currentReasoning || 'medium'
+  const shortLabels: Record<string, string> = {
+    none: 'Off',
+    minimal: 'Min',
+    low: 'Low',
+    medium: 'Med',
+    high: 'High',
+    xhigh: 'XHigh',
+    max: 'Max',
+    ultra: 'Ultra'
+  }
+  const currentLabel = shortLabels[current] || current
 
   useEffect(() => {
     if (!open) return
@@ -999,8 +1025,8 @@ function ReasoningMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (
 
   return (
     <div className="model-menu reasoning-menu" ref={menu}>
-      <button className="top-action tiny" onClick={() => setOpen(value => !value)} type="button" title={`Reasoning: ${current}`}>
-        Reasoning
+      <button className="top-action tiny" onClick={() => setOpen(value => !value)} type="button" title={`Reasoning: ${currentLabel}`} aria-label="Reasoning">
+        {currentLabel}
       </button>
       {open && (
         <div className="model-pop">
