@@ -113,6 +113,7 @@ export class HermesClient {
   private tokenWindow: Array<{ t: number; chars: number }> = []
   private usageTokensPerSecond: number | null = null
   private revision = 0
+  private openEpoch = 0
   private pendingModelConfirmation: { sessionId: string; model: string; provider: string; token: string } | null = null
   private wsUrl = ''
   private protocols: string[] = []
@@ -262,6 +263,7 @@ export class HermesClient {
     await this.refreshSideData()
     await this.refreshSessions()
     this.startClarifyPolling()
+    this.resumeQueuePolling()
   }
 
   async setExtraGateways(extras: GatewayInput[]): Promise<void> {
@@ -388,6 +390,7 @@ export class HermesClient {
   }
 
   disconnect(): void {
+    this.openEpoch += 1
     if (this.queuePoll) clearInterval(this.queuePoll)
     this.queuePoll = null
     this.queuePolling = false
@@ -566,13 +569,17 @@ export class HermesClient {
   }
 
   async openSession(id: string): Promise<void> {
+    const epoch = ++this.openEpoch
     await this.detach()
+    if (epoch !== this.openEpoch) return
     let resumed: unknown
     try {
       resumed = await this.rpc('session.resume', this.scope({ session_id: id, display_projection: true }))
     } catch {
+      if (epoch !== this.openEpoch) return
       resumed = await this.rpc('session.resume', this.scope({ session_id: id }))
     }
+    if (epoch !== this.openEpoch) return
     const ids = pickSessionIds(resumed) ?? { live: id, stored: id }
     const body = asRecord(resumed)
     const stored = typeof body.stored_session_id === 'string' && body.stored_session_id
@@ -597,13 +604,16 @@ export class HermesClient {
     if (chosenProvider) this.side.models.currentProvider = chosenProvider
     if (!this.transcript.messages.length) {
       const rest = await this.getJson(`/api/sessions/${encodeURIComponent(id)}/messages?limit=200&order=oldest`).catch(() => null)
+      if (epoch !== this.openEpoch) return
       const rows = Array.isArray(rest) ? rest : asRecord(rest).messages
       if (rows) this.transcript = historyFromRows(rows)
     }
     this.question = null
     this.subagents = []
     await this.readReasoning().catch(() => undefined)
+    if (epoch !== this.openEpoch) return
     await this.refreshModelOptions().catch(() => undefined)
+    if (epoch !== this.openEpoch) return
     this.emit()
   }
 
@@ -615,6 +625,7 @@ export class HermesClient {
   }
 
   async newChat(): Promise<void> {
+    this.openEpoch += 1
     await this.detach()
     this.live = null
     this.executionGeneration = 0
@@ -631,8 +642,17 @@ export class HermesClient {
     if (!body && attachments.length === 0) return
     await this.ensureLive()
     const submissionId = crypto.randomUUID()
-    const display = body || (attachments.some(file => file.mime.startsWith('image/')) ? 'Image attached' : 'File attached')
-    this.transcript = appendUser(this.transcript, display, `local-${submissionId}`)
+    const displayAttachments = attachments.map(file => ({
+      name: file.name,
+      mime: file.mime,
+      image: file.mime.startsWith('image/'),
+      // Keep a local preview for images and small text files. Large files stay
+      // as a named chip instead of bloating every snapshot.
+      ...(file.mime.startsWith('image/') || file.base64.length <= 2_000_000
+        ? { dataUrl: `data:${file.mime || 'application/octet-stream'};base64,${file.base64}` }
+        : {})
+    }))
+    this.transcript = appendUser(this.transcript, body, `local-${submissionId}`, displayAttachments)
     this.emit()
     try {
       const liveId = this.live!.live
@@ -723,6 +743,13 @@ export class HermesClient {
     this.queuePoll = setInterval(() => {
       void this.refreshQueued()
     }, 1500)
+  }
+
+  /** Restart receipt polling for entries that survived a disconnect. */
+  private resumeQueuePolling(): void {
+    if (!this.queued.some(entry => entry.status !== 'failed' && entry.admissionId)) return
+    this.startQueuePolling()
+    void this.refreshQueued()
   }
 
   private async refreshQueued(): Promise<void> {
@@ -850,13 +877,26 @@ export class HermesClient {
   private async ensureLive(): Promise<void> {
     if (this.live) return
     const created = await this.createSession()
-    this.live = { ...created, subscriptionId: '' }
-    await this.refreshSessions()
-    await this.readReasoning().catch(() => undefined)
+    // session.create alone does not put the session in the connection's
+    // subscriptions; file.attach (unlike prompt.submit) requires it.
+    await this.openSession(created.stored)
   }
 
   /** Stage bytes in the session workspace, the same RPCs Hermes Desktop uses. */
   private async stageAttachment(sessionId: string, file: OutgoingAttachment): Promise<{ ref: string; image?: { path: string; mime: string } }> {
+    try {
+      return await this.attachStaged(sessionId, file)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!/permission_denied/i.test(message)) throw error
+      // A reconnect can drop the server-side subscription while the UI still
+      // shows the session. Re-attach once, then retry the upload.
+      await this.resumeSubscription(sessionId)
+      return await this.attachStaged(sessionId, file)
+    }
+  }
+
+  private async attachStaged(sessionId: string, file: OutgoingAttachment): Promise<{ ref: string; image?: { path: string; mime: string } }> {
     if (file.mime.startsWith('image/')) {
       const result = await this.rpc('image.attach_bytes', this.scope({
         session_id: sessionId,
@@ -880,6 +920,15 @@ export class HermesClient {
       throw new Error(typeof record.message === 'string' ? record.message : `Could not attach ${file.name}.`)
     }
     return { ref: record.ref_text }
+  }
+
+  private async resumeSubscription(sessionId: string): Promise<void> {
+    const resumed = await this.rpc('session.resume', this.scope({ session_id: sessionId })).catch(() => null)
+    const body = asRecord(resumed)
+    if (typeof body.subscription_id !== 'string' || !body.subscription_id) return
+    if (!this.live || this.live.live === sessionId) {
+      this.live = { ...(this.live || { live: sessionId, stored: sessionId }), subscriptionId: body.subscription_id }
+    }
   }
 
   async interrupt(): Promise<void> {

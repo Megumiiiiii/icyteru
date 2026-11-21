@@ -111,11 +111,19 @@ export interface ToolCall {
   status: 'running' | 'done'
 }
 
+export interface TranscriptAttachment {
+  name: string
+  mime: string
+  image: boolean
+  dataUrl?: string
+}
+
 export interface TranscriptMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
   tools: ToolCall[]
+  attachments?: TranscriptAttachment[]
   pending: boolean
   error?: string
 }
@@ -194,9 +202,9 @@ export function ensureAssistant(transcript: Transcript): TranscriptMessage {
   return created
 }
 
-export function appendUser(transcript: Transcript, text: string, id: string): Transcript {
+export function appendUser(transcript: Transcript, text: string, id: string, attachments?: TranscriptAttachment[]): Transcript {
   const next = cloneTranscript(transcript)
-  next.messages.push({ id, role: 'user', text, tools: [], pending: false })
+  next.messages.push({ id, role: 'user', text, tools: [], ...(attachments?.length ? { attachments } : {}), pending: false })
   next.streaming = true
   return next
 }
@@ -205,7 +213,8 @@ export function cloneTranscript(transcript: Transcript): Transcript {
   const messages = transcript.messages.map(message => {
     const copy: TranscriptMessage = {
       ...message,
-      tools: message.tools.map(tool => ({ ...tool }))
+      tools: message.tools.map(tool => ({ ...tool })),
+      ...(message.attachments ? { attachments: message.attachments.map(attachment => ({ ...attachment })) } : {})
     }
     const meta = streamMeta.get(message)
     if (meta) {

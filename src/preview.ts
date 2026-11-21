@@ -306,7 +306,11 @@ export function previewSnapshot(shot: string): Snapshot {
   if (shot === 'media') {
     base.transcript.streaming = false
     base.transcript.messages = [
-      { id: 'u-media', role: 'user', text: 'Kirim file, gambar, audio, dan video.', tools: [], pending: false },
+      { id: 'u-media', role: 'user', text: 'Kirim file, gambar, audio, dan video.', tools: [], pending: false,
+        attachments: [
+          { name: 'cium.md', mime: 'text/markdown', image: false, dataUrl: `data:text/markdown;base64,${btoa('# LAPORAN\n\nCIUM')}` },
+          { name: 'icyteru-preview.svg', mime: 'image/svg+xml', image: true, dataUrl: sampleImage }
+        ] },
       {
         id: 'a-media',
         role: 'assistant',

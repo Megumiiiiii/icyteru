@@ -39,6 +39,99 @@ function clientWithSession(id: string, sessionModel: string): HermesClient {
   return client
 }
 
+test('stageAttachment retries once after permission_denied by resubscribing', async () => {
+  const client = new HermesClient(() => undefined)
+  let attempts = 0
+  let resumed = 0
+  ;(client as unknown as { attachStaged: () => Promise<{ ref: string }> }).attachStaged = async () => {
+    attempts += 1
+    if (attempts === 1) throw new Error('permission_denied')
+    return { ref: '@file:notes.md' }
+  }
+  ;(client as unknown as { resumeSubscription: (id: string) => Promise<void> }).resumeSubscription = async () => {
+    resumed += 1
+  }
+  const file = { name: 'notes.md', mime: 'text/markdown', base64: 'IyBOb3Rlcw==' }
+  const result = await (client as unknown as {
+    stageAttachment: (id: string, file: unknown) => Promise<{ ref: string }>
+  }).stageAttachment('20261119_091305_9daddf0f', file)
+  assert.equal(result.ref, '@file:notes.md')
+  assert.equal(attempts, 2)
+  assert.equal(resumed, 1)
+})
+
+test('openSession ignores a stale history response after another session opens', async () => {
+  const a = '20261119_091305_9daddf0f'
+  const b = '20261119_200207_2ec3086e'
+  const client = new HermesClient(() => undefined)
+  ;(client as unknown as { sessions: SessionRow[] }).sessions = [sessionRow(a, 'tencent/hy4-flash'), sessionRow(b, 'glm-5.3')]
+  ;(client as unknown as { rpc: Rpc }).rpc = async (method, params) => {
+    if (method !== 'session.resume') throw new Error(`unexpected ${method}`)
+    const id = String(params?.session_id || '')
+    return {
+      session_id: id,
+      stored_session_id: id,
+      display_messages: id === b ? [{ role: 'user', content: 'history B' }] : [],
+      info: {},
+      revision: 1,
+      execution_generation: 1
+    }
+  }
+  let releaseA: ((rows: unknown[]) => void) | null = null
+  let askedForA = false
+  ;(client as unknown as { getJson: GetJson }).getJson = async path => {
+    if (path.includes('/api/model/options')) return modelsPayload('deepseek/deepseek-v4.1-flash', 'commandcode')
+    if (path.includes(`/api/sessions/${a}/messages`)) {
+      askedForA = true
+      return await new Promise(resolve => { releaseA = resolve })
+    }
+    return null
+  }
+  const openingA = client.openSession(a)
+  while (!askedForA) await new Promise(resolve => setTimeout(resolve, 0))
+  await client.openSession(b)
+  ;(releaseA as unknown as (rows: unknown[]) => void)([{ role: 'user', content: 'history A' }])
+  await openingA
+  assert.equal(client.state.activeSessionId, b)
+  assert.match(client.state.transcript.messages.map(message => message.text).join(' '), /history B/)
+  assert.doesNotMatch(client.state.transcript.messages.map(message => message.text).join(' '), /history A/)
+})
+
+test('reconnect resumes receipt polling for queued entries', async () => {
+  const client = new HermesClient(() => undefined)
+  let receipts = 0
+  ;(client as unknown as { queued: unknown[] }).queued = [{
+    id: 'queued-1', sessionId: 's1', text: 'hello', attachmentNames: [],
+    status: 'queued', createdAt: Date.now(), admissionId: 'admission-1'
+  }]
+  ;(client as unknown as { rpc: Rpc }).rpc = async method => {
+    if (method !== 'prompt.receipt') throw new Error(`unexpected ${method}`)
+    receipts += 1
+    return { status: 'terminal' }
+  }
+  await (client as unknown as { resumeQueuePolling: () => void }).resumeQueuePolling()
+  await new Promise(resolve => setTimeout(resolve, 0))
+  assert.equal(receipts, 1)
+  assert.equal((client as unknown as { queued: unknown[] }).queued.length, 0)
+  client.disconnect()
+})
+
+test('ensureLive subscribes a newly created session before file attachment', async () => {
+  const client = new HermesClient(() => undefined)
+  let opened = ''
+  ;(client as unknown as { createSession: () => Promise<{ live: string; stored: string }> }).createSession = async () => ({
+    live: 'live-new',
+    stored: 'stored-new'
+  })
+  ;(client as unknown as { openSession: (id: string) => Promise<void> }).openSession = async (id: string) => {
+    opened = id
+    ;(client as unknown as { live: unknown }).live = { live: 'live-new', stored: id, subscriptionId: 'sub-1' }
+  }
+  await (client as unknown as { ensureLive: () => Promise<void> }).ensureLive()
+  assert.equal(opened, 'stored-new')
+  assert.equal((client as unknown as { live: { subscriptionId: string } }).live.subscriptionId, 'sub-1')
+})
+
 test('openSession keeps the model from the session row, not the options payload', async () => {
   const client = clientWithSession('20261119_091305_9daddf0f', 'tencent/hy4-flash')
   ;(client as unknown as { rpc: Rpc }).rpc = async method => {

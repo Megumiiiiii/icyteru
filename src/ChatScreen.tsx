@@ -199,12 +199,17 @@ function ZoomableImage({ src, name }: { src: string; name: string }) {
   )
 }
 
-function MediaAttachment({ path, name, image }: IncomingAttachment) {
-  const [dataUrl, setDataUrl] = useState('')
+function MediaAttachment({ path, name, image, src }: IncomingAttachment & { src?: string }) {
+  const [dataUrl, setDataUrl] = useState(src || '')
   const [error, setError] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => {
+    if (src) {
+      setDataUrl(src)
+      setError('')
+      return
+    }
     let cancelled = false
     const load = async () => {
       try {
@@ -216,7 +221,7 @@ function MediaAttachment({ path, name, image }: IncomingAttachment) {
     }
     void load()
     return () => { cancelled = true }
-  }, [path])
+  }, [path, src])
 
   useEffect(() => {
     if (!previewOpen) return
@@ -757,6 +762,19 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
                           <div className="incoming-attachments">
                             {media.attachments.map(attachment => (
                               <MediaAttachment key={attachment.path} path={attachment.path} name={attachment.name} image={attachment.image} />
+                            ))}
+                          </div>
+                        )}
+                        {message.attachments && message.attachments.length > 0 && (
+                          <div className="incoming-attachments outgoing-attachments">
+                            {message.attachments.map(attachment => (
+                              <MediaAttachment
+                                key={`${message.id}:${attachment.name}`}
+                                path=""
+                                name={attachment.name}
+                                image={attachment.image}
+                                src={attachment.dataUrl}
+                              />
                             ))}
                           </div>
                         )}

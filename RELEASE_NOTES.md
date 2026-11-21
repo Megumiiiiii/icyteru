@@ -1,5 +1,14 @@
 # Icyteru release notes
 
+## v0.0.57
+
+### Fixed
+
+- **Non-image attachments work in messaging and history sessions.** The gateway’s `file.attach` used to return `permission_denied` whenever a Telegram or history-mounted session had no local launch policy. It now stages under the profile’s attachments store and returns an absolute `@file:` ref. New chats are resumed/subscribed before staging, and a `permission_denied` upload re-subscribes once and retries. **Requires a gateway restart.**
+- **A stale session open can no longer overwrite the active chat.** `openSession()` now carries an open epoch; after every async resume/history read it verifies the request is still the latest before changing the live session, transcript, model, or reasoning. The A→B race is covered by a deferred-response regression test.
+- **Queued messages resume receipt polling after a reconnect.** Entries retained across `disconnect()` are checked again after the next successful connection instead of staying `queued` forever. A reconnect regression test verifies the receipt poll and terminal cleanup.
+- **Sent files and images now appear in your own bubble.** `send()` keeps attachment metadata on the user transcript row; images render inline, files and small text/Markdown files render as chips with preview/download, and assistant media stays unchanged. No gateway media route is needed for the local preview.
+
 ## v0.0.56
 
 ### Fixed
