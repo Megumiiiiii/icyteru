@@ -285,9 +285,10 @@ function registerIpc(): void {
   ))
   ipcMain.handle('set-reasoning', (_event, value: string) => client.setReasoning(value))
   ipcMain.handle('set-global-reasoning', (_event, value: string) => client.setGlobalReasoning(value))
-  ipcMain.handle('set-session-model', (_event, payload: { model: string; provider: string }) => (
-    client.setSessionModel(payload.model, payload.provider)
+  ipcMain.handle('set-session-model', (_event, payload: { model: string; provider: string; confirm?: boolean }) => (
+    client.setSessionModel(payload.model, payload.provider, Boolean(payload.confirm))
   ))
+  ipcMain.on('cancel-session-model', () => client.cancelSessionModel())
   ipcMain.handle('select-profile', (_event, payload: { gatewayId: string; name: string }) => (
     client.selectProfile(payload.gatewayId, payload.name)
   ))

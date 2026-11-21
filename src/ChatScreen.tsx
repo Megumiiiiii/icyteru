@@ -1047,6 +1047,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
   const [provider, setProvider] = useState('all')
+  const [pending, setPending] = useState<{ message: string; model: string; provider: string } | null>(null)
   const menu = useRef<HTMLDivElement>(null)
   const dragged = useRef(false)
   const currentProvider = (snapshot.currentProvider || '').toLowerCase()
@@ -1098,10 +1099,17 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
   useEffect(() => {
     if (!open) return
     const onPointer = (event: PointerEvent) => {
+      if (pending) return
       if (!menu.current?.contains(event.target as Node)) setOpen(false)
     }
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') {
+        if (pending) {
+          window.icyteru.cancelSessionModel()
+          setPending(null)
+        }
+        setOpen(false)
+      }
     }
     document.addEventListener('pointerdown', onPointer)
     document.addEventListener('keydown', onKey)
@@ -1109,7 +1117,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
       document.removeEventListener('pointerdown', onPointer)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, pending])
 
   const providerRows = useMemo(() => {
     const labels = new Map<string, string>()
@@ -1134,6 +1142,40 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
       <button className="top-action tiny" onClick={() => setOpen(value => !value)} type="button" title={current}>{currentLabel}</button>
       {open && (
         <div className="model-pop">
+          {pending && (
+            <div className="model-confirm">
+              <p>{pending.message}</p>
+              <div className="row">
+                <button
+                  className="solid"
+                  onClick={() => {
+                    const target = pending
+                    void window.icyteru.setSessionModel(target.model, target.provider, true).then(result => {
+                      setPending(null)
+                      setOpen(false)
+                      onNotice(typeof result === 'string' ? result : result.message)
+                    }).catch(error => {
+                      onNotice(error instanceof Error ? error.message : 'Could not change the model.')
+                    })
+                  }}
+                  type="button"
+                >
+                  Switch anyway
+                </button>
+                <button
+                  className="ghost"
+                  onClick={() => {
+                    window.icyteru.cancelSessionModel()
+                    setPending(null)
+                    setOpen(false)
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           <input autoFocus value={filter} onChange={event => setFilter(event.target.value)} placeholder="Search models" />
           {providerRows.length > 1 && (
             <div
@@ -1178,8 +1220,17 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
                   key={`${model.provider}:${model.id}`}
                   className={active ? 'active' : ''}
                   onClick={() => {
-                    setOpen(false)
-                    void window.icyteru.setSessionModel(model.id, model.providerId || model.provider).then(onNotice).catch(error => {
+                    const targetModel = model.id
+                    const targetProvider = model.providerId || model.provider
+                    void window.icyteru.setSessionModel(targetModel, targetProvider).then(result => {
+                      if (typeof result === 'string') {
+                        setPending(null)
+                        setOpen(false)
+                        onNotice(result)
+                        return
+                      }
+                      setPending({ message: result.message, model: result.model, provider: result.provider })
+                    }).catch(error => {
                       onNotice(error instanceof Error ? error.message : 'Could not change the model.')
                     })
                   }}

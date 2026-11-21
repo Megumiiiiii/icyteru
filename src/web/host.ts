@@ -183,7 +183,7 @@ async function syncPushToken(): Promise<void> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.46' })
+      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.47' })
     })
     const pending = await IcyteruPush.consumeSession()
     if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)
@@ -374,7 +374,8 @@ export function installWebHost(): void {
     interrupt: () => client.interrupt(),
     answer: (id: string, result: unknown) => client.answer(id, result),
     setModel: (model: string, provider: string, confirm = false) => client.setModel(model, provider, confirm),
-    setSessionModel: (model: string, provider: string) => client.setSessionModel(model, provider),
+    setSessionModel: (model: string, provider: string, confirm = false) => client.setSessionModel(model, provider, confirm),
+    cancelSessionModel: () => client.cancelSessionModel(),
     setReasoning: (value: string) => client.setReasoning(value),
     setGlobalReasoning: (value: string) => client.setGlobalReasoning(value),
     selectProfile: (gatewayId: string, name: string) => client.selectProfile(gatewayId, name),

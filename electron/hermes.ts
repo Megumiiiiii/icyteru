@@ -101,6 +101,7 @@ export class HermesClient {
   private tokenWindow: Array<{ t: number; chars: number }> = []
   private usageTokensPerSecond: number | null = null
   private revision = 0
+  private pendingModelConfirmation: { sessionId: string; model: string; provider: string; token: string } | null = null
   private wsUrl = ''
   private protocols: string[] = []
   private baseUrl = ''
@@ -445,6 +446,11 @@ export class HermesClient {
     }
     const messages = Array.isArray(body.display_messages) ? body.display_messages : body.messages
     this.transcript = historyFromRows(messages)
+    const info = asRecord(body.info)
+    const infoModel = typeof info.model === 'string' && info.model ? info.model : ''
+    const infoProvider = typeof info.provider === 'string' && info.provider ? info.provider : ''
+    if (infoModel) this.side.models.currentModel = infoModel
+    if (infoProvider) this.side.models.currentProvider = infoProvider
     if (!this.transcript.messages.length) {
       const rest = await this.getJson(`/api/sessions/${encodeURIComponent(id)}/messages?limit=200&order=oldest`).catch(() => null)
       const rows = Array.isArray(rest) ? rest : asRecord(rest).messages
@@ -842,7 +848,7 @@ export class HermesClient {
   }
 
   /** Change only this session's model, the same ``/model --session`` the CLI uses. */
-  async setSessionModel(model: string, provider: string): Promise<string> {
+  async setSessionModel(model: string, provider: string, confirm = false): Promise<string | { confirmationRequired: true; message: string; model: string; provider: string }> {
     if (!this.live?.live) await this.ensureLive()
     const sessionId = this.live!.live
     const resumed = await this.rpc('session.resume', this.scope({ session_id: sessionId }))
@@ -853,6 +859,10 @@ export class HermesClient {
     }
     const payload: Record<string, string> = { model }
     if (provider) payload.provider = provider
+    const pending = this.pendingModelConfirmation
+    if (confirm && pending && pending.sessionId === sessionId && pending.model === model && pending.provider === provider) {
+      payload.confirm = pending.token
+    }
     const result = await this.rpc('session.mutate', this.scope({
       session_id: sessionId,
       request_id: `model:${crypto.randomUUID()}`,
@@ -863,8 +873,15 @@ export class HermesClient {
     }))
     const record = asRecord(result)
     if (record.status === 'confirmation_required') {
-      throw new Error(String(record.confirm_message || 'This model needs confirmation on Hermes.'))
+      const token = typeof record.confirm === 'string' ? record.confirm : ''
+      if (!token) throw new Error('Hermes asked for confirmation but did not send a confirmation token.')
+      this.pendingModelConfirmation = { sessionId, model, provider, token }
+      const message = typeof record.confirm_message === 'string' && record.confirm_message
+        ? record.confirm_message
+        : 'This model needs confirmation on Hermes.'
+      return { confirmationRequired: true, message, model, provider }
     }
+    this.pendingModelConfirmation = null
     if (record.status === 'refused' || record.status === 'failed') {
       throw new Error(String(record.detail || record.message || 'Hermes did not change the model.'))
     }
@@ -877,6 +894,11 @@ export class HermesClient {
       this.emit()
     }
     return 'Model saved for this chat. New messages use it.'
+  }
+
+  /** Drop a pending guarded-model confirmation without switching. */
+  cancelSessionModel(): void {
+    this.pendingModelConfirmation = null
   }
 
   /** Change the profile-wide default reasoning effort. */

@@ -38,7 +38,8 @@ declare global {
       interrupt: () => Promise<void>
       answer: (id: string, result: unknown) => Promise<void>
       setModel: (model: string, provider: string, confirm?: boolean) => Promise<string>
-      setSessionModel: (model: string, provider: string) => Promise<string>
+      setSessionModel: (model: string, provider: string, confirm?: boolean) => Promise<string | { confirmationRequired: true; message: string; model: string; provider: string }>
+      cancelSessionModel: () => void
       setReasoning: (value: string) => Promise<string>
       setGlobalReasoning: (value: string) => Promise<string>
       selectProfile: (gatewayId: string, name: string) => Promise<void>
