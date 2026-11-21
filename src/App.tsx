@@ -9,7 +9,7 @@ import { SettingsScreen } from './SettingsScreen'
 import { initialPhone, PhoneNav, type PhoneView } from './phone'
 import { PinIcon } from './PinIcon'
 import { Starfield } from './Starfield'
-import { ago, isRecent } from './time'
+import { isRecent } from './time'
 
 type Appearance = { dim: number; blur: number; light: string | null; dark: string | null }
 
@@ -305,7 +305,6 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
                     {profile.label}
                   </span>
                 </span>
-                {profile.lastActive != null && <time>{ago(profile.lastActive)}</time>}
               </button>
               <button
                 className={profile.pinned ? 'pin-button on' : 'pin-button'}

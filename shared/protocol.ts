@@ -563,6 +563,11 @@ export function pickSessionModel(rowModel?: string, infoModel?: string, fallback
   return (rowModel || '').trim() || (infoModel || '').trim() || fallback
 }
 
+/** The visible reasoning level: session override, then the profile default, then medium. */
+export function pickReasoning(current?: string, global?: string): string {
+  return (current || '').trim() || (global || '').trim() || 'medium'
+}
+
 export function normalizeModels(payload: unknown): { currentModel: string; currentProvider: string; models: ModelChoice[] } {
   const body = asRecord(payload)
   const models: ModelChoice[] = []

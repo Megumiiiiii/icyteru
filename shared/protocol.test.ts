@@ -15,6 +15,7 @@ import {
   historyFromRows,
   modelIdsMatch,
   modelOptionsPath,
+  pickReasoning,
   pickSessionModel,
   normalizeMemory,
   normalizeModels,
@@ -276,6 +277,12 @@ test('repaints the header from the active session row after a switch', () => {
   ;(client as unknown as { applyActiveSessionModel: () => void }).applyActiveSessionModel()
   assert.equal(client.side.models.currentModel, 'tencent/hy4-flash')
   assert.equal(client.side.models.currentProvider, 'commandcode')
+})
+
+test('shows session reasoning, then the global default, then medium', () => {
+  assert.equal(pickReasoning('high', 'max'), 'high')
+  assert.equal(pickReasoning('', 'max'), 'max')
+  assert.equal(pickReasoning('', ''), 'medium')
 })
 
 test('refreshes the model header from the live session, never the profile default', () => {

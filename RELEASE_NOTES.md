@@ -1,5 +1,15 @@
 # Icyteru release notes
 
+## v0.0.55
+
+### Changed
+
+- **Agent roster is quieter.** The left panel no longer shows a last-active time (`4h`, `20d`, …) next to each profile; it keeps the avatar, name, presence dot, and pin.
+
+### Fixed
+
+- **Reasoning now follows the session and the global default correctly.** The top-bar level uses the session override, falls back to the profile’s global reasoning when the session has none, and only then falls back to `medium`. Saving a global default refreshes the active session’s value; a new empty chat shows the global default instead of a hardcoded `Med`.
+
 ## v0.0.54
 
 ### Fixed

@@ -622,7 +622,7 @@ export class HermesClient {
     this.transcript = emptyTranscript()
     this.question = null
     this.subagents = []
-    this.side.reasoning = ''
+    this.side.reasoning = this.side.globalReasoning || ''
     this.emit()
   }
 
@@ -1067,6 +1067,7 @@ export class HermesClient {
     const reported = typeof body.value === 'string' ? body.value : level
     this.side.globalReasoning = reported
     await this.readGlobalReasoning().catch(() => undefined)
+    await this.readReasoning().catch(() => undefined)
     this.emit()
     return `Global reasoning set to ${reported}. New chats use it.`
   }

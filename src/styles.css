@@ -420,7 +420,7 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
 .bot-row { display: flex; align-items: stretch; border-radius: 12px; }
 .bot-row.active, .bot-row:hover { background: color-mix(in srgb, var(--surface) 78%, transparent); }
 .bot-main {
-  flex: 1; min-width: 0; display: grid; grid-template-columns: 36px minmax(0, 1fr) auto;
+  flex: 1; min-width: 0; display: grid; grid-template-columns: 36px minmax(0, 1fr);
   gap: 8px; align-items: center; border: 0; background: transparent; text-align: left; padding: 8px;
 }
 .bot-copy { min-width: 0; display: grid; gap: 2px; }

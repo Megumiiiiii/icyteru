@@ -2,7 +2,7 @@ import { Fragment, useContext, useEffect, useMemo, useRef, useState, type Pointe
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
-import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SubagentProgress, type ToolCall } from '../shared/protocol'
+import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, pickReasoning, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SubagentProgress, type ToolCall } from '../shared/protocol'
 import { Avatar } from './Avatar'
 import { Markdown } from './Markdown'
 import { PinIcon } from './PinIcon'
@@ -1586,7 +1586,7 @@ function ReasoningMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (
     { id: 'max', label: 'Max' },
     { id: 'ultra', label: 'Ultra' }
   ]
-  const current = snapshot.currentReasoning || 'medium'
+  const current = pickReasoning(snapshot.currentReasoning, snapshot.globalReasoning)
   const shortLabels: Record<string, string> = {
     none: 'Off',
     minimal: 'Min',
