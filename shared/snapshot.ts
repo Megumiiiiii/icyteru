@@ -55,6 +55,8 @@ export interface Snapshot {
   models: ModelChoice[]
   currentModel: string
   currentProvider: string
+  globalModel: string
+  globalProvider: string
   currentReasoning: string
   globalReasoning: string
   tokensPerSecond: number | null
@@ -88,6 +90,8 @@ export function emptySnapshot(connection: ConnectionInfo): Snapshot {
     models: [],
     currentModel: '',
     currentProvider: '',
+    globalModel: '',
+    globalProvider: '',
     currentReasoning: '',
     globalReasoning: '',
     tokensPerSecond: null,

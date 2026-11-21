@@ -28,7 +28,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
   const [busy, setBusy] = useState(false)
   const [confirmForget, setConfirmForget] = useState(false)
   const [globalModelIndex, setGlobalModelIndex] = useState(() => {
-    const found = snapshot.models.findIndex(model => model.id === snapshot.currentModel)
+    const found = snapshot.models.findIndex(model => model.id === snapshot.globalModel)
     return found >= 0 ? found : 0
   })
   const [globalReasoningLevel, setGlobalReasoningLevel] = useState(snapshot.globalReasoning || 'medium')
@@ -60,9 +60,9 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
   }, [url])
 
   useEffect(() => {
-    const found = snapshot.models.findIndex(model => model.id === snapshot.currentModel)
+    const found = snapshot.models.findIndex(model => model.id === snapshot.globalModel)
     setGlobalModelIndex(found >= 0 ? found : 0)
-  }, [snapshot.currentModel, snapshot.models])
+  }, [snapshot.globalModel, snapshot.models])
 
   useEffect(() => {
     setGlobalReasoningLevel(snapshot.globalReasoning || 'medium')

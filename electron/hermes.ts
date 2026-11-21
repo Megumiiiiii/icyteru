@@ -987,8 +987,10 @@ export class HermesClient {
     }))
     const body = asRecord(result)
     const reported = typeof body.value === 'string' ? body.value : level
-    this.side.reasoning = level === 'reset' ? 'medium' : reported
-    await this.readReasoning().catch(() => undefined)
+    const next = level === 'reset' ? (this.side.globalReasoning || 'medium') : reported
+    // Show the chosen level immediately. The gateway can keep returning the
+    // previous agent's level until its next turn rebuilds the agent.
+    this.side.reasoning = next
     this.emit()
     if (level === 'reset') return 'Reasoning reset to the profile default on Hermes.'
     return `Reasoning set to ${reported} on Hermes. New messages use it.`
@@ -1066,8 +1068,8 @@ export class HermesClient {
     const body = asRecord(result)
     const reported = typeof body.value === 'string' ? body.value : level
     this.side.globalReasoning = reported
+    this.side.reasoning = reported
     await this.readGlobalReasoning().catch(() => undefined)
-    await this.readReasoning().catch(() => undefined)
     this.emit()
     return `Global reasoning set to ${reported}. New chats use it.`
   }
@@ -1138,8 +1140,9 @@ export class HermesClient {
 
   private async refreshSideData(): Promise<void> {
     const soulPath = `/api/profiles/${encodeURIComponent(this.activeProfile || 'default')}/soul`
-    const [models, skills, memory, soul] = await Promise.all([
+    const [models, globalModels, skills, memory, soul] = await Promise.all([
       this.getJson(modelOptionsPath(this.live?.live)).catch(() => null),
+      this.getJson('/api/model/options').catch(() => null),
       this.getJson('/api/skills').catch(() => null),
       this.getJson('/api/memory').catch(() => null),
       this.getJson(soulPath).catch(() => null)
@@ -1151,6 +1154,7 @@ export class HermesClient {
     const previousModel = this.side.models.currentModel
     const previousProvider = this.side.models.currentProvider
     const nextModels = models ? normalizeModels(models) : this.side.models
+    const nextGlobal = globalModels ? normalizeModels(globalModels) : null
     if (this.live?.live) {
       const row = this.sessions.find(item => item.id === this.live?.live || item.id === this.live?.stored)
       const chosenModel = pickSessionModel(row?.model, previousModel)
@@ -1161,6 +1165,8 @@ export class HermesClient {
     }
     this.side = {
       models: nextModels,
+      globalModel: nextGlobal ? nextGlobal.currentModel : this.side.globalModel,
+      globalProvider: nextGlobal ? nextGlobal.currentProvider : this.side.globalProvider,
       reasoning,
       globalReasoning,
       tokensPerSecond,
@@ -1177,6 +1183,8 @@ export class HermesClient {
 
   side: {
     models: ReturnType<typeof normalizeModels>
+    globalModel: string
+    globalProvider: string
     reasoning: string
     globalReasoning: string
     tokensPerSecond: number | null
@@ -1186,6 +1194,8 @@ export class HermesClient {
     instructionsNote?: string
   } = {
     models: { currentModel: '', currentProvider: '', models: [] },
+    globalModel: '',
+    globalProvider: '',
     reasoning: '',
     globalReasoning: '',
     tokensPerSecond: null,

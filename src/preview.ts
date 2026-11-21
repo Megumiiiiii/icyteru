@@ -57,7 +57,7 @@ export function previewSnapshot(shot: string): Snapshot {
     base.screen = 'connect'
     return base
   }
-  base.screen = shot === 'settings' || shot === 'dark-settings' ? 'settings' : 'chat'
+  base.screen = shot === 'settings' || shot === 'dark-settings' || shot === 'settings-global' ? 'settings' : 'chat'
   base.phase = 'ready'
   base.hermesVersion = '0.1.0'
   base.profileName = 'Hermes'
@@ -77,6 +77,11 @@ export function previewSnapshot(shot: string): Snapshot {
   base.activeSessionId = 's1'
   base.currentModel = 'deepseek/deepseek-v4.1-flash'
   base.currentProvider = 'commandcode'
+  if (shot === 'settings-global') {
+    base.currentModel = 'deepseek/deepseek-v4-pro'
+  }
+  base.globalModel = 'deepseek/deepseek-v4.1-flash'
+  base.globalProvider = 'commandcode'
   base.currentReasoning = 'medium'
   base.globalReasoning = 'high'
   base.tokensPerSecond = 275

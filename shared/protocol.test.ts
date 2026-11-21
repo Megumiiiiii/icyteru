@@ -285,18 +285,41 @@ test('shows session reasoning, then the global default, then medium', () => {
   assert.equal(pickReasoning('', ''), 'medium')
 })
 
+test('updates the reasoning header optimistically without a new turn', async () => {
+  const client = new HermesClient(() => undefined)
+  ;(client as unknown as { live: unknown }).live = {
+    live: '20261119_091305_9daddf0f',
+    stored: '20261119_091305_9daddf0f',
+    subscriptionId: ''
+  }
+  ;(client as unknown as { rpc: () => Promise<unknown> }).rpc = async () => ({ value: 'high' })
+  await client.setReasoning('high')
+  assert.equal(client.side.reasoning, 'high')
+  ;(client as unknown as { rpc: () => Promise<unknown> }).rpc = async () => ({ value: 'max' })
+  await client.setGlobalReasoning('max')
+  assert.equal(client.side.globalReasoning, 'max')
+  assert.equal(client.side.reasoning, 'max')
+})
+
 test('refreshes the model header from the live session, never the profile default', () => {
   const source = readFileSync('electron/hermes.ts', 'utf8')
   const start = source.indexOf('private async refreshSideData')
   const body = source.slice(start, source.indexOf('side: {', start))
   assert.match(body, /modelOptionsPath\(this\.live\?\.live\)/)
-  assert.doesNotMatch(body, /getJson\('\/api\/model\/options'\)/)
+  assert.match(body, /getJson\('\/api\/model\/options'\)/)
   assert.match(body, /pickSessionModel\(row\?\.model/)
+  assert.match(body, /globalModel/)
 
   const openStart = source.indexOf('async openSession')
   const openBody = source.slice(openStart, source.indexOf('async setSessionPinned', openStart))
   assert.match(openBody, /refreshModelOptions/)
   assert.match(openBody, /pickSessionModel\(row\?\.model/)
+})
+
+test('global defaults read the global model, not the open session', () => {
+  const source = readFileSync('src/SettingsScreen.tsx', 'utf8')
+  assert.match(source, /snapshot\.globalModel/)
+  assert.doesNotMatch(source, /snapshot\.currentModel/)
 })
 
 test('builds cards from approval and clarify control events', () => {

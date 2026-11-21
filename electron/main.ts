@@ -71,6 +71,8 @@ function snapshot(): Snapshot {
   base.models = state.side.models.models
   base.currentModel = state.side.models.currentModel
   base.currentProvider = state.side.models.currentProvider
+  base.globalModel = state.side.globalModel
+  base.globalProvider = state.side.globalProvider
   base.currentReasoning = state.side.reasoning
   base.globalReasoning = state.side.globalReasoning
   base.tokensPerSecond = state.side.tokensPerSecond

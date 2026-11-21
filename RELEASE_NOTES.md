@@ -1,5 +1,12 @@
 # Icyteru release notes
 
+## v0.0.56
+
+### Fixed
+
+- **Reasoning updates in the header immediately.** After choosing a session reasoning level, the top bar shows the chosen value right away; it no longer waits for the next chat message while the gateway’s cached agent still reports the old level. Global reasoning changes also repaint the header immediately.
+- **Settings global defaults are profile-wide again.** The Default model and Default reasoning dropdowns read the profile defaults, not the currently open session. Opening a chat with a per-session model or reasoning no longer makes that session value look global.
+
 ## v0.0.55
 
 ### Changed
