@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.50
+
+### Fixed
+
+- **Windows notifications now use the final reply.** The desktop renderer waits for 2 seconds of stable, non-streaming state with no running tool and no live subagent before notifying. A tool-call preamble such as “Aku siapin release…” no longer produces a toast; the final answer does. Clarify and approval questions still notify immediately.
+
 ## v0.0.49
 
 ### Added

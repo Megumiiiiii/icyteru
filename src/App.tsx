@@ -42,7 +42,8 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   })
   const seenMessages = useRef<Set<string> | null>(null)
   const activeSessionRef = useRef(snapshot.activeSessionId)
-  const wasStreaming = useRef(snapshot.transcript.streaming)
+  const notifyTimer = useRef<number | null>(null)
+  const pendingReply = useRef<{ title: string; body: string; ids: string[] } | null>(null)
   const lastQuestion = useRef<string | null>(null)
   const sizeRef = useRef({ left: leftWidth, right: rightWidth })
   const dark = useDark(snapshot.connection.theme)
@@ -59,33 +60,51 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
     localStorage.setItem('icyteru-left-open', leftOpen ? '1' : '0')
   }, [leftOpen])
   useEffect(() => {
+    if (notifyTimer.current != null) {
+      window.clearTimeout(notifyTimer.current)
+      notifyTimer.current = null
+    }
+    pendingReply.current = null
     const assistant = snapshot.transcript.messages.filter(message => message.role === 'assistant' && message.text.trim())
     // Opening a different stored session loads its history at once. Mark that
     // history as seen so old replies never look like fresh notifications.
     if (!seenMessages.current || activeSessionRef.current !== snapshot.activeSessionId) {
       activeSessionRef.current = snapshot.activeSessionId
       seenMessages.current = new Set(assistant.map(message => message.id))
-      wasStreaming.current = snapshot.transcript.streaming
       lastQuestion.current = snapshot.question?.id || null
       return
     }
     const seen = seenMessages.current
     // A streaming snapshot can arrive before its final assistant row. Keep
-    // fresh rows pending until streaming is over instead of dropping them.
+    // fresh rows pending until streaming is over and no tool/subagent is still
+    // running; a tool-call preamble must never look like a finished reply.
     const fresh = assistant.filter(message => !seen.has(message.id))
     const nowStreaming = snapshot.transcript.streaming
-    wasStreaming.current = nowStreaming
+    const runningTool = snapshot.transcript.messages.some(message =>
+      message.tools.some(tool => tool.status === 'running')
+    )
+    const liveSubagent = snapshot.subagents.some(item =>
+      !['completed', 'failed', 'timed_out', 'stopped'].includes(item.status)
+    )
     // Android receives every turn through FCM. A second local notification would
     // duplicate it, so only desktop/web notify from the renderer.
-    const canNotify = Capacitor.getPlatform() !== 'android' 
+    const canNotify = Capacitor.getPlatform() !== 'android'
     const sessionTitle = snapshot.sessions.find(session => session.id === snapshot.activeSessionId)?.title || 'New chat'
-    if (!nowStreaming && fresh.length > 0 && !muted && canNotify) {
-      for (const message of fresh) seen.add(message.id)
+    if (!nowStreaming && !runningTool && !liveSubagent && fresh.length > 0 && !muted && canNotify) {
       const last = fresh[fresh.length - 1]
-      void window.icyteru.notify({
+      pendingReply.current = {
         title: `${snapshot.profileName} · ${sessionTitle}`,
-        body: plainText(last.text).slice(0, 180)
-      })
+        body: plainText(last.text).slice(0, 180),
+        ids: fresh.map(message => message.id)
+      }
+      notifyTimer.current = window.setTimeout(() => {
+        const pending = pendingReply.current
+        if (!pending) return
+        pendingReply.current = null
+        notifyTimer.current = null
+        for (const id of pending.ids) seen.add(id)
+        void window.icyteru.notify({ title: pending.title, body: pending.body })
+      }, 2000)
     }
     const question = snapshot.question
     if (question && question.id !== lastQuestion.current && !muted && canNotify) {
@@ -96,6 +115,9 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
     }
     lastQuestion.current = question?.id || null
   }, [snapshot, muted])
+  useEffect(() => () => {
+    if (notifyTimer.current != null) window.clearTimeout(notifyTimer.current)
+  }, [])
   useEffect(() => {
     const root = document.documentElement
     const image = dark ? appearance?.dark : appearance?.light
