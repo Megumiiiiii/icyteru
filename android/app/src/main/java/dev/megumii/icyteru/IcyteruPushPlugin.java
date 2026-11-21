@@ -28,6 +28,17 @@ public class IcyteruPushPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void deleteToken(PluginCall call) {
+        FirebaseMessaging.getInstance().deleteToken().addOnCompleteListener(task -> {
+            if (!task.isSuccessful()) {
+                call.reject("Firebase could not delete the registration token.");
+                return;
+            }
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
     public void setConnectionActive(PluginCall call) {
         boolean active = Boolean.TRUE.equals(call.getBoolean("active", false));
         Intent service = new Intent(getContext(), IcyteruConnectionService.class);

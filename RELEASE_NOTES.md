@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.52
+
+### Fixed
+
+- **Forget gateway now also unregisters push notifications.** On Android, forgetting a gateway retrieves the current FCM token, calls the gateway’s `/api/plugins/icyteru-push/unregister`, stops the foreground service, and deletes the device token. A stale token can no longer keep sending notifications while the app is on the Connect screen. If the gateway is unreachable, deleting the device token still lets FCM prune it on the next send.
+
 ## v0.0.51
 
 ### Fixed

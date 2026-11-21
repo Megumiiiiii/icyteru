@@ -15,6 +15,7 @@ type BackdropMode = 'light' | 'dark'
 
 interface IcyteruPushBridge {
   getToken: () => Promise<{ token: string }>
+  deleteToken: () => Promise<void>
   consumeSession: () => Promise<{ session_id: string }>
   setConnectionActive: (options: { active: boolean }) => Promise<void>
 }
@@ -334,7 +335,19 @@ export function installWebHost(): void {
     },
     forgetConnection: async () => {
       if (Capacitor.getPlatform() === 'android') {
+        try {
+          const { token } = await IcyteruPush.getToken()
+          if (token) await client.unregisterPush(token)
+        } catch {
+          // The gateway may already be unreachable; deleting the device token
+          // below still makes FCM prune it on the next send.
+        }
         void IcyteruPush.setConnectionActive({ active: false }).catch(() => undefined)
+        try {
+          await IcyteruPush.deleteToken()
+        } catch {
+          // Best effort; forgetting the gateway must still succeed.
+        }
       }
       client.disconnect()
       saved = { ...saved, url: '', token: '', username: '', password: '', method: undefined, gateways: [] }

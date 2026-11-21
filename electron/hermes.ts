@@ -485,6 +485,11 @@ export class HermesClient {
     })
   }
 
+  /** Remove this device from the gateway's push store before forgetting it. */
+  async unregisterPush(token: string): Promise<void> {
+    await this.postJson('/api/plugins/icyteru-push/unregister', { token })
+  }
+
   /** Recent gateway notifications for desktop clients (Android uses FCM). */
   async notificationFeed(since: number): Promise<Array<{ at: number; title: string; body: string; session_id: string }>> {
     try {
