@@ -124,6 +124,41 @@ export function previewSnapshot(shot: string): Snapshot {
     base.transcript.streaming = true
     base.transcript.messages[1].tools[0].status = 'running'
   }
+  if (shot === 'question') {
+    base.transcript.streaming = true
+    base.question = {
+      id: 'q-preview',
+      method: 'clarify.request',
+      sessionId: 's1',
+      title: 'Hermes has a question',
+      body: 'Restart gateway sekarang biar 0.7 langsung aktif?',
+      choices: [],
+      secret: false,
+      questions: [
+        {
+          id: 'q1',
+          question: 'Restart gateway sekarang biar 0.7 langsung aktif?',
+          choices: ['Restart sekarang — sesi ini putus sebentar, lanjut kirim pesan', 'Nanti saja, aku restart sendiri'],
+          multiSelect: false
+        }
+      ],
+      promptId: 'q-preview',
+      executionGeneration: 7
+    }
+  }
+  if (shot === 'media') {
+    base.transcript.streaming = false
+    base.transcript.messages = [
+      { id: 'u-media', role: 'user', text: 'Kirim file dan gambar.', tools: [], pending: false },
+      {
+        id: 'a-media',
+        role: 'assistant',
+        text: 'Ini contoh file dan gambar.\n\nMEDIA:/tmp/icyteru-preview.svg\nMEDIA:/tmp/icyteru-preview.txt',
+        tools: [],
+        pending: false
+      }
+    ]
+  }
   if (markdown) {
     const sample = [
       '# Panduan upload ke Arweave',
@@ -190,7 +225,11 @@ export function installPreview(shot: string): void {
     queue: () => Promise.resolve(),
     deleteQueued: () => Promise.resolve(),
     mediaUrl: () => Promise.resolve(''),
-    mediaData: () => Promise.resolve('data:text/plain;base64,'),
+    mediaData: (path: string) => Promise.resolve(
+      path.endsWith('.svg')
+        ? 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjOGI1Y2Y2Ii8+PC9zdmc+'
+        : `data:text/plain;base64,${btoa('Hello from Icyteru preview.')}`
+    ),
     compress: () => Promise.resolve('Compressed the conversation.'),
     slash: (command: string) => Promise.resolve(`Ran ${command}.`),
     enableNotifications: () => Promise.resolve(true),

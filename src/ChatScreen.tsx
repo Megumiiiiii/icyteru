@@ -67,9 +67,22 @@ function StatusBar({
   )
 }
 
+function dataUrlMime(dataUrl: string): string {
+  const match = /^data:([^;,]+)(;base64)?,/i.exec(dataUrl)
+  return match ? match[1].toLowerCase() : ''
+}
+
+function dataUrlText(dataUrl: string): string {
+  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
+  const binary = atob(base64)
+  const bytes = Uint8Array.from(binary, char => char.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
+}
+
 function MediaAttachment({ path, name, image }: IncomingAttachment) {
   const [dataUrl, setDataUrl] = useState('')
   const [error, setError] = useState('')
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -85,15 +98,64 @@ function MediaAttachment({ path, name, image }: IncomingAttachment) {
     return () => { cancelled = true }
   }, [path])
 
+  useEffect(() => {
+    if (!previewOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPreviewOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [previewOpen])
+
   if (error) return <span className="incoming-file error">{error}</span>
   if (dataUrl) {
-    return image
-      ? (
-        <a className="incoming-image-link" href={dataUrl} download={name} title={`Download ${name}`}>
-          <img className="incoming-image" src={dataUrl} alt={name} />
-        </a>
-      )
-      : <a className="incoming-file" href={dataUrl} download={name}>{name}</a>
+    const mime = dataUrlMime(dataUrl)
+    const isImage = mime.startsWith('image/')
+    const isText = mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml' || mime === 'application/javascript'
+    const isPdf = mime === 'application/pdf'
+    return (
+      <>
+        <div className="incoming-media">
+          <button type="button" className={`incoming-media-view ${image || isImage ? 'image' : 'file'}`} onClick={() => setPreviewOpen(true)} title={`View ${name}`} aria-label={`View ${name}`}>
+            {image || isImage
+              ? <img className="incoming-image" src={dataUrl} alt={name} />
+              : <span className="incoming-file-name">{name}</span>}
+          </button>
+          <a className="incoming-media-download" href={dataUrl} download={name} title={`Download ${name}`} aria-label={`Download ${name}`}>
+            <span aria-hidden="true">↓</span>
+          </a>
+        </div>
+        {previewOpen && (
+          <div className="media-preview" role="dialog" aria-modal="true" aria-label={`${name} preview`}>
+            <div className="media-preview-backdrop" onClick={() => setPreviewOpen(false)} />
+            <div className="media-preview-card">
+              <header className="media-preview-head">
+                <span className="media-preview-name" title={name}>{name}</span>
+                <div className="media-preview-actions">
+                  <a className="media-preview-download" href={dataUrl} download={name} title={`Download ${name}`} aria-label={`Download ${name}`}>
+                    <span aria-hidden="true">↓</span> Download
+                  </a>
+                  <button type="button" className="media-preview-close" onClick={() => setPreviewOpen(false)} title="Close preview" aria-label="Close preview">
+                    <span aria-hidden="true">×</span>
+                  </button>
+                </div>
+              </header>
+              <div className="media-preview-body">
+                {isImage && <img className="media-preview-image" src={dataUrl} alt={name} />}
+                {isText && <pre className="media-preview-text">{dataUrlText(dataUrl)}</pre>}
+                {isPdf && <iframe className="media-preview-frame" src={dataUrl} title={name} />}
+                {!isImage && !isText && !isPdf && (
+                  <div className="media-preview-fallback">
+                    <p>{name}</p>
+                    <p>Preview is not available for this file type.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    )
   }
   return <span className="incoming-file">{name}</span>
 }
@@ -518,14 +580,18 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
                 const media = splitMedia(part.text)
                 return (
                   <Fragment key={i}>
-                    {media.attachments.length > 0 && (
-                      <div className="incoming-attachments">
-                        {media.attachments.map(attachment => (
-                          <MediaAttachment key={attachment.path} path={attachment.path} name={attachment.name} image={attachment.image} />
-                        ))}
-                      </div>
+                    {(media.text.trim() || media.attachments.length > 0) && (
+                      <article className={`bubble ${message.role}`}>
+                        {media.text.trim() && <Markdown text={media.text} />}
+                        {media.attachments.length > 0 && (
+                          <div className="incoming-attachments">
+                            {media.attachments.map(attachment => (
+                              <MediaAttachment key={attachment.path} path={attachment.path} name={attachment.name} image={attachment.image} />
+                            ))}
+                          </div>
+                        )}
+                      </article>
                     )}
-                    {media.text.trim() && <article className={`bubble ${message.role}`}><Markdown text={media.text} /></article>}
                     {part.tools.length > 0 && <div className="tool-standalone"><ToolGroup tools={part.tools} /></div>}
                   </Fragment>
                 )
@@ -785,21 +851,28 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
         <div className="clarify" key={item.id}>
           <p>{item.question}</p>
           <div className="row">
-            {item.choices.map(choice => (
-              <button
-                key={choice}
-                className={answers[item.id]?.split(', ').includes(choice) ? 'solid' : 'ghost'}
-                onClick={() => setAnswers(current => {
-                  const picked = (current[item.id] || '').split(', ').filter(Boolean)
-                  if (!item.multiSelect) return { ...current, [item.id]: choice }
-                  const next = picked.includes(choice) ? picked.filter(value => value !== choice) : [...picked, choice]
-                  return { ...current, [item.id]: next.join(', ') }
-                })}
-                type="button"
-              >
-                {choice}
-              </button>
-            ))}
+            {item.choices.map(choice => {
+              const storedAnswer = answers[item.id]
+              const picked = item.multiSelect
+                ? storedAnswer?.split(', ').includes(choice)
+                : storedAnswer === choice
+              return (
+                <button
+                  key={choice}
+                  className={picked ? 'solid picked' : 'ghost'}
+                  aria-pressed={picked}
+                  onClick={() => setAnswers(current => {
+                    const currentPicked = (current[item.id] || '').split(', ').filter(Boolean)
+                    if (!item.multiSelect) return { ...current, [item.id]: choice }
+                    const next = currentPicked.includes(choice) ? currentPicked.filter(value => value !== choice) : [...currentPicked, choice]
+                    return { ...current, [item.id]: next.join(', ') }
+                  })}
+                  type="button"
+                >
+                  {picked ? `✓ ${choice}` : choice}
+                </button>
+              )
+            })}
           </div>
           {item.choices.length === 0 && (
             <input
