@@ -845,9 +845,37 @@ export class HermesClient {
   async setSessionModel(model: string, provider: string): Promise<string> {
     if (!this.live?.live) await this.ensureLive()
     const sessionId = this.live!.live
-    const arg = [model, provider ? `--provider ${provider}` : '', '--session'].filter(Boolean).join(' ')
-    await this.rpc('command.dispatch', this.scope({ session_id: sessionId, name: 'model', arg }))
+    const resumed = await this.rpc('session.resume', this.scope({ session_id: sessionId }))
+    const resumedBody = asRecord(resumed)
+    if (typeof resumedBody.revision === 'number') this.revision = resumedBody.revision
+    if (typeof resumedBody.execution_generation === 'number') {
+      this.executionGeneration = resumedBody.execution_generation
+    }
+    const payload: Record<string, string> = { model }
+    if (provider) payload.provider = provider
+    const result = await this.rpc('session.mutate', this.scope({
+      session_id: sessionId,
+      request_id: `model:${crypto.randomUUID()}`,
+      expected_revision: this.revision,
+      expected_generation: this.executionGeneration,
+      operation: 'model',
+      payload
+    }))
+    const record = asRecord(result)
+    if (record.status === 'confirmation_required') {
+      throw new Error(String(record.confirm_message || 'This model needs confirmation on Hermes.'))
+    }
+    if (record.status === 'refused' || record.status === 'failed') {
+      throw new Error(String(record.detail || record.message || 'Hermes did not change the model.'))
+    }
     await this.refreshSideData()
+    const appliedModel = typeof record.model === 'string' && record.model ? record.model : model
+    const appliedProvider = typeof record.provider === 'string' && record.provider ? record.provider : provider
+    if (appliedModel) {
+      this.side.models.currentModel = appliedModel
+      if (appliedProvider) this.side.models.currentProvider = appliedProvider
+      this.emit()
+    }
     return 'Model saved for this chat. New messages use it.'
   }
 
