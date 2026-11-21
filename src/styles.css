@@ -580,6 +580,60 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
 .media-preview-close:hover { border-color: var(--ink); }
 .media-preview-body { display: grid; place-items: center; padding: 14px; overflow: auto; }
 .media-preview-image { max-width: 100%; max-height: min(70vh, 760px); border-radius: 12px; object-fit: contain; }
+.media-preview-audio {
+  width: min(520px, 100%);
+  max-height: 54px;
+  border-radius: 999px;
+  background: var(--panel);
+}
+.media-preview-video {
+  width: min(720px, 100%);
+  max-height: min(70vh, 760px);
+  border-radius: 12px;
+  background: #000;
+}
+.media-zoom {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: min(70vh, 760px);
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--panel);
+  touch-action: none;
+  user-select: none;
+}
+.media-zoom.zoomed { cursor: grab; }
+.media-zoom img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.media-zoom-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+}
+.media-zoom-controls button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1;
+}
+.media-zoom-controls button:hover { border-color: var(--ink); background: var(--surface); }
 .media-preview-text { max-width: 100%; max-height: min(70vh, 760px); overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .media-preview-frame { width: 100%; height: min(70vh, 760px); border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
 .media-preview-fallback { display: grid; gap: 6px; justify-items: center; padding: 24px; color: var(--muted); font-size: 13px; text-align: center; }

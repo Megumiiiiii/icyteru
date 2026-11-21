@@ -1,4 +1,4 @@
-import { Fragment, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { Fragment, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
@@ -79,6 +79,125 @@ function dataUrlText(dataUrl: string): string {
   return new TextDecoder().decode(bytes)
 }
 
+function ZoomableImage({ src, name }: { src: string; name: string }) {
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const frame = useRef<HTMLDivElement>(null)
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const lastPinchDistance = useRef<number | null>(null)
+  const panStart = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
+
+  const clampZoom = (value: number) => Math.min(5, Math.max(1, value))
+
+  const zoomAround = (clientX: number, clientY: number, factor: number) => {
+    const rect = frame.current?.getBoundingClientRect()
+    if (!rect) return
+    setZoom(current => {
+      const next = clampZoom(current * factor)
+      if (next === current) return current
+      if (next === 1) {
+        setPan({ x: 0, y: 0 })
+        return 1
+      }
+      const originX = clientX - rect.left - rect.width / 2
+      const originY = clientY - rect.top - rect.height / 2
+      const ratio = next / current
+      setPan(currentPan => ({
+        x: originX * (1 - ratio) + ratio * currentPan.x,
+        y: originY * (1 - ratio) + ratio * currentPan.y
+      }))
+      return next
+    })
+  }
+
+  const zoomFromCenter = (factor: number) => {
+    const rect = frame.current?.getBoundingClientRect()
+    if (!rect) return
+    zoomAround(rect.left + rect.width / 2, rect.top + rect.height / 2, factor)
+  }
+
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    if (pointers.current.size === 1) {
+      panStart.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }
+    }
+    if (pointers.current.size === 2) {
+      const [first, second] = Array.from(pointers.current.values())
+      lastPinchDistance.current = Math.hypot(first.x - second.x, first.y - second.y)
+      panStart.current = null
+    }
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!pointers.current.has(event.pointerId)) return
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    if (pointers.current.size === 1 && panStart.current && zoom > 1) {
+      setPan({
+        x: panStart.current.panX + (event.clientX - panStart.current.x),
+        y: panStart.current.panY + (event.clientY - panStart.current.y)
+      })
+      return
+    }
+    if (pointers.current.size === 2) {
+      const [first, second] = Array.from(pointers.current.values())
+      const distance = Math.hypot(first.x - second.x, first.y - second.y)
+      const previous = lastPinchDistance.current ?? distance
+      if (previous > 0 && distance > 0) {
+        zoomAround((first.x + second.x) / 2, (first.y + second.y) / 2, distance / previous)
+      }
+      lastPinchDistance.current = distance
+    }
+  }
+
+  const releasePointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    pointers.current.delete(event.pointerId)
+    if (pointers.current.size < 2) lastPinchDistance.current = null
+    if (pointers.current.size === 1) {
+      const [remaining] = Array.from(pointers.current.values())
+      panStart.current = { x: remaining.x, y: remaining.y, panX: pan.x, panY: pan.y }
+      return
+    }
+    if (pointers.current.size === 0) panStart.current = null
+  }
+
+  const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1
+    zoomAround(event.clientX, event.clientY, factor)
+  }
+
+  const reset = () => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }
+
+  return (
+    <div
+      ref={frame}
+      className={`media-zoom${zoom > 1 ? ' zoomed' : ''}`}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={releasePointer}
+      onPointerCancel={releasePointer}
+      onWheel={onWheel}
+      onDoubleClick={reset}
+    >
+      <img
+        src={src}
+        alt={name}
+        draggable={false}
+        style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+      />
+      <div className="media-zoom-controls">
+        <button type="button" onClick={() => zoomFromCenter(1.25)} title="Zoom in" aria-label="Zoom in">+</button>
+        <button type="button" onClick={() => zoomFromCenter(0.8)} title="Zoom out" aria-label="Zoom out">−</button>
+        <button type="button" onClick={reset} title="Reset zoom" aria-label="Reset zoom">⟲</button>
+      </div>
+    </div>
+  )
+}
+
 function MediaAttachment({ path, name, image }: IncomingAttachment) {
   const [dataUrl, setDataUrl] = useState('')
   const [error, setError] = useState('')
@@ -113,6 +232,8 @@ function MediaAttachment({ path, name, image }: IncomingAttachment) {
     const isImage = mime.startsWith('image/')
     const isText = mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml' || mime === 'application/javascript'
     const isPdf = mime === 'application/pdf'
+    const isAudio = mime.startsWith('audio/')
+    const isVideo = mime.startsWith('video/')
     return (
       <>
         <div className="incoming-media">
@@ -141,10 +262,12 @@ function MediaAttachment({ path, name, image }: IncomingAttachment) {
                 </div>
               </header>
               <div className="media-preview-body">
-                {isImage && <img className="media-preview-image" src={dataUrl} alt={name} />}
+                {isImage && <ZoomableImage src={dataUrl} name={name} />}
                 {isText && <pre className="media-preview-text">{dataUrlText(dataUrl)}</pre>}
                 {isPdf && <iframe className="media-preview-frame" src={dataUrl} title={name} />}
-                {!isImage && !isText && !isPdf && (
+                {isAudio && <audio className="media-preview-audio" controls preload="metadata" src={dataUrl} />}
+                {isVideo && <video className="media-preview-video" controls playsInline preload="metadata" src={dataUrl} />}
+                {!isImage && !isText && !isPdf && !isAudio && !isVideo && (
                   <div className="media-preview-fallback">
                     <p>{name}</p>
                     <p>Preview is not available for this file type.</p>
