@@ -1,4 +1,4 @@
-import type { AgentProfile, AuthMode, MemoryView, ModelChoice, PendingQuestion, RemoteApproval, RemoteClarify, SessionRow, SkillRow, Transcript } from './protocol'
+import type { AgentProfile, AuthMode, MemoryView, ModelChoice, PendingQuestion, RemoteApproval, RemoteClarify, SessionRow, SkillRow, SubagentProgress, Transcript } from './protocol'
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 export type AppScreen = 'connect' | 'chat' | 'settings'
@@ -65,6 +65,7 @@ export interface Snapshot {
   question: PendingQuestion | null
   remoteClarifies: RemoteClarify[]
   remoteApprovals: RemoteApproval[]
+  subagents: SubagentProgress[]
   queued: QueuedMessage[]
 }
 
@@ -97,6 +98,7 @@ export function emptySnapshot(connection: ConnectionInfo): Snapshot {
     question: null,
     remoteClarifies: [],
     remoteApprovals: [],
+    subagents: [],
     queued: []
   }
 }

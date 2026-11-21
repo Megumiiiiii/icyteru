@@ -16,7 +16,7 @@ export function Markdown({ text }: { text: string }) {
   )
 }
 
-function parseBlocks(source: string): Block[] {
+export function parseBlocks(source: string): Block[] {
   const lines = source.replace(/\r\n?/g, '\n').split('\n')
   const blocks: Block[] = []
   let index = 0
@@ -26,16 +26,24 @@ function parseBlocks(source: string): Block[] {
       index += 1
       continue
     }
-    const fence = line.match(/^\s*```\s*([\w+#.-]*)\s*$/)
+    const fence = line.match(/^\s*(`{3,}|~{3,})\s*(.*)$/)
     if (fence) {
+      const marker = fence[1]
+      const fenceChar = marker[0]
+      const minLength = marker.length
+      const lang = fence[2].trim().split(/\s+/)[0] || ''
       const body: string[] = []
       index += 1
-      while (index < lines.length && !/^\s*```/.test(lines[index])) {
+      const closesFence = (candidate: string) => {
+        const trimmed = candidate.trim()
+        return trimmed.length >= minLength && trimmed.split('').every(char => char === fenceChar)
+      }
+      while (index < lines.length && !closesFence(lines[index])) {
         body.push(lines[index])
         index += 1
       }
       if (index < lines.length) index += 1
-      blocks.push({ kind: 'code', lang: fence[1] || '', text: body.join('\n') })
+      blocks.push({ kind: 'code', lang, text: body.join('\n') })
       continue
     }
     const heading = line.match(/^\s*(#{1,6})\s+(.*)$/)
@@ -79,6 +87,11 @@ function parseBlocks(source: string): Block[] {
     const paragraph: string[] = []
     while (index < lines.length && lines[index].trim() && !startsBlock(lines[index])) {
       paragraph.push(lines[index])
+      index += 1
+    }
+    if (paragraph.length === 0) {
+      // A startsBlock() line that matched no branch above must still advance.
+      paragraph.push(line)
       index += 1
     }
     blocks.push({ kind: 'para', lines: paragraph })

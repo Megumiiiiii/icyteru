@@ -61,6 +61,8 @@ npm run dist:win     # NSIS installer, on Windows
 
 The app is Electron, so one project runs on Windows, macOS, and Linux. Build each installer on that platform.
 
+**Unsigned desktop builds.** The Windows NSIS installer and the macOS DMG/zip are not code-signed or notarized yet. Windows SmartScreen may show **Windows protected your PC**; choose **More info → Run anyway**. On macOS, right-click the app → **Open**, or allow it in **System Settings → Privacy & Security**. Real signing needs an Apple Developer ID + notarization credentials and a Windows code-signing certificate in the repository's Actions secrets; never paste those into chat.
+
 The token is stored in the app's user-data folder. When the operating system keychain is available, it is encrypted with Electron `safeStorage`. Otherwise it is kept in a file that is readable only by your user. A background picture you choose in Settings is copied into that same folder. It is not sent to Hermes.
 
 Light mode is the warm paper look. Dark mode is a deep purple night sky with small stars. You can replace either background with a PNG, JPEG, or WebP of your own, and use the dim and frost sliders so the panels stay readable.
@@ -121,7 +123,7 @@ npm run dist:win
 This takes a few minutes. When it finishes, the installer is in the `release` folder next to the other project files:
 
 ```text
-release\Icyteru Setup 0.1.0.exe
+release\Icyteru Setup 0.0.49.exe
 ```
 
 Double-click that file. The installer asks where to put Icyteru, then adds a Start menu shortcut.
@@ -202,7 +204,7 @@ npm run cap:sync
 npx cap open android
 ```
 
-6. In Android Studio, choose **Build**, then **Build Bundle(s) / APK(s)**, then **Build APK(s)**. The debug APK is `android\app\build\outputs\apk\debug\Icyteru-0.0.48.apk`. Copy it to the phone and open it. Android will ask you to allow installs from that source.
+6. In Android Studio, choose **Build**, then **Build Bundle(s) / APK(s)**, then **Build APK(s)**. The debug APK is `android\app\build\outputs\apk\debug\Icyteru-0.0.49.apk`. Copy it to the phone and open it. Android will ask you to allow installs from that source.
 
 From a terminal, with `JAVA_HOME` and `ANDROID_HOME` set, the same debug APK is:
 
@@ -227,7 +229,7 @@ The GitHub Release workflow builds this same debug-signed APK and attaches it ne
 You do not upload the installers yourself. GitHub Actions builds them when you publish a version tag, then attaches the files to a Release.
 
 1. Open `package.json` and set `"version"` to the new number, for example `0.1.0`. Commit that change and push it to `main`.
-2. Create a tag with the same numbers and a leading `v`, such as `v0.1.0`. The workflow refuses to package when those numbers differ. A tag `v0.0` while `package.json` says `0.1.0` stops immediately and says to tag `v0.1.0` or change the version first. Installer names come from `package.json` (`Icyteru Setup 0.1.0.exe`), and the GitHub Release is named after the tag, so the two have to be the same release.
+2. Create a tag with the same numbers and a leading `v`, such as `v0.1.0`. The workflow refuses to package when those numbers differ. A tag `v0.0` while `package.json` says `0.1.0` stops immediately and says to tag `v0.1.0` or change the version first. Installer names come from `package.json` (`Icyteru Setup 0.0.49.exe`), and the GitHub Release is named after the tag, so the two have to be the same release.
 
    On the GitHub website: open the repository, choose **Releases**, then **Draft a new release**. Click **Choose a tag**, type `v0.1.0`, and select **Create new tag on publish**. Leave the target as `main`. Press **Publish release**.
 
@@ -241,7 +243,7 @@ You do not upload the installers yourself. GitHub Actions builds them when you p
    ```
 
 3. Open the **Actions** tab and wait until the **Release** workflow is green. It builds a Windows NSIS installer (`.exe`), a macOS disk image and zip, a Linux AppImage and `.deb` package, and an Android debug APK. The desktop build jobs run `electron-builder --publish never`, so they only write those files. They do not upload them and they do not need a personal access token.
-4. The last job, **Publish GitHub Release**, attaches those files, including `Icyteru-0.0.48.apk`, to a Release named after the tag. It uses the `GITHUB_TOKEN` that Actions already provides. You do not add a `GH_TOKEN` secret. Return to **Releases** and download the installers from that version. The Windows file is named like `Icyteru Setup 0.1.0.exe`. The Android file is the debug-signed APK described above.
+4. The last job, **Publish GitHub Release**, attaches those files, including `Icyteru-0.0.49.apk`, to a Release named after the tag. It uses the `GITHUB_TOKEN` that Actions already provides. You do not add a `GH_TOKEN` secret. Return to **Releases** and download the installers from that version. The Windows file is named like `Icyteru Setup 0.0.49.exe`. The Android file is the debug-signed APK described above.
 
 The tag has to start with `v`, as in `v1.2.3`. A tag without the `v` does not start the workflow. The macOS files are not signed with an Apple certificate, so the first time you open the app macOS may ask you to approve it in System Settings.
 

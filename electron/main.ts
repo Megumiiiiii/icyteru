@@ -82,6 +82,7 @@ function snapshot(): Snapshot {
   base.question = state.question
   base.remoteClarifies = state.remoteClarifies
   base.remoteApprovals = state.remoteApprovals
+  base.subagents = state.subagents
   base.queued = state.queued
   return base
 }
@@ -285,8 +286,8 @@ function registerIpc(): void {
   ipcMain.handle('answer-remote-clarify', (_event, payload: { clarifyId: string; answer: string }) => (
     client.answerRemoteClarify(payload.clarifyId, payload.answer)
   ))
-  ipcMain.handle('answer-remote-approval', (_event, payload: { sessionKey: string; requestId: string; choice: string; reason?: string }) => (
-    client.answerRemoteApproval(payload.sessionKey, payload.requestId, payload.choice, payload.reason || '')
+  ipcMain.handle('answer-remote-approval', (_event, payload: { sessionKey: string; requestId: string; choice: string; reason?: string; commandDigest?: string }) => (
+    client.answerRemoteApproval(payload.sessionKey, payload.requestId, payload.choice, payload.reason || '', payload.commandDigest || '')
   ))
   ipcMain.handle('set-model', (_event, payload: { model: string; provider: string; confirm?: boolean }) => (
     client.setModel(payload.model, payload.provider, Boolean(payload.confirm))

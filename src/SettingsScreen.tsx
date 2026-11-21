@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef, useState } from 'react'
 import { PhoneNav } from './phone'
+import { APP_VERSION } from './version'
 import type { AuthMode } from '../shared/protocol'
 import type { Snapshot, ThemePreference } from '../shared/snapshot'
 
@@ -25,6 +26,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
   const [approvalNote, setApprovalNote] = useState('')
   const [globalNote, setGlobalNote] = useState('')
   const [busy, setBusy] = useState(false)
+  const [confirmForget, setConfirmForget] = useState(false)
   const [globalModelIndex, setGlobalModelIndex] = useState(() => {
     const found = snapshot.models.findIndex(model => model.id === snapshot.currentModel)
     return found >= 0 ? found : 0
@@ -201,7 +203,24 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
           <div className="row">
             <button className="solid" disabled={busy} onClick={() => void save()} type="button">Test and save</button>
             <button className="ghost" onClick={() => void window.icyteru.reconnect()} type="button">Reconnect</button>
-            <button className="ghost danger" onClick={() => void window.icyteru.forgetConnection()} type="button">Forget gateway</button>
+            {confirmForget ? (
+              <>
+                <button
+                  className="ghost danger"
+                  disabled={busy}
+                  onClick={() => {
+                    setBusy(true)
+                    void window.icyteru.forgetConnection().finally(() => setBusy(false))
+                  }}
+                  type="button"
+                >
+                  Forget gateway?
+                </button>
+                <button className="ghost" onClick={() => setConfirmForget(false)} type="button">Keep</button>
+              </>
+            ) : (
+              <button className="ghost danger" onClick={() => setConfirmForget(true)} type="button">Forget gateway</button>
+            )}
           </div>
           {message && <p className="hint">{message}</p>}
         </section>
@@ -334,7 +353,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
 }
 
 function appVersion(): string {
-  return '0.0.48'
+  return APP_VERSION
 }
 
 function BackgroundCard({ title, image, onPick, onReset }: {

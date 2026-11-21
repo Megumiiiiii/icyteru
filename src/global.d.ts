@@ -38,7 +38,7 @@ declare global {
       interrupt: () => Promise<void>
       answer: (id: string, result: unknown) => Promise<void>
       answerRemoteClarify: (clarifyId: string, answer: string) => Promise<void>
-      answerRemoteApproval: (sessionKey: string, requestId: string, choice: string, reason?: string) => Promise<void>
+      answerRemoteApproval: (sessionKey: string, requestId: string, choice: string, reason?: string, commandDigest?: string) => Promise<void>
       setModel: (model: string, provider: string, confirm?: boolean) => Promise<string>
       setSessionModel: (model: string, provider: string, confirm?: boolean) => Promise<string | { confirmationRequired: true; message: string; model: string; provider: string }>
       cancelSessionModel: () => void

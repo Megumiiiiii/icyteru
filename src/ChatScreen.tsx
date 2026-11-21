@@ -2,9 +2,10 @@ import { Fragment, useContext, useEffect, useMemo, useRef, useState, type Pointe
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
-import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type ToolCall } from '../shared/protocol'
+import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SubagentProgress, type ToolCall } from '../shared/protocol'
 import { Avatar } from './Avatar'
 import { Markdown } from './Markdown'
+import { PinIcon } from './PinIcon'
 import { ago } from './time'
 
 type IncomingAttachment = {
@@ -222,8 +223,16 @@ function MediaAttachment({ path, name, image }: IncomingAttachment) {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setPreviewOpen(false)
     }
+    const onBack = (event: Event) => {
+      event.preventDefault()
+      setPreviewOpen(false)
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('icyteru:back', onBack)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('icyteru:back', onBack)
+    }
   }, [previewOpen])
 
   if (error) return <span className="incoming-file error">{error}</span>
@@ -290,7 +299,11 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
 }) {
   const phone = useContext(PhoneNav)
   const [draft, setDraft] = useState('')
-  const [panel, setPanel] = useState(true)
+  const [panel, setPanel] = useState(() => {
+    const shot = new URLSearchParams(location.search).get('shot') || ''
+    if (['history', 'profile', 'dark-history'].includes(shot)) return true
+    return !window.matchMedia('(max-width: 980px)').matches
+  })
   const [pane, setPane] = useState<'history' | 'profile'>(() => {
     const shot = new URLSearchParams(location.search).get('shot') || ''
     return shot === 'profile' ? 'profile' : 'history'
@@ -310,6 +323,7 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
   const fileInput = useRef<HTMLInputElement>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
   const queueWrap = useRef<HTMLDivElement>(null)
+  const sendMenuRef = useRef<HTMLDivElement>(null)
   const atBottomRef = useRef(true)
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const active = snapshot.sessions.find(session => session.id === snapshot.activeSessionId)
@@ -458,6 +472,38 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
     document.addEventListener('pointerdown', close)
     return () => document.removeEventListener('pointerdown', close)
   }, [queueOpen])
+
+  useEffect(() => {
+    if (!sendActions) return
+    const close = (event: PointerEvent) => {
+      if (!sendMenuRef.current?.contains(event.target as Node)) setSendActions(null)
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSendActions(null)
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [sendActions])
+
+  useEffect(() => {
+    const onBack = (event: Event) => {
+      if (queueOpen) {
+        event.preventDefault()
+        setQueueOpen(false)
+        return
+      }
+      if (sendActions) {
+        event.preventDefault()
+        setSendActions(null)
+      }
+    }
+    window.addEventListener('icyteru:back', onBack)
+    return () => window.removeEventListener('icyteru:back', onBack)
+  }, [queueOpen, sendActions])
 
   // Compression is one long gateway call, so keep a local status bar alive:
   // the backend does not stream a percentage, but elapsed time and phase are real.
@@ -657,12 +703,13 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
               <Avatar label={snapshot.profileName} initial={profile?.initial || snapshot.profileName.slice(0, 1)} src={snapshot.avatar} size={28} />
               <div>
                 <strong>{profile?.label || snapshot.profileName}</strong>
-                <span>{snapshot.phase === 'connecting' ? 'Connecting…' : snapshot.profileName}</span>
+                {snapshot.phase === 'connecting' && <span>Connecting…</span>}
+                {snapshot.phase === 'error' && <span>Connection problem</span>}
               </div>
             </div>
           </div>
           <div className="chat-title">
-            <h1>{active?.title || 'New chat'}</h1>
+            <h1 title={active?.title || 'New chat'}>{active?.title || 'New chat'}</h1>
           </div>
           <div className="bar-actions">
             <ReasoningMenu snapshot={snapshot} onNotice={setNotice} />
@@ -724,6 +771,7 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
               )}
             </Fragment>
           ))}
+          <SubagentGroup subagents={snapshot.subagents} />
           {streaming && <p className="working">{snapshot.profileName} is working…</p>}
         </div>
         {!atBottom && (
@@ -825,7 +873,7 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
         )}
         <form className="composer" onSubmit={event => { event.preventDefault(); void send() }}>
           {sendActions && (
-            <div className="send-menu" role="menu" aria-label="What should happen to this message?">
+            <div className="send-menu" ref={sendMenuRef} role="menu" aria-label="What should happen to this message?">
               <button className="danger" type="button" onClick={() => void chooseSendAction('stop')}>
                 <span aria-hidden="true">■</span> Stop current task
               </button>
@@ -864,7 +912,7 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
                 title={toolRunning ? 'Tool call in progress' : 'Live output speed'}
                 aria-label={toolRunning ? 'Tool call in progress' : 'Tokens per second'}
               >
-                <span aria-hidden="true">{toolRunning ? '⚔️' : '⌨️'}</span>
+                <span className="tok-emoji" aria-hidden="true">{toolRunning ? '⚔️' : '⌨️'}</span>
                 {snapshot.tokensPerSecond ? `${snapshot.tokensPerSecond} Tok/s` : '… Tok/s'}
               </span>
             )}
@@ -948,20 +996,104 @@ function ToolRow({ tool }: { tool: ToolCall }) {
   )
 }
 
+function subagentDone(status: string): boolean {
+  return ['completed', 'failed', 'timeout', 'cancelled', 'error', 'stopped'].includes(status)
+}
+
+function subagentStatusText(subagent: SubagentProgress): string {
+  if (subagent.status === 'completed') return 'Completed'
+  if (subagent.status === 'failed' || subagent.status === 'error') return 'Failed'
+  if (subagent.status === 'timeout') return 'Timed out'
+  if (subagent.status === 'cancelled' || subagent.status === 'stopped') return 'Stopped'
+  if (subagent.status === 'queued') return 'Queued'
+  if (subagent.activity === 'thinking') return 'Thinking'
+  if (subagent.activity === 'tool') return subagent.toolName ? `Using ${subagent.toolName}` : 'Using tools'
+  if (subagent.activity === 'progress') return 'Working'
+  return 'Running'
+}
+
+function SubagentGroup({ subagents }: { subagents: SubagentProgress[] }) {
+  const [open, setOpen] = useState(false)
+  const live = subagents.filter(item => !subagentDone(item.status))
+  if (live.length === 0) return null
+  const active = [...live].sort((a, b) => b.updatedAt - a.updatedAt)[0]
+  const batchTotal = Math.max(1, ...subagents.map(item => item.taskCount || 1), subagents.length)
+  const batchIndex = Math.min(batchTotal, Math.max(1, ...subagents.map(item => (item.taskIndex || 0) + 1)))
+  const percent = Math.round((batchIndex / batchTotal) * 100)
+
+  return (
+    <div className="tools subagent-group">
+      <button className="tool-toggle subagent-toggle" onClick={() => setOpen(value => !value)} type="button">
+        <span>{open ? '▾' : '▸'}</span>
+        <ToolStatus running />
+        <span>{live.length} subagent{live.length === 1 ? '' : 's'}</span>
+      </button>
+      <div className="subagent-detail">
+        <div className="subagent-detail-head">
+          <span className="subagent-kicker">SUBAGENT</span>
+          <span className="subagent-status">{subagentStatusText(active)}</span>
+        </div>
+        <p className="subagent-goal">{active.goal}</p>
+        {active.activity === 'tool' && active.lastText && (
+          <p className="subagent-line">{active.lastText}</p>
+        )}
+        <div className="subagent-progress" aria-label={`${batchIndex} of ${batchTotal} subagent tasks`}>
+          <span style={{ width: `${percent}%` }} />
+        </div>
+        <div className="subagent-foot">
+          <span>{batchIndex}/{batchTotal}</span>
+          <span>Running {live.length} subagent{live.length === 1 ? '' : 's'}</span>
+        </div>
+      </div>
+      {open && (
+        <div className="subagent-list">
+          {subagents.map(item => (
+            <div className="tool subagent-row" key={item.id}>
+              <div className="subagent-row-head">
+                <ToolStatus running={!subagentDone(item.status)} />
+                <strong>{item.goal}</strong>
+                <span className="subagent-row-status">{subagentStatusText(item)}</span>
+              </div>
+              {item.toolCount > 0 && (
+                <span className="subagent-row-meta">{item.toolCount} tool {item.toolCount === 1 ? 'call' : 'calls'}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function QuestionCard({ question }: { question: NonNullable<Snapshot['question']> }) {
   const [secret, setSecret] = useState('')
   const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [multi, setMulti] = useState<Record<string, string[]>>({})
   const [custom, setCustom] = useState<Record<string, string>>({})
   const [note, setNote] = useState('')
+  const [sending, setSending] = useState(false)
+  const sendingRef = useRef(false)
 
   async function send(result: unknown) {
+    if (sendingRef.current) return
+    sendingRef.current = true
+    setSending(true)
     setNote('')
     try {
       await window.icyteru.answer(question.id, result)
     } catch (error) {
       setNote(error instanceof Error ? error.message : 'Could not send that answer.')
+    } finally {
+      sendingRef.current = false
+      setSending(false)
     }
   }
+
+  const hasAnswer = question.questions.some(item => {
+    if (custom[item.id]?.trim()) return true
+    if (item.multiSelect) return (multi[item.id] || []).length > 0
+    return Boolean((answers[item.id] || '').trim())
+  })
 
   return (
     <section className="question">
@@ -970,7 +1102,7 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
       {question.choices.length > 0 && (
         <div className="row">
           {question.choices.map(choice => (
-            <button key={choice} className={choice === 'deny' ? 'ghost' : 'solid'} onClick={() => void send({ choice })} type="button">
+            <button key={choice} className={choice === 'deny' ? 'ghost' : 'solid'} disabled={sending} onClick={() => void send({ choice })} type="button">
               {approvalLabel(choice)}
             </button>
           ))}
@@ -981,21 +1113,27 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
           <p>{item.question}</p>
           <div className="row">
             {item.choices.map(choice => {
-              const storedAnswer = answers[item.id]
               const picked = item.multiSelect
-                ? storedAnswer?.split(', ').includes(choice)
-                : storedAnswer === choice
+                ? (multi[item.id] || []).includes(choice)
+                : answers[item.id] === choice
               return (
                 <button
                   key={choice}
                   className={picked ? 'solid picked' : 'ghost'}
                   aria-pressed={picked}
-                  onClick={() => setAnswers(current => {
-                    const currentPicked = (current[item.id] || '').split(', ').filter(Boolean)
-                    if (!item.multiSelect) return { ...current, [item.id]: choice }
-                    const next = currentPicked.includes(choice) ? currentPicked.filter(value => value !== choice) : [...currentPicked, choice]
-                    return { ...current, [item.id]: next.join(', ') }
-                  })}
+                  onClick={() => {
+                    if (!item.multiSelect) {
+                      setAnswers(current => ({ ...current, [item.id]: choice }))
+                      return
+                    }
+                    setMulti(current => {
+                      const selected = current[item.id] || []
+                      const next = selected.includes(choice)
+                        ? selected.filter(value => value !== choice)
+                        : [...selected, choice]
+                      return { ...current, [item.id]: next }
+                    })
+                  }}
                   type="button"
                 >
                   {picked ? `✓ ${choice}` : choice}
@@ -1022,16 +1160,28 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
         <div className="question-actions">
           <button
             className="solid"
+            disabled={!hasAnswer || sending}
+            aria-busy={sending}
             onClick={() => {
-              const merged = { ...answers }
+              const merged: Record<string, string> = { ...answers }
               for (const [id, value] of Object.entries(custom)) {
                 if (value.trim()) merged[id] = value.trim()
+              }
+              for (const item of question.questions) {
+                if (!item.multiSelect) continue
+                if (custom[item.id]?.trim()) continue
+                const selected = multi[item.id] || []
+                if (!selected.length) continue
+                merged[item.id] = selected
+                  .map(choice => item.choices.indexOf(choice) + 1)
+                  .filter(index => index > 0)
+                  .join(', ')
               }
               void send({ answers: merged, outcome: 'submitted' })
             }}
             type="button"
           >
-            Send answers
+            {sending ? 'Sending…' : 'Send answers'}
           </button>
         </div>
       )}
@@ -1039,8 +1189,8 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
         <form onSubmit={event => { event.preventDefault(); void send({ value: secret }) }}>
           <input type="password" value={secret} onChange={event => setSecret(event.target.value)} placeholder="Password or secret" />
           <div className="row">
-            <button className="solid" type="submit">Send</button>
-            <button className="ghost" onClick={() => void send({ value: '' })} type="button">Skip</button>
+            <button className="solid" type="submit" disabled={sending}>Send</button>
+            <button className="ghost" onClick={() => void send({ value: '' })} disabled={sending} type="button">Skip</button>
           </div>
         </form>
       )}
@@ -1088,7 +1238,10 @@ function RemoteClarifyCard({ clarify, more }: { clarify: RemoteClarify; more: nu
     setPicked(current => current.includes(choice) ? current.filter(item => item !== choice) : [...current, choice])
   }
 
-  const selected = picked.join(', ')
+  const selected = picked
+    .map(choice => clarify.choices.indexOf(choice) + 1)
+    .filter(index => index > 0)
+    .join(', ')
   const value = custom.trim() || selected
 
   return (
@@ -1132,6 +1285,12 @@ function RemoteClarifyCard({ clarify, more }: { clarify: RemoteClarify; more: nu
   )
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
 function RemoteApprovalCard({ approval, more }: { approval: RemoteApproval; more: number }) {
   const [note, setNote] = useState('')
   const [reason, setReason] = useState('')
@@ -1142,7 +1301,8 @@ function RemoteApprovalCard({ approval, more }: { approval: RemoteApproval; more
     setSending(choice)
     setNote('')
     try {
-      await window.icyteru.answerRemoteApproval(approval.sessionKey, approval.requestId, choice, reason)
+      const commandDigest = choice === 'deny' ? '' : await sha256Hex(approval.command)
+      await window.icyteru.answerRemoteApproval(approval.sessionKey, approval.requestId, choice, reason, commandDigest)
     } catch (error) {
       setNote(error instanceof Error ? error.message : 'Could not send that approval.')
     } finally {
@@ -1220,6 +1380,12 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
     setProvider(name)
   }
 
+  function closeMenu() {
+    setOpen(false)
+    setFilter('')
+    setProvider('all')
+  }
+
   function startTabDrag(event: ReactPointerEvent<HTMLDivElement>) {
     const node = event.currentTarget
     if (node.scrollWidth <= node.clientWidth) return
@@ -1245,7 +1411,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
     if (!open) return
     const onPointer = (event: PointerEvent) => {
       if (pending) return
-      if (!menu.current?.contains(event.target as Node)) setOpen(false)
+      if (!menu.current?.contains(event.target as Node)) closeMenu()
     }
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -1253,14 +1419,24 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
           window.icyteru.cancelSessionModel()
           setPending(null)
         }
-        setOpen(false)
+        closeMenu()
       }
+    }
+    const onBack = (event: Event) => {
+      event.preventDefault()
+      if (pending) {
+        window.icyteru.cancelSessionModel()
+        setPending(null)
+      }
+      closeMenu()
     }
     document.addEventListener('pointerdown', onPointer)
     document.addEventListener('keydown', onKey)
+    window.addEventListener('icyteru:back', onBack)
     return () => {
       document.removeEventListener('pointerdown', onPointer)
       document.removeEventListener('keydown', onKey)
+      window.removeEventListener('icyteru:back', onBack)
     }
   }, [open, pending])
 
@@ -1284,7 +1460,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
   const currentLabel = modelShortName(current)
   return (
     <div className="model-menu" ref={menu}>
-      <button className="top-action tiny" onClick={() => setOpen(value => !value)} type="button" title={current}>{currentLabel}</button>
+      <button className="top-action tiny" onClick={() => open ? closeMenu() : setOpen(true)} type="button" title={current}>{currentLabel}</button>
       {open && (
         <div className="model-pop">
           {pending && (
@@ -1297,7 +1473,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
                     const target = pending
                     void window.icyteru.setSessionModel(target.model, target.provider, true).then(result => {
                       setPending(null)
-                      setOpen(false)
+                      closeMenu()
                       onNotice(typeof result === 'string' ? result : result.message)
                     }).catch(error => {
                       onNotice(error instanceof Error ? error.message : 'Could not change the model.')
@@ -1312,7 +1488,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
                   onClick={() => {
                     window.icyteru.cancelSessionModel()
                     setPending(null)
-                    setOpen(false)
+                    closeMenu()
                   }}
                   type="button"
                 >
@@ -1370,7 +1546,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
                     void window.icyteru.setSessionModel(targetModel, targetProvider).then(result => {
                       if (typeof result === 'string') {
                         setPending(null)
-                        setOpen(false)
+                        closeMenu()
                         onNotice(result)
                         return
                       }
@@ -1431,11 +1607,17 @@ function ReasoningMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false)
     }
+    const onBack = (event: Event) => {
+      event.preventDefault()
+      setOpen(false)
+    }
     document.addEventListener('pointerdown', onPointer)
     document.addEventListener('keydown', onKey)
+    window.addEventListener('icyteru:back', onBack)
     return () => {
       document.removeEventListener('pointerdown', onPointer)
       document.removeEventListener('keydown', onKey)
+      window.removeEventListener('icyteru:back', onBack)
     }
   }, [open])
 
@@ -1534,7 +1716,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
               <span className="sr">Search this profile's chats</span>
               <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search chats" />
             </label>
-            <button className="ghost tiny" type="button" onClick={() => void window.icyteru.newChat()}>New chat</button>
+            <button className="ghost tiny" type="button" onClick={() => { phone.setView('chat'); setQuery(''); void window.icyteru.newChat() }}>New chat</button>
           </div>
           <div className="session-list">
             {sessions.length === 0 && <p className="empty-list">No chats for {snapshot.profileName} yet. Telegram and Discord chats show up here when Hermes has them.</p>}
@@ -1579,7 +1761,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
                           })
                         }}
                       >
-                        {session.pinned ? 'Unpin' : 'Pin'}
+                        <PinIcon filled={session.pinned} />
                       </button>
                     </div>
                   ))}

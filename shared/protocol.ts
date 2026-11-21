@@ -247,12 +247,42 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
   if (type === 'reasoning.delta' || type === 'thinking.delta') {
     return next
   }
-  if (type === 'tool.start' || type === 'tool.generating') {
+  if (type === 'tool.generating') {
+    const message = ensureAssistant(next)
+    const name = String(payload.name || payload.tool || 'tool')
+    const existing = [...message.tools].reverse().find(tool =>
+      tool.name === name && tool.status === 'running' && tool.id.startsWith('gen:')
+    )
+    if (!existing) {
+      message.tools.push({
+        textOffset: message.text.length,
+        id: `gen:${name}:${message.tools.length}`,
+        name,
+        argsText: '',
+        resultText: '',
+        status: 'running'
+      })
+    }
+    next.streaming = true
+    return next
+  }
+  if (type === 'tool.start') {
     const message = ensureAssistant(next)
     const id = String(payload.tool_id || payload.id || `tool-${message.tools.length}`)
     const name = String(payload.name || payload.tool || 'tool')
-    const existing = message.tools.find(tool => tool.id === id)
     const argsText = previewValue(payload.args ?? payload.args_text ?? payload.preview ?? payload.context)
+    let existing = message.tools.find(tool => tool.id === id)
+    if (!existing) {
+      const placeholder = [...message.tools].reverse().find(tool =>
+        tool.name === name && tool.status === 'running' && tool.id.startsWith('gen:')
+      )
+      if (placeholder) {
+        placeholder.id = id
+        placeholder.name = name
+        if (argsText) placeholder.argsText = argsText
+        existing = placeholder
+      }
+    }
     if (existing) {
       if (argsText) existing.argsText = argsText
       existing.status = 'running'
@@ -266,7 +296,10 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
     const message = ensureAssistant(next)
     const id = String(payload.tool_id || payload.id || '')
     const name = String(payload.name || 'tool')
-    let tool = message.tools.find(item => item.id === id) || message.tools.find(item => item.name === name && item.status === 'running')
+    let tool = message.tools.find(item => item.id === id) || message.tools.find(item => item.name === name && item.status === 'running' && !item.id.startsWith('gen:'))
+    if (!tool) {
+      tool = [...message.tools].reverse().find(item => item.name === name && item.status === 'running' && item.id.startsWith('gen:'))
+    }
     if (!tool) {
       tool = { textOffset: message.text.length, id: id || `tool-${message.tools.length}`, name, argsText: '', resultText: '', status: 'running' }
       message.tools.push(tool)
@@ -289,11 +322,12 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
     const full = payload.text
     const reused = payload.response_reused === true
     if (!reused && typeof full === 'string' && full.trim()) {
-      if (!assistant.text || full.startsWith(assistant.text) || assistant.text.startsWith(full)) {
-        if (full.length >= assistant.text.length) assistant.text = full
-      } else if (!assistant.text) {
-        assistant.text = full
+      const meta = streamMeta.get(assistant)
+      if (meta) {
+        meta.segments.clear()
+        meta.order.length = 0
       }
+      assistant.text = full
     }
     if (typeof payload.error === 'string' && payload.error) assistant.error = payload.error
     else if (payload.status === 'failed' || payload.status === 'error') {
@@ -314,6 +348,58 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
     return next
   }
   return next
+}
+
+export function applySubagentEvent(subagents: SubagentProgress[], event: GatewayEventFrame): SubagentProgress[] {
+  if (!event.type.startsWith('subagent.')) return subagents
+  const payload = asRecord(event.payload)
+  const stringValue = (value: unknown, fallback = ''): string => typeof value === 'string' ? value : fallback
+  const numberValue = (value: unknown, fallback: number): number =>
+    typeof value === 'number' && Number.isFinite(value) ? value : fallback
+  const goal = stringValue(payload.goal)
+  const taskIndex = numberValue(payload.task_index, 0)
+  const taskCount = numberValue(payload.task_count, 1)
+  const delegationId = stringValue(payload.delegation_id)
+  const id = stringValue(payload.subagent_id) || `${delegationId || 'root'}:${taskIndex}:${goal}`
+  const existing = subagents.find(item => item.id === id)
+  const now = Date.now()
+  const eventStatus = stringValue(payload.status)
+  const status = eventStatus || (
+    event.type === 'subagent.complete' ? 'completed'
+      : event.type === 'subagent.spawn_requested' ? 'queued'
+        : 'running'
+  )
+  const activity: SubagentActivity = event.type === 'subagent.thinking' ? 'thinking'
+    : event.type === 'subagent.tool' ? 'tool'
+      : event.type === 'subagent.progress' ? 'progress'
+        : event.type === 'subagent.complete' ? 'complete'
+          : 'spawn'
+  const text = stringValue(payload.text) || (event.type === 'subagent.tool' ? stringValue(payload.tool_preview) : '')
+  const next: SubagentProgress = {
+    id,
+    goal: goal || existing?.goal || 'Subagent',
+    status,
+    taskIndex: numberValue(payload.task_index, existing?.taskIndex ?? 0),
+    taskCount: numberValue(payload.task_count, existing?.taskCount ?? 1),
+    parentId: stringValue(payload.parent_id) || existing?.parentId || '',
+    childSessionId: stringValue(payload.child_session_id) || existing?.childSessionId || '',
+    delegationId: delegationId || existing?.delegationId || '',
+    depth: numberValue(payload.depth, existing?.depth ?? 0),
+    model: stringValue(payload.model) || existing?.model || '',
+    toolCount: numberValue(payload.tool_count, existing?.toolCount ?? 0),
+    toolsets: Array.isArray(payload.toolsets) ? payload.toolsets.map(item => String(item)) : existing?.toolsets || [],
+    lastText: text || existing?.lastText || '',
+    toolName: stringValue(payload.tool_name) || existing?.toolName || '',
+    activity,
+    startedAt: existing?.startedAt || now,
+    updatedAt: now,
+    durationSeconds: numberValue(payload.duration_seconds, existing?.durationSeconds ?? 0),
+    summary: stringValue(payload.summary) || existing?.summary || '',
+    inputTokens: numberValue(payload.input_tokens, existing?.inputTokens ?? 0),
+    outputTokens: numberValue(payload.output_tokens, existing?.outputTokens ?? 0),
+    apiCalls: numberValue(payload.api_calls, existing?.apiCalls ?? 0)
+  }
+  return [...subagents.filter(item => item.id !== id), next]
 }
 
 export function historyFromRows(rows: unknown): Transcript {
@@ -771,6 +857,34 @@ export interface GatewayEventFrame {
   seq?: number
   authority_epoch?: number
   execution_generation?: number
+}
+
+export type SubagentActivity = 'spawn' | 'thinking' | 'tool' | 'progress' | 'complete'
+
+/** One live (or recently finished) delegated child shown by the composer status card. */
+export interface SubagentProgress {
+  id: string
+  goal: string
+  status: string
+  taskIndex: number
+  taskCount: number
+  parentId: string
+  childSessionId: string
+  delegationId: string
+  depth: number
+  model: string
+  toolCount: number
+  toolsets: string[]
+  lastText: string
+  toolName: string
+  activity: SubagentActivity
+  startedAt: number
+  updatedAt: number
+  durationSeconds: number
+  summary: string
+  inputTokens: number
+  outputTokens: number
+  apiCalls: number
 }
 
 export interface PendingQuestion {

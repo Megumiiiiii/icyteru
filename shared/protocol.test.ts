@@ -4,6 +4,7 @@ import {
   acceptAvatar,
   applyDelta,
   applyGatewayEvent,
+  applySubagentEvent,
   buildCreateParams,
   bareModelId,
   buildGatewayWsUrl,
@@ -52,6 +53,57 @@ test('folds tool calls into the assistant turn', () => {
   assert.equal(transcript.messages[0].tools[0].name, 'read_file')
   assert.equal(transcript.messages[0].tools[0].status, 'done')
   assert.match(transcript.messages[0].tools[0].resultText, /12 lines/)
+})
+
+test('replaces a tool.generating placeholder with the real tool call', () => {
+  let transcript = emptyTranscript()
+  transcript = applyGatewayEvent(transcript, { type: 'tool.generating', payload: { name: 'terminal' } })
+  assert.equal(transcript.messages[0].tools.length, 1)
+  assert.equal(transcript.messages[0].tools[0].status, 'running')
+  assert.match(transcript.messages[0].tools[0].id, /^gen:/)
+  transcript = applyGatewayEvent(transcript, {
+    type: 'tool.start',
+    payload: { tool_id: 'call-1', name: 'terminal', args: { command: 'echo hi' } }
+  })
+  assert.equal(transcript.messages[0].tools.length, 1)
+  assert.equal(transcript.messages[0].tools[0].id, 'call-1')
+  transcript = applyGatewayEvent(transcript, {
+    type: 'tool.complete',
+    payload: { tool_id: 'call-1', name: 'terminal', result: 'hi', is_error: false }
+  })
+  assert.equal(transcript.messages[0].tools[0].status, 'done')
+})
+
+test('folds subagent lifecycle events into one live row', () => {
+  let subagents = applySubagentEvent([], {
+    type: 'subagent.spawn_requested',
+    payload: { subagent_id: 'sa-1', goal: 'audit menus', task_index: 0, task_count: 3, delegation_id: 'd1' }
+  })
+  assert.equal(subagents.length, 1)
+  assert.equal(subagents[0].status, 'queued')
+  assert.equal(subagents[0].goal, 'audit menus')
+  subagents = applySubagentEvent(subagents, {
+    type: 'subagent.tool',
+    payload: { subagent_id: 'sa-1', goal: 'audit menus', task_index: 0, task_count: 3, tool_name: 'terminal', tool_preview: 'grep menus' }
+  })
+  assert.equal(subagents[0].status, 'running')
+  assert.equal(subagents[0].activity, 'tool')
+  assert.equal(subagents[0].toolName, 'terminal')
+  assert.match(subagents[0].lastText, /grep menus/)
+  subagents = applySubagentEvent(subagents, {
+    type: 'subagent.complete',
+    payload: { subagent_id: 'sa-1', status: 'completed', summary: 'done', duration_seconds: 1.5 }
+  })
+  assert.equal(subagents[0].status, 'completed')
+  assert.equal(subagents[0].summary, 'done')
+})
+
+test('drops interim commentary when the final answer arrives', () => {
+  let transcript = emptyTranscript()
+  transcript = applyGatewayEvent(transcript, { type: 'message.interim', payload: { text: 'draft guess' } })
+  assert.equal(transcript.messages[0].text, 'draft guess')
+  transcript = applyGatewayEvent(transcript, { type: 'message.complete', payload: { text: 'final answer', status: 'ok' } })
+  assert.equal(transcript.messages[0].text, 'final answer')
 })
 
 test('reads stored history and session rows', () => {

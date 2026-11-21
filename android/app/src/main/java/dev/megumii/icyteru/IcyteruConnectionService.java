@@ -56,6 +56,13 @@ public class IcyteruConnectionService extends Service {
     }
 
     @Override
+    public void onTimeout(int startId, int fgsType) {
+        super.onTimeout(startId, fgsType);
+        stopForeground(STOP_FOREGROUND_REMOVE);
+        stopSelf(startId);
+    }
+
+    @Override
     public IBinder onBind(Intent intent) {
         return null;
     }

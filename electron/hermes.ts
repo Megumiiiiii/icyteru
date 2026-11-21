@@ -18,6 +18,7 @@ import {
   acceptAvatar,
   appendUser,
   applyGatewayEvent,
+  applySubagentEvent,
   emptyTranscript,
   normalizeProfiles,
   type AgentProfile,
@@ -31,6 +32,7 @@ import {
   type RemoteApproval,
   type RemoteClarify,
   type SessionRow,
+  type SubagentProgress,
   type Transcript
 } from '../shared/protocol'
 import { HermesSocket } from '../shared/gateway-socket'
@@ -103,6 +105,7 @@ export class HermesClient {
   private clarifyPolling = false
   private remoteClarifies: RemoteClarify[] = []
   private remoteApprovals: RemoteApproval[] = []
+  private subagents: SubagentProgress[] = []
   private executionGeneration = 0
   private tokenWindow: Array<{ t: number; chars: number }> = []
   private usageTokensPerSecond: number | null = null
@@ -139,6 +142,7 @@ export class HermesClient {
       question: this.question,
       remoteClarifies: this.remoteClarifies,
       remoteApprovals: this.remoteApprovals,
+      subagents: this.subagents,
       queued: this.queued.filter(entry => entry.sessionId === this.live?.stored),
       connected: Boolean(this.socket?.isOpen),
       activeSessionId: this.live?.stored || '',
@@ -185,18 +189,40 @@ export class HermesClient {
   }
 
   async probe(baseUrl: string, creds: ConnectionCredentials): Promise<ProbeResult> {
-    const discovery = await this.discover(baseUrl)
-    if (!discovery.ok) return { ok: false, message: discovery.message, mode: discovery.mode }
-    await this.prepare(baseUrl, creds, discovery.mode, discovery.providers)
-    const status = await this.readStatus(baseUrl)
-    const dial = await this.openSocket(baseUrl)
-    return {
-      ok: true,
-      message: `Connected to Hermes ${status.version || ''}.`.replace('Hermes .', 'Hermes.').replace('Hermes .', 'Hermes') + ` (${authModeHint(this.authMode)})`,
-      version: status.version,
-      wsUrl: dial.wsUrl,
-      protocols: dial.protocols,
-      mode: this.authMode
+    const before = {
+      baseUrl: this.baseUrl,
+      token: this.token,
+      username: this.username,
+      password: this.password,
+      cookie: this.cookie,
+      authMode: this.authMode,
+      loginProvider: this.loginProvider
+    }
+    try {
+      const discovery = await this.discover(baseUrl)
+      if (!discovery.ok) return { ok: false, message: discovery.message, mode: discovery.mode }
+      await this.prepare(baseUrl, creds, discovery.mode, discovery.providers)
+      const status = await this.readStatus(baseUrl)
+      const mode = this.authMode
+      // A probe must never attach its socket to the live transcript or replace the
+      // credentials of the gateway that is already connected.
+      const dial = await this.openSocket(baseUrl, '', true, false)
+      return {
+        ok: true,
+        message: `Connected to Hermes ${status.version || ''}.`.replace('Hermes .', 'Hermes.').replace('Hermes .', 'Hermes') + ` (${authModeHint(mode)})`,
+        version: status.version,
+        wsUrl: dial.wsUrl,
+        protocols: dial.protocols,
+        mode
+      }
+    } finally {
+      this.baseUrl = before.baseUrl
+      this.token = before.token
+      this.username = before.username
+      this.password = before.password
+      this.cookie = before.cookie
+      this.authMode = before.authMode
+      this.loginProvider = before.loginProvider
     }
   }
 
@@ -367,6 +393,7 @@ export class HermesClient {
     this.clarifyPolling = false
     this.remoteClarifies = []
     this.remoteApprovals = []
+    this.subagents = []
     this.socket?.close()
     this.socket = null
     this.live = null
@@ -436,9 +463,10 @@ export class HermesClient {
     this.emit()
   }
 
-  async answerRemoteApproval(sessionKey: string, requestId: string, choice: string, reason = ''): Promise<void> {
+  async answerRemoteApproval(sessionKey: string, requestId: string, choice: string, reason = '', commandDigest = ''): Promise<void> {
     const body: Record<string, unknown> = { session_key: sessionKey, request_id: requestId, choice }
     if (reason.trim()) body.reason = reason.trim()
+    if (commandDigest.trim()) body.command_digest = commandDigest.trim()
     await this.postJson('/api/plugins/icyteru-push/answer-approval', body)
     this.remoteApprovals = this.remoteApprovals.filter(item => item.requestId !== requestId || item.sessionKey !== sessionKey)
     this.emit()
@@ -446,6 +474,15 @@ export class HermesClient {
 
   async testApproval(): Promise<{ ok: boolean; session_id: string }> {
     return await this.postJson('/api/plugins/icyteru-push/test-approval', {}) as { ok: boolean; session_id: string }
+  }
+
+  /** Register an Android FCM token through the authenticated client, not a raw fetch. */
+  async registerPush(token: string, appVersion: string): Promise<void> {
+    await this.postJson('/api/plugins/icyteru-push/register', {
+      token,
+      platform: 'android',
+      app_version: appVersion
+    })
   }
 
   /** Recent gateway notifications for desktop clients (Android uses FCM). */
@@ -541,6 +578,7 @@ export class HermesClient {
       if (rows) this.transcript = historyFromRows(rows)
     }
     this.question = null
+    this.subagents = []
     await this.readReasoning().catch(() => undefined)
     this.emit()
   }
@@ -559,6 +597,7 @@ export class HermesClient {
     this.revision = 0
     this.transcript = emptyTranscript()
     this.question = null
+    this.subagents = []
     this.side.reasoning = ''
     this.emit()
   }
@@ -1366,6 +1405,13 @@ export class HermesClient {
         this.question = question
         this.emit()
       }
+      return
+    }
+    if (event.type.startsWith('subagent.')) {
+      if (!this.live) return
+      if (sessionId && sessionId !== this.live.live && sessionId !== this.live.stored) return
+      this.subagents = applySubagentEvent(this.subagents, event)
+      this.emit()
       return
     }
     if (sessionId && this.live && sessionId !== this.live.live && sessionId !== this.live.stored) {

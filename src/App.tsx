@@ -1,11 +1,13 @@
 import { useContext, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { Capacitor } from '@capacitor/core'
+import { App as CapacitorApp } from '@capacitor/app'
 import type { Snapshot, ThemePreference } from '../shared/snapshot'
 import { Avatar } from './Avatar'
 import { ChatScreen } from './ChatScreen'
 import { ConnectScreen } from './ConnectScreen'
 import { SettingsScreen } from './SettingsScreen'
 import { initialPhone, PhoneNav, type PhoneView } from './phone'
+import { PinIcon } from './PinIcon'
 import { Starfield } from './Starfield'
 import { ago, isRecent } from './time'
 
@@ -101,6 +103,37 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
     root.style.setProperty('--bg-dim', String(appearance?.dim ?? 0.4))
     root.style.setProperty('--panel-blur', `${appearance?.blur ?? 12}px`)
   }, [dark, appearance])
+
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android') return
+    let cancelled = false
+    let listener: { remove: () => Promise<void> } | null = null
+    void CapacitorApp.addListener('backButton', () => {
+      const back = new CustomEvent('icyteru:back', { cancelable: true })
+      window.dispatchEvent(back)
+      if (back.defaultPrevented) return
+      if (snapshot.screen === 'settings') {
+        void window.icyteru.showScreen('chat')
+        return
+      }
+      if (phoneView === 'panel') {
+        setPhoneView('chat')
+        return
+      }
+      if (phoneView === 'chat') {
+        setPhoneView('roster')
+        return
+      }
+      void CapacitorApp.exitApp()
+    }).then(handle => {
+      if (cancelled) void handle.remove()
+      else listener = handle
+    })
+    return () => {
+      cancelled = true
+      if (listener) void listener.remove()
+    }
+  }, [phoneView, snapshot.screen])
 
   const image = dark ? appearance?.dark : appearance?.light
   const shellStyle = {
@@ -239,6 +272,7 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
                 type="button"
                 onClick={() => {
                   phone.setView('chat')
+                  if (snapshot.screen === 'settings') void window.icyteru.showScreen('chat')
                   void window.icyteru.selectProfile(profile.gatewayId, profile.name)
                 }}
               >
@@ -257,7 +291,7 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
                 title={profile.pinned ? 'Unpin' : 'Pin to top'}
                 onClick={() => void window.icyteru.setPinned(profile.gatewayId, profile.name, !profile.pinned)}
               >
-                {profile.pinned ? 'Unpin' : 'Pin'}
+                <PinIcon filled={profile.pinned} />
               </button>
             </div>
           )

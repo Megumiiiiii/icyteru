@@ -124,6 +124,9 @@ export function previewSnapshot(shot: string): Snapshot {
       }
     ]
   }
+  if (shot === 'tok-chat') {
+    base.transcript.streaming = true
+  }
   if (shot === 'tool') {
     base.transcript.streaming = true
     base.transcript.messages[1].tools[0].status = 'running'
@@ -150,6 +153,28 @@ export function previewSnapshot(shot: string): Snapshot {
       executionGeneration: 7
     }
   }
+  if (shot === 'question-multi') {
+    base.transcript.streaming = true
+    base.question = {
+      id: 'q-preview-multi',
+      method: 'clarify.request',
+      sessionId: 's1',
+      title: 'Hermes has a question',
+      body: 'Pilih opsi yang mau dijalankan.',
+      choices: [],
+      secret: false,
+      questions: [
+        {
+          id: 'q1',
+          question: 'Mana saja yang mau dijalankan?',
+          choices: ['Nanti saja, aku restart sendiri', 'Restart sekarang', 'Opsi, lain'],
+          multiSelect: true
+        }
+      ],
+      promptId: 'q-preview-multi',
+      executionGeneration: 7
+    }
+  }
   if (shot === 'remote-clarify') {
     base.transcript.streaming = true
     base.remoteClarifies = [{
@@ -165,6 +190,17 @@ export function previewSnapshot(shot: string): Snapshot {
       awaitingText: false
     }]
   }
+  if (shot === 'remote-clarify-multi') {
+    base.transcript.streaming = true
+    base.remoteClarifies = [{
+      clarifyId: 'remote-q-preview-multi',
+      sessionKey: 'agent:main:telegram:dm:1924400666',
+      question: 'Mana saja yang mau dijalankan?',
+      choices: ['Nanti saja, aku restart sendiri', 'Restart sekarang'],
+      multiSelect: true,
+      awaitingText: false
+    }]
+  }
   if (shot === 'remote-approval') {
     base.transcript.streaming = true
     base.remoteApprovals = [{
@@ -177,6 +213,36 @@ export function previewSnapshot(shot: string): Snapshot {
       smartDenied: false,
       denyOnly: false
     }]
+  }
+  if (shot === 'subagents') {
+    base.transcript.streaming = true
+    const now = Date.now()
+    base.subagents = [
+      {
+        id: 'sa-1', goal: 'Audit the Icyteru UI/menu layer for broken controls and layout problems',
+        status: 'completed', taskIndex: 0, taskCount: 3, parentId: '', childSessionId: 'child-1',
+        delegationId: 'deleg_preview', depth: 0, model: 'deepseek-v4.1-flash', toolCount: 41,
+        toolsets: ['terminal', 'browser'], lastText: 'Report ready', toolName: 'terminal',
+        activity: 'complete', startedAt: now - 60000, updatedAt: now - 20000,
+        durationSeconds: 40, summary: 'done', inputTokens: 12000, outputTokens: 2400, apiCalls: 9
+      },
+      {
+        id: 'sa-2', goal: 'Audit the Icyteru core client, protocol, and state layer for logic bugs and races',
+        status: 'completed', taskIndex: 1, taskCount: 3, parentId: '', childSessionId: 'child-2',
+        delegationId: 'deleg_preview', depth: 0, model: 'deepseek-v4.1-flash', toolCount: 32,
+        toolsets: ['terminal', 'file'], lastText: 'Differences found', toolName: 'terminal',
+        activity: 'complete', startedAt: now - 60000, updatedAt: now - 15000,
+        durationSeconds: 45, summary: 'done', inputTokens: 14000, outputTokens: 2600, apiCalls: 11
+      },
+      {
+        id: 'sa-3', goal: 'Audit packaging, Android runtime, notifications, release workflow, and the gateway plugin',
+        status: 'running', taskIndex: 2, taskCount: 3, parentId: '', childSessionId: 'child-3',
+        delegationId: 'deleg_preview', depth: 0, model: 'deepseek-v4.1-flash', toolCount: 54,
+        toolsets: ['terminal', 'browser'], lastText: 'Checking plugin auth paths', toolName: 'terminal',
+        activity: 'thinking', startedAt: now - 55000, updatedAt: now,
+        durationSeconds: 0, summary: '', inputTokens: 16000, outputTokens: 3000, apiCalls: 13
+      }
+    ]
   }
   if (shot === 'media') {
     base.transcript.streaming = false

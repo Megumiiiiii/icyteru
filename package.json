@@ -1,7 +1,7 @@
 {
   "name": "icyteru",
   "productName": "Icyteru",
-  "version": "0.0.48",
+  "version": "0.0.49",
   "description": "A simple desktop and Android client for an existing Hermes Agent gateway.",
   "author": "Megumiiiiii",
   "license": "MIT",
@@ -11,6 +11,9 @@
     "build": "tsc -p tsconfig.electron.json && vite build",
     "typecheck": "tsc -p tsconfig.electron.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "test": "tsc -p tsconfig.electron.json && node --test dist/shared/protocol.test.js",
+    "version:check": "node scripts/version.mjs check",
+    "version:sync": "node scripts/version.mjs sync",
+    "version:set": "node scripts/version.mjs set",
     "dev": "tsc -p tsconfig.electron.json && concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "start": "npm run build && electron .",
     "dist": "npm run build && electron-builder",
@@ -22,16 +25,17 @@
     "android:apk": "npm run cap:sync && cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
-    "@capacitor/core": "^7.6.10",
-    "@capacitor/keyboard": "^7.0.6",
-    "@capacitor/local-notifications": "^7.0.7",
-    "@capacitor/status-bar": "^7.0.6",
-    "@fontsource/inter": "^5.2.5",
     "ws": "^8.18.2"
   },
   "devDependencies": {
     "@capacitor/android": "^7.6.10",
+    "@capacitor/app": "^7.1.2",
     "@capacitor/cli": "^7.6.10",
+    "@capacitor/core": "^7.6.10",
+    "@capacitor/keyboard": "^7.0.6",
+    "@capacitor/local-notifications": "^7.0.7",
+    "@capacitor/status-bar": "^7.0.6",
+    "@fontsource/inter": "^5.3.0",
     "@types/node": "^26.6.6",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",

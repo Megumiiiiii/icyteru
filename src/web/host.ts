@@ -8,6 +8,7 @@ import { HermesClient } from '../../electron/hermes'
 import { emptySnapshot, type AppScreen, type Snapshot, type ThemePreference } from '../../shared/snapshot'
 import type { AuthDiscovery, NotificationPayload, OutgoingAttachment } from '../../shared/protocol'
 import { enableNotifications, sendNotification } from '../notifications'
+import { APP_VERSION } from '../version'
 import type { ConnectionInput } from '../global'
 
 type BackdropMode = 'light' | 'dark'
@@ -149,6 +150,7 @@ function snapshot(): Snapshot {
   base.question = state.question
   base.remoteClarifies = state.remoteClarifies
   base.remoteApprovals = state.remoteApprovals
+  base.subagents = state.subagents
   base.queued = state.queued
   return base
 }
@@ -160,6 +162,21 @@ function publish(): void {
     const next = snapshot()
     listeners.forEach(listener => listener(next))
   }, 30)
+  void syncConnectionService()
+}
+
+let connectionServiceActive = false
+
+async function syncConnectionService(): Promise<void> {
+  if (Capacitor.getPlatform() !== 'android') return
+  const active = phase === 'ready' && Boolean(saved.url)
+  if (active === connectionServiceActive) return
+  connectionServiceActive = active
+  try {
+    await IcyteruPush.setConnectionActive({ active })
+  } catch {
+    connectionServiceActive = !active
+  }
 }
 
 let reconnecting = false
@@ -177,16 +194,10 @@ async function ensureConnected(): Promise<void> {
 async function syncPushToken(): Promise<void> {
   if (Capacitor.getPlatform() !== 'android' || !saved.url) return
   try {
-    await IcyteruPush.setConnectionActive({ active: true })
     await enableNotifications()
     const { token } = await IcyteruPush.getToken()
     if (!token) return
-    await fetch(`${normalizeUrl(saved.url)}/api/plugins/icyteru-push/register`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.48' })
-    })
+    await client.registerPush(token, APP_VERSION)
     const pending = await IcyteruPush.consumeSession()
     if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)
   } catch {
@@ -360,23 +371,13 @@ export function installWebHost(): void {
     mediaData: async (path: string) => client.mediaData(path),
     compress: async () => client.compress(),
     slash: async (command: string) => client.slash(command),
-    testApproval: async () => {
-      if (!saved.url) throw new Error('Connect to Hermes first.')
-      const response = await fetch(`${normalizeUrl(saved.url)}/api/plugins/icyteru-push/test-approval`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{}'
-      })
-      if (!response.ok) throw new Error(`Approval test returned ${response.status}.`)
-      return await response.json() as { ok: boolean; session_id: string }
-    },
+    testApproval: async () => client.testApproval(),
     enableNotifications: () => enableNotifications(),
     notify: async (payload: NotificationPayload) => sendNotification(payload),
     interrupt: () => client.interrupt(),
     answer: (id: string, result: unknown) => client.answer(id, result),
     answerRemoteClarify: (clarifyId: string, answer: string) => client.answerRemoteClarify(clarifyId, answer),
-    answerRemoteApproval: (sessionKey: string, requestId: string, choice: string, reason = '') => client.answerRemoteApproval(sessionKey, requestId, choice, reason),
+    answerRemoteApproval: (sessionKey: string, requestId: string, choice: string, reason = '', commandDigest = '') => client.answerRemoteApproval(sessionKey, requestId, choice, reason, commandDigest),
     setModel: (model: string, provider: string, confirm = false) => client.setModel(model, provider, confirm),
     setSessionModel: (model: string, provider: string, confirm = false) => client.setSessionModel(model, provider, confirm),
     cancelSessionModel: () => client.cancelSessionModel(),

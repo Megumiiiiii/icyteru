@@ -43,6 +43,9 @@ jobs:
           fi
           echo "Release $RELEASE_TAG matches package.json $version."
 
+      - name: Check derived version files
+        run: node scripts/version.mjs check
+
   build:
     name: Build (${{ matrix.os }})
     needs: version
@@ -153,7 +156,6 @@ jobs:
 
       - name: Build the release APK
         env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android/app/icyteru.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -164,10 +166,7 @@ jobs:
             echo "::error::ANDROID_HOME was not set by the SDK install step."
             exit 1
           fi
-          if [ "$ANDROID_SDK_ROOT" != "$ANDROID_HOME" ]; then
-            echo "::error::ANDROID_HOME ($ANDROID_HOME) and ANDROID_SDK_ROOT ($ANDROID_SDK_ROOT) must be the same directory."
-            exit 1
-          fi
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
           printf 'sdk.dir=%s\n' "$ANDROID_HOME" > android/local.properties
           npm run android:apk
 
@@ -195,10 +194,26 @@ jobs:
         run: |
           set -euo pipefail
           previous="$(git describe --tags --abbrev=0 "${RELEASE_TAG}^" 2>/dev/null || true)"
+          notes=""
+          if [ -f RELEASE_NOTES.md ]; then
+            notes="$(awk -v tag="$RELEASE_TAG" -v bare="${RELEASE_TAG#v}" '
+              $0 == "## " tag || $0 == "## " bare { found = 1; next }
+              found && /^## / { exit }
+              found { print }
+            ' RELEASE_NOTES.md)"
+          fi
           {
             echo "## What changed"
             echo
-            if [ -n "$previous" ]; then
+            if [ -n "$notes" ]; then
+              printf '%s\n' "$notes"
+              echo
+              if [ -n "$previous" ]; then
+                echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${previous}...${RELEASE_TAG}"
+              else
+                echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}"
+              fi
+            elif [ -n "$previous" ]; then
               git log --no-merges --reverse --pretty=format:"- %s" "${previous}..${RELEASE_TAG}"
               echo
               echo
@@ -207,6 +222,14 @@ jobs:
               git log --no-merges --reverse --pretty=format:"- %s" "${RELEASE_TAG}"
             fi
           } > release-notes.md
+          {
+            echo
+            echo "## Install notes"
+            echo
+            echo "- **Windows:** this installer is unsigned. SmartScreen may say “Windows protected your PC”; choose **More info → Run anyway**."
+            echo "- **macOS:** this build is unsigned and not notarized. Right-click the app → **Open**, or allow it in **System Settings → Privacy & Security**."
+            echo "- **Android:** the APK is signed with the stable Icyteru release key."
+          } >> release-notes.md
           cat release-notes.md
 
       - name: Download installers
