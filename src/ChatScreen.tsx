@@ -1,4 +1,5 @@
 import { Fragment, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
 import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, sourceLabel, type OutgoingAttachment, type ToolCall } from '../shared/protocol'
@@ -29,6 +30,8 @@ function splitMedia(text: string): { text: string; attachments: IncomingAttachme
   })
   return { text: stripped.replace(/\n{3,}/g, '\n\n').trim(), attachments }
 }
+
+const isAndroid = Capacitor.getPlatform() === 'android'
 
 function StatusBar({
   state,
@@ -445,28 +448,33 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
     <>
       <section className="chat">
         <header className="chat-bar">
-          <button
-            className="icon-button left-toggle"
-            type="button"
-            aria-label={leftHidden ? 'Show agents panel' : 'Hide agents panel'}
-            title={leftHidden ? 'Show agents panel' : 'Hide agents panel'}
-            onClick={() => {
-              if (window.matchMedia('(max-width: 760px)').matches) {
-                phone.setView('roster')
-                return
-              }
-              onToggleLeft?.()
-            }}
-          >
-            <span aria-hidden="true">{leftHidden ? '›' : '‹'}</span>
-          </button>
-          <div className="chat-title">
+          <div className="chat-left">
+            <button
+              className="icon-button left-toggle"
+              type="button"
+              aria-label={leftHidden ? 'Show agents panel' : 'Hide agents panel'}
+              title={leftHidden ? 'Show agents panel' : 'Hide agents panel'}
+              onClick={() => {
+                if (window.matchMedia('(max-width: 760px)').matches) {
+                  phone.setView('roster')
+                  return
+                }
+                onToggleLeft?.()
+              }}
+            >
+              <span aria-hidden="true">{leftHidden ? '›' : '‹'}</span>
+            </button>
+            <div className="chat-identity">
               <Avatar label={snapshot.profileName} initial={profile?.initial || snapshot.profileName.slice(0, 1)} src={snapshot.avatar} size={28} />
               <div>
-                <h1>{active?.title || 'New chat'}</h1>
-                <p>{snapshot.phase === 'connecting' ? 'Connecting…' : snapshot.profileName}</p>
+                <strong>{profile?.label || snapshot.profileName}</strong>
+                <span>{snapshot.phase === 'connecting' ? 'Connecting…' : snapshot.profileName}</span>
               </div>
             </div>
+          </div>
+          <div className="chat-title">
+            <h1>{active?.title || 'New chat'}</h1>
+          </div>
           <div className="bar-actions">
             <ReasoningMenu snapshot={snapshot} onNotice={setNotice} />
             <ModelMenu snapshot={snapshot} onNotice={setNotice} />
@@ -641,15 +649,27 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
               event.target.value = ''
             }}
           />
-          <button
-            className="attach"
-            type="button"
-            title="Attach images or files"
-            aria-label="Attach images or files"
-            onClick={() => fileInput.current?.click()}
-          >
-            <Paperclip />
-          </button>
+          <div className="composer-tools">
+            <button
+              className="attach"
+              type="button"
+              title="Attach images or files"
+              aria-label="Attach images or files"
+              onClick={() => fileInput.current?.click()}
+            >
+              <Paperclip />
+            </button>
+            {streaming && (
+              <span
+                className={snapshot.tokensPerSecond ? 'tok-pill' : 'tok-pill pending'}
+                title="Live output speed"
+                aria-label="Tokens per second"
+              >
+                <span aria-hidden="true">⚡</span>
+                {snapshot.tokensPerSecond ? `${snapshot.tokensPerSecond} Tok/s` : '… Tok/s'}
+              </span>
+            )}
+          </div>
           <textarea
             ref={composer}
             value={draft}
@@ -672,7 +692,7 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
               }
             }}
             onKeyDown={event => {
-              if (event.key === 'Enter' && !event.shiftKey) {
+              if (event.key === 'Enter' && !event.shiftKey && !isAndroid) {
                 event.preventDefault()
                 void send()
               }
@@ -959,7 +979,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
                   className={active ? 'active' : ''}
                   onClick={() => {
                     setOpen(false)
-                    void window.icyteru.setModel(model.id, model.providerId || model.provider).then(onNotice).catch(error => {
+                    void window.icyteru.setSessionModel(model.id, model.providerId || model.provider).then(onNotice).catch(error => {
                       onNotice(error instanceof Error ? error.message : 'Could not change the model.')
                     })
                   }}

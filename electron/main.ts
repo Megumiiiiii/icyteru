@@ -72,6 +72,8 @@ function snapshot(): Snapshot {
   base.currentModel = state.side.models.currentModel
   base.currentProvider = state.side.models.currentProvider
   base.currentReasoning = state.side.reasoning
+  base.globalReasoning = state.side.globalReasoning
+  base.tokensPerSecond = state.side.tokensPerSecond
   base.skills = state.side.skills
   base.skillsNote = state.side.skillsNote
   base.memory = state.side.memory
@@ -282,6 +284,10 @@ function registerIpc(): void {
     client.setModel(payload.model, payload.provider, Boolean(payload.confirm))
   ))
   ipcMain.handle('set-reasoning', (_event, value: string) => client.setReasoning(value))
+  ipcMain.handle('set-global-reasoning', (_event, value: string) => client.setGlobalReasoning(value))
+  ipcMain.handle('set-session-model', (_event, payload: { model: string; provider: string }) => (
+    client.setSessionModel(payload.model, payload.provider)
+  ))
   ipcMain.handle('select-profile', (_event, payload: { gatewayId: string; name: string }) => (
     client.selectProfile(payload.gatewayId, payload.name)
   ))

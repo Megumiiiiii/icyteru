@@ -23,7 +23,13 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
   const [message, setMessage] = useState('')
   const [notifyNote, setNotifyNote] = useState('')
   const [approvalNote, setApprovalNote] = useState('')
+  const [globalNote, setGlobalNote] = useState('')
   const [busy, setBusy] = useState(false)
+  const [globalModelIndex, setGlobalModelIndex] = useState(() => {
+    const found = snapshot.models.findIndex(model => model.id === snapshot.currentModel)
+    return found >= 0 ? found : 0
+  })
+  const [globalReasoningLevel, setGlobalReasoningLevel] = useState(snapshot.globalReasoning || 'medium')
   const picked = useRef(false)
 
   useEffect(() => {
@@ -50,6 +56,15 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
       clearTimeout(timer)
     }
   }, [url])
+
+  useEffect(() => {
+    const found = snapshot.models.findIndex(model => model.id === snapshot.currentModel)
+    setGlobalModelIndex(found >= 0 ? found : 0)
+  }, [snapshot.currentModel, snapshot.models])
+
+  useEffect(() => {
+    setGlobalReasoningLevel(snapshot.globalReasoning || 'medium')
+  }, [snapshot.globalReasoning])
 
   function choose(next: Method) {
     picked.current = true
@@ -83,6 +98,23 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
       setMessage('Saved. Icyteru is using this gateway.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not save.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function saveGlobalDefaults() {
+    setBusy(true)
+    setGlobalNote('')
+    try {
+      const model = snapshot.models[globalModelIndex]
+      if (model) {
+        await window.icyteru.setModel(model.id, model.providerId || model.provider)
+      }
+      await window.icyteru.setGlobalReasoning(globalReasoningLevel)
+      setGlobalNote('Global defaults saved. New chats use them.')
+    } catch (error) {
+      setGlobalNote(error instanceof Error ? error.message : 'Could not save the global defaults.')
     } finally {
       setBusy(false)
     }
@@ -172,6 +204,30 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
             <button className="ghost danger" onClick={() => void window.icyteru.forgetConnection()} type="button">Forget gateway</button>
           </div>
           {message && <p className="hint">{message}</p>}
+        </section>
+        <section>
+          <h2>Global defaults</h2>
+          <label>
+            Default model
+            <select value={globalModelIndex} onChange={event => setGlobalModelIndex(Number(event.target.value))}>
+              {snapshot.models.map((model, index) => (
+                <option key={`${model.provider}:${model.id}`} value={index}>{model.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Default reasoning
+            <select value={globalReasoningLevel} onChange={event => setGlobalReasoningLevel(event.target.value)}>
+              {(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const).map(level => (
+                <option key={level} value={level}>{level}</option>
+              ))}
+            </select>
+          </label>
+          <p className="hint">New chats use these defaults. You can still switch model or reasoning per chat.</p>
+          <div className="row">
+            <button className="solid" disabled={busy} onClick={() => void saveGlobalDefaults()} type="button">Save global defaults</button>
+          </div>
+          {globalNote && <p className="hint">{globalNote}</p>}
         </section>
         <section>
           <h2>Layout</h2>

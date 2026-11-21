@@ -839,6 +839,50 @@ export class HermesClient {
     return `Reasoning set to ${reported} on Hermes. New messages use it.`
   }
 
+  /** Change only this session's model, the same ``/model --session`` the CLI uses. */
+  async setSessionModel(model: string, provider: string): Promise<string> {
+    if (!this.live?.live) await this.ensureLive()
+    const sessionId = this.live!.live
+    const arg = [model, provider ? `--provider ${provider}` : '', '--session'].filter(Boolean).join(' ')
+    await this.rpc('command.dispatch', this.scope({ session_id: sessionId, name: 'model', arg }))
+    await this.refreshSideData()
+    return 'Model saved for this chat. New messages use it.'
+  }
+
+  /** Change the profile-wide default reasoning effort. */
+  async setGlobalReasoning(value: string): Promise<string> {
+    const level = value.trim().toLowerCase()
+    const allowed = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
+    if (!allowed.has(level)) throw new Error('Choose a reasoning level from the menu.')
+    if (!this.live?.live) await this.ensureLive()
+    const sessionId = this.live!.live
+    const result = await this.rpc('config.set', this.scope({
+      session_id: sessionId,
+      key: 'reasoning',
+      value: level,
+      scope: 'global'
+    }))
+    const body = asRecord(result)
+    const reported = typeof body.value === 'string' ? body.value : level
+    this.side.globalReasoning = reported
+    await this.readGlobalReasoning().catch(() => undefined)
+    this.emit()
+    return `Global reasoning set to ${reported}. New chats use it.`
+  }
+
+  /** Read the profile-wide default reasoning effort, independent of any session override. */
+  private async readGlobalReasoning(): Promise<void> {
+    if (!this.socket?.isOpen) return
+    try {
+      const result = await this.rpc('config.get', this.scope({ key: 'reasoning' }))
+      const body = asRecord(result)
+      const value = body.value
+      this.side.globalReasoning = typeof value === 'string' ? value : ''
+    } catch {
+      // A gateway without the reasoning control keeps the menu but leaves it unset.
+    }
+  }
+
   private async createSession(): Promise<{ live: string; stored: string }> {
     const params = buildCreateParams(this.contract, crypto.randomUUID(), undefined, undefined, this.activeProfile || undefined)
     let created: unknown
@@ -880,9 +924,13 @@ export class HermesClient {
     ])
     const soulText = typeof asRecord(soul).content === 'string' ? String(asRecord(soul).content).trim() : ''
     const reasoning = this.side.reasoning
+    const globalReasoning = this.side.globalReasoning
+    const tokensPerSecond = this.side.tokensPerSecond
     this.side = {
       models: models ? normalizeModels(models) : { currentModel: '', currentProvider: '', models: [] },
       reasoning,
+      globalReasoning,
+      tokensPerSecond,
       skills: skills ? normalizeSkills(skills) : [],
       skillsNote: skills ? '' : 'This gateway does not share a skill list.',
       memory: memory ? normalizeMemory(memory) : { available: false, summary: '', notes: '', user: '', instructions: '' },
@@ -890,12 +938,15 @@ export class HermesClient {
     }
     if (soulText) this.side.memory = { ...this.side.memory, instructions: soulText }
     await this.readReasoning().catch(() => undefined)
+    await this.readGlobalReasoning().catch(() => undefined)
     this.emit()
   }
 
   side: {
     models: ReturnType<typeof normalizeModels>
     reasoning: string
+    globalReasoning: string
+    tokensPerSecond: number | null
     skills: ReturnType<typeof normalizeSkills>
     skillsNote: string
     memory: MemoryView
@@ -903,6 +954,8 @@ export class HermesClient {
   } = {
     models: { currentModel: '', currentProvider: '', models: [] },
     reasoning: '',
+    globalReasoning: '',
+    tokensPerSecond: null,
     skills: [],
     skillsNote: '',
     memory: { available: false, summary: '', notes: '', user: '', instructions: '' },
@@ -1180,6 +1233,15 @@ export class HermesClient {
       if (title && this.live) {
         this.sessions = this.sessions.map(row => row.id === this.live?.stored || row.id === this.live?.live ? { ...row, title } : row)
       }
+    }
+    if (event.type === 'session.usage') {
+      const payload = asRecord(event.payload)
+      const usage = asRecord(payload.usage)
+      const raw = usage.avg_tps ?? payload.tokens_per_s
+      const tokensPerSecond = typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? Math.round(raw) : null
+      this.side.tokensPerSecond = tokensPerSecond
+      this.emit()
+      return
     }
     const interesting = event.type.startsWith('message.') || event.type.startsWith('tool.') || event.type === 'error'
     if (interesting) {

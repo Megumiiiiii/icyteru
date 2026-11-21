@@ -74,6 +74,8 @@ export function previewSnapshot(shot: string): Snapshot {
   base.currentModel = 'deepseek/deepseek-v4.1-flash'
   base.currentProvider = 'commandcode'
   base.currentReasoning = 'medium'
+  base.globalReasoning = 'high'
+  base.tokensPerSecond = 275
   base.models = [
     { id: 'deepseek/deepseek-v4.1-flash', label: 'deepseek/deepseek-v4.1-flash', provider: 'CommandCode' },
     { id: 'deepseek/deepseek-v4-pro', label: 'deepseek/deepseek-v4-pro', provider: 'CommandCode' },
@@ -193,7 +195,9 @@ export function installPreview(shot: string): void {
     interrupt: () => Promise.resolve(),
     answer: () => Promise.resolve(),
     setModel: () => Promise.resolve(''),
+    setSessionModel: () => Promise.resolve('Session model set in preview.'),
     setReasoning: () => Promise.resolve('Reasoning set in preview.'),
+    setGlobalReasoning: () => Promise.resolve('Global reasoning set in preview.'),
     selectProfile: () => Promise.resolve(),
     setPinned: () => Promise.resolve(),
     createProfile: () => Promise.resolve(),

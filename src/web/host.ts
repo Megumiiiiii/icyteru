@@ -139,6 +139,8 @@ function snapshot(): Snapshot {
   base.currentModel = state.side.models.currentModel
   base.currentProvider = state.side.models.currentProvider
   base.currentReasoning = state.side.reasoning
+  base.globalReasoning = state.side.globalReasoning
+  base.tokensPerSecond = state.side.tokensPerSecond
   base.skills = state.side.skills
   base.skillsNote = state.side.skillsNote
   base.memory = state.side.memory
@@ -372,7 +374,9 @@ export function installWebHost(): void {
     interrupt: () => client.interrupt(),
     answer: (id: string, result: unknown) => client.answer(id, result),
     setModel: (model: string, provider: string, confirm = false) => client.setModel(model, provider, confirm),
+    setSessionModel: (model: string, provider: string) => client.setSessionModel(model, provider),
     setReasoning: (value: string) => client.setReasoning(value),
+    setGlobalReasoning: (value: string) => client.setGlobalReasoning(value),
     selectProfile: (gatewayId: string, name: string) => client.selectProfile(gatewayId, name),
     setPinned: (gatewayId: string, name: string, pinned: boolean) => client.setPinned(gatewayId, name, pinned),
     createProfile: (label: string) => client.createProfile(label),
