@@ -558,6 +558,11 @@ export function modelOptionsPath(sessionId?: string): string {
   return id ? `/api/model/options?session_id=${encodeURIComponent(id)}` : '/api/model/options'
 }
 
+/** The session row's stored model wins over resume info, then the profile fallback. */
+export function pickSessionModel(rowModel?: string, infoModel?: string, fallback = ''): string {
+  return (rowModel || '').trim() || (infoModel || '').trim() || fallback
+}
+
 export function normalizeModels(payload: unknown): { currentModel: string; currentProvider: string; models: ModelChoice[] } {
   const body = asRecord(payload)
   const models: ModelChoice[] = []

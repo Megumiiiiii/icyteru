@@ -7,7 +7,9 @@ import {
   historyFromRows,
   normalizeMemory,
   normalizeModels,
+  modelIdsMatch,
   modelOptionsPath,
+  pickSessionModel,
   normalizeSessions,
   normalizeSkills,
   sortSessions,
@@ -535,6 +537,7 @@ export class HermesClient {
       const listed = await this.listSessions({ scope: 'stored', limit: 200, picker: true })
       if (listed.ok) {
         this.sessions = sortSessions(normalizeSessions(listed.value))
+        this.applyActiveSessionModel()
         this.emit()
         return
       }
@@ -543,12 +546,23 @@ export class HermesClient {
     const fallback = await this.listSessions({ limit: 200 })
     if (fallback.ok) {
       this.sessions = sortSessions(normalizeSessions(fallback.value))
+      this.applyActiveSessionModel()
       this.emit()
       return
     }
     const rest = await this.getJson('/api/sessions?limit=200&order=recent').catch(() => null)
     if (rest) this.sessions = sortSessions(normalizeSessions(rest))
+    this.applyActiveSessionModel()
     this.emit()
+  }
+
+  /** Keep the header on the live session's stored model, not the profile default. */
+  private applyActiveSessionModel(): void {
+    if (!this.live?.live) return
+    const row = this.sessions.find(item => item.id === this.live?.live || item.id === this.live?.stored)
+    if (!row?.model) return
+    this.side.models.currentModel = row.model
+    this.side.models.currentProvider = this.providerForModel(row.model) || this.side.models.currentProvider
   }
 
   async openSession(id: string): Promise<void> {
@@ -576,8 +590,11 @@ export class HermesClient {
     const info = asRecord(body.info)
     const infoModel = typeof info.model === 'string' && info.model ? info.model : ''
     const infoProvider = typeof info.provider === 'string' && info.provider ? info.provider : ''
-    if (infoModel) this.side.models.currentModel = infoModel
-    if (infoProvider) this.side.models.currentProvider = infoProvider
+    const row = this.sessions.find(item => item.id === id || item.id === stored || item.id === ids.live)
+    const chosenModel = pickSessionModel(row?.model, infoModel, this.side.models.currentModel)
+    const chosenProvider = this.providerForModel(chosenModel) || infoProvider || this.side.models.currentProvider
+    if (chosenModel) this.side.models.currentModel = chosenModel
+    if (chosenProvider) this.side.models.currentProvider = chosenProvider
     if (!this.transcript.messages.length) {
       const rest = await this.getJson(`/api/sessions/${encodeURIComponent(id)}/messages?limit=200&order=oldest`).catch(() => null)
       const rows = Array.isArray(rest) ? rest : asRecord(rest).messages
@@ -1021,6 +1038,8 @@ export class HermesClient {
     if (appliedModel) {
       this.side.models.currentModel = appliedModel
       if (appliedProvider) this.side.models.currentProvider = appliedProvider
+      const ids = new Set([sessionId, this.live?.stored].filter(Boolean))
+      this.sessions = this.sessions.map(row => ids.has(row.id) ? { ...row, model: appliedModel } : row)
       this.emit()
     }
     return 'Model saved for this chat. New messages use it.'
@@ -1096,10 +1115,24 @@ export class HermesClient {
     if (described.ok) this.contract = readCreateContract(described.value)
   }
 
+  private providerForModel(model: string, choices = this.side.models.models): string {
+    if (!model) return ''
+    const hit = choices.find(item => modelIdsMatch(item.id, model))
+    return hit?.providerId || hit?.provider || ''
+  }
+
   /** Re-read just the model inventory for the live session, not the profile default. */
   private async refreshModelOptions(): Promise<void> {
+    const currentModel = this.side.models.currentModel
+    const currentProvider = this.side.models.currentProvider
     const models = await this.getJson(modelOptionsPath(this.live?.live)).catch(() => null)
-    if (models) this.side.models = normalizeModels(models)
+    if (!models) return
+    const next = normalizeModels(models)
+    if (currentModel) {
+      next.currentModel = currentModel
+      next.currentProvider = this.providerForModel(currentModel, next.models) || currentProvider
+    }
+    this.side.models = next
   }
 
   private async refreshSideData(): Promise<void> {
@@ -1114,8 +1147,19 @@ export class HermesClient {
     const reasoning = this.side.reasoning
     const globalReasoning = this.side.globalReasoning
     const tokensPerSecond = this.side.tokensPerSecond
+    const previousModel = this.side.models.currentModel
+    const previousProvider = this.side.models.currentProvider
+    const nextModels = models ? normalizeModels(models) : this.side.models
+    if (this.live?.live) {
+      const row = this.sessions.find(item => item.id === this.live?.live || item.id === this.live?.stored)
+      const chosenModel = pickSessionModel(row?.model, previousModel)
+      if (chosenModel) {
+        nextModels.currentModel = chosenModel
+        nextModels.currentProvider = this.providerForModel(chosenModel, nextModels.models) || previousProvider
+      }
+    }
     this.side = {
-      models: models ? normalizeModels(models) : this.side.models,
+      models: nextModels,
       reasoning,
       globalReasoning,
       tokensPerSecond,

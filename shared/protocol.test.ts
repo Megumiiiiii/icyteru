@@ -15,6 +15,7 @@ import {
   historyFromRows,
   modelIdsMatch,
   modelOptionsPath,
+  pickSessionModel,
   normalizeMemory,
   normalizeModels,
   normalizeProfiles,
@@ -24,6 +25,7 @@ import {
   questionFromRequest,
   readCreateContract
 } from './protocol'
+import { HermesClient } from '../electron/hermes'
 
 test('builds the desktop websocket url', () => {
   assert.equal(
@@ -239,16 +241,55 @@ test('scopes model options to the open session', () => {
   assert.equal(modelOptionsPath('a b'), '/api/model/options?session_id=a%20b')
 })
 
+test('prefers the session row model over resume info and the profile default', () => {
+  assert.equal(pickSessionModel('tencent/hy4-flash', 'deepseek-v4.1-flash'), 'tencent/hy4-flash')
+  assert.equal(pickSessionModel('', 'deepseek-v4.1-flash', 'glm-5.3'), 'deepseek-v4.1-flash')
+  assert.equal(pickSessionModel('', '', 'deepseek-v4.1-flash'), 'deepseek-v4.1-flash')
+})
+
+test('repaints the header from the active session row after a switch', () => {
+  const client = new HermesClient(() => undefined)
+  client.side.models = {
+    currentModel: 'deepseek-v4.1-flash',
+    currentProvider: 'opencode-go',
+    models: [
+      { provider: 'CommandCode', providerId: 'commandcode', id: 'tencent/hy4-flash', label: 'hy4-flash' },
+      { provider: 'OpenCode Go', providerId: 'opencode-go', id: 'deepseek-v4.1-flash', label: 'deepseek-v4.1-flash' }
+    ]
+  }
+  ;(client as unknown as { sessions: unknown[] }).sessions = [{
+    id: '20261119_091305_9daddf0f',
+    title: 'Audit Sessions',
+    preview: '',
+    source: 'telegram',
+    model: 'tencent/hy4-flash',
+    updatedAt: null,
+    messageCount: 0,
+    running: false,
+    pinned: false
+  }]
+  ;(client as unknown as { live: unknown }).live = {
+    live: '20261119_091305_9daddf0f',
+    stored: '20261119_091305_9daddf0f',
+    subscriptionId: ''
+  }
+  ;(client as unknown as { applyActiveSessionModel: () => void }).applyActiveSessionModel()
+  assert.equal(client.side.models.currentModel, 'tencent/hy4-flash')
+  assert.equal(client.side.models.currentProvider, 'commandcode')
+})
+
 test('refreshes the model header from the live session, never the profile default', () => {
   const source = readFileSync('electron/hermes.ts', 'utf8')
   const start = source.indexOf('private async refreshSideData')
   const body = source.slice(start, source.indexOf('side: {', start))
   assert.match(body, /modelOptionsPath\(this\.live\?\.live\)/)
   assert.doesNotMatch(body, /getJson\('\/api\/model\/options'\)/)
+  assert.match(body, /pickSessionModel\(row\?\.model/)
 
   const openStart = source.indexOf('async openSession')
   const openBody = source.slice(openStart, source.indexOf('async setSessionPinned', openStart))
   assert.match(openBody, /refreshModelOptions/)
+  assert.match(openBody, /pickSessionModel\(row\?\.model/)
 })
 
 test('builds cards from approval and clarify control events', () => {

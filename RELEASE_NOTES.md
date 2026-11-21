@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.54
+
+### Fixed
+
+- **The model header now survives session switches, profile switches, and an app restart.** The active model is taken from the session row’s stored `model` (`sessions.model`) instead of `/api/model/options` or `session.resume` info, which can report the profile default for messaging sessions. Changing a model updates that row immediately; returning to the chat later still shows the model chosen for that chat. Model-options refreshes preserve the active row value.
+
 ## v0.0.53
 
 ### Fixed
