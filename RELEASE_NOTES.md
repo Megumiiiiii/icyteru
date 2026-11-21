@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.59
+
+### Fixed
+
+- **History no longer shrinks after a reconnect.** A forced reconnect used to land on the `default` profile even when another profile was active, and a transient `session.list` picker failure fell back to a live-only subset that overwrote the history list. Reconnect now preserves the active profile, merges fallback rows instead of dropping omitted sessions, and also merges the picker page for a same-gateway reconnect. Covered by new client-state tests.
+
 ## v0.0.58
 
 ### Added

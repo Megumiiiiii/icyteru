@@ -535,6 +535,19 @@ export function normalizeSessions(payload: unknown): SessionRow[] {
   return rows
 }
 
+/** Keep rows that a transient live-only fallback omitted; the picker replaces the list fully. */
+export function mergeSessionRows(previous: SessionRow[], next: SessionRow[]): SessionRow[] {
+  const byId = new Map(previous.map(row => [row.id, row]))
+  for (const row of next) byId.set(row.id, row)
+  return sortSessions(Array.from(byId.values()))
+}
+
+/** A reconnect must land on the profile the user was using, not always `default`. */
+export function pickReconnectProfile(profiles: AgentProfile[], gatewayId: string, name: string): AgentProfile | undefined {
+  return profiles.find(profile => profile.gatewayId === gatewayId && profile.name === name)
+    || profiles.find(profile => profile.name === name)
+}
+
 export interface ModelChoice {
   provider: string
   providerId?: string

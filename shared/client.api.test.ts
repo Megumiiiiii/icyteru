@@ -339,6 +339,40 @@ test('connectInner wires discovery, status, socket, roster, and side data', asyn
   assert.equal(c.gateways.length, 1)
 })
 
+test('refreshSessions keeps omitted history when the live fallback is a subset', async () => {
+  const c = client()
+  const row = (id: string) => ({ id, title: id, preview: '', source: 'telegram', model: 'deepseek', updatedAt: null, messageCount: 0, running: false, pinned: false })
+  c.sessions = [row('old-a'), row('old-b')]
+  ;(c as unknown as { listSessions: (params: Record<string, unknown>) => Promise<unknown> }).listSessions = async params => {
+    if (params.scope === 'stored') return { ok: false, error: 'profile_mismatch' }
+    return { ok: true, value: { sessions: [{ session_id: 'new-c', title: 'new-c', source: 'telegram', message_count: 1 }] } }
+  }
+  await c.refreshSessions()
+  assert.deepEqual(c.sessions.map((row: { id: string }) => row.id).sort(), ['new-c', 'old-a', 'old-b'])
+})
+
+test('connectInner preserves the selected profile on reconnect', async () => {
+  const c = client()
+  c.activeProfile = 'scout'
+  c.discover = async () => ({ ok: true, mode: 'token', providers: [] })
+  c.prepare = async () => { c.token = 't' }
+  c.readStatus = async () => ({ version: '9.9' })
+  c.openSocket = async () => ({ wsUrl: 'ws://gw', protocols: ['p'], socket: { isOpen: true } })
+  c.afterReady = async () => undefined
+  c.refreshRoster = async () => {
+    c.profiles = [
+      { gatewayId: 'primary', name: 'default', label: 'Hermes', avatar: '' },
+      { gatewayId: 'primary', name: 'scout', label: 'Scout', avatar: '' }
+    ]
+  }
+  c.refreshSideData = async () => undefined
+  c.refreshSessions = async () => undefined
+  c.startClarifyPolling = () => undefined
+  c.resumeQueuePolling = () => undefined
+  await c.connectInner('http://gw', { token: 't' })
+  assert.equal(c.activeProfile, 'scout')
+})
+
 test('prepare supports token and password modes and rejects missing credentials', async () => {
   const c = client()
   const cookieResponse = {

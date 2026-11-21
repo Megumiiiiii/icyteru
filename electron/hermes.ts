@@ -13,6 +13,8 @@ import {
   normalizeSessions,
   normalizeSkills,
   sortSessions,
+  mergeSessionRows,
+  pickReconnectProfile,
   parseGatewayBase,
   pickSessionIds,
   readCreateContract,
@@ -128,6 +130,7 @@ export class HermesClient {
   private readonly browser = typeof window !== 'undefined'
   private listStyle: 'picker' | 'plain' = 'picker'
   private reconnecting = false
+  private reconnectMerge = false
   lastError = ''
 
   constructor(private readonly emit: () => void) {}
@@ -233,14 +236,17 @@ export class HermesClient {
 
   async connect(baseUrl: string, creds: ConnectionCredentials, extras: GatewayInput[] = []): Promise<void> {
     this.reconnecting = true
+    this.reconnectMerge = Boolean(this.baseUrl && this.baseUrl === baseUrl && this.sessions.length > 0)
     try {
       await this.connectInner(baseUrl, creds, extras)
     } finally {
       this.reconnecting = false
+      this.reconnectMerge = false
     }
   }
 
   private async connectInner(baseUrl: string, creds: ConnectionCredentials, extras: GatewayInput[] = []): Promise<void> {
+    const previousProfile = this.activeProfile
     this.disconnect()
     const discovery = await this.discover(baseUrl)
     if (!discovery.ok) throw new Error(discovery.message)
@@ -257,7 +263,8 @@ export class HermesClient {
     this.socket = dial.socket
     await this.afterReady()
     await this.refreshRoster()
-    const home = this.profiles.find(profile => profile.gatewayId === primary.id && profile.name === 'default')
+    const home = pickReconnectProfile(this.profiles.filter(profile => profile.gatewayId === primary.id), primary.id, previousProfile)
+      || this.profiles.find(profile => profile.gatewayId === primary.id && profile.name === 'default')
       || this.profiles.find(profile => profile.gatewayId === primary.id)
       || this.profiles[0]
     if (home) this.applyProfile(home)
@@ -537,19 +544,26 @@ export class HermesClient {
   }
 
   async refreshSessions(): Promise<void> {
+    const previous = this.sessions
     if (this.listStyle === 'picker') {
       const listed = await this.listSessions({ scope: 'stored', limit: 200, picker: true })
       if (listed.ok) {
-        this.sessions = sortSessions(normalizeSessions(listed.value))
+        const next = sortSessions(normalizeSessions(listed.value))
+        // A picker that briefly returns an empty page must not wipe a working history.
+        if (next.length || !previous.length) {
+          this.sessions = this.reconnectMerge ? sortSessions(mergeSessionRows(previous, next)) : next
+        }
         this.applyActiveSessionModel()
         this.emit()
         return
       }
-      this.listStyle = 'plain'
+      if (/unsupported|unknown method|invalid params|extra inputs/i.test(listed.error || '')) this.listStyle = 'plain'
     }
     const fallback = await this.listSessions({ limit: 200 })
     if (fallback.ok) {
-      this.sessions = sortSessions(normalizeSessions(fallback.value))
+      const next = sortSessions(normalizeSessions(fallback.value))
+      // The live-only fallback is a subset after a reconnect; keep rows it omits.
+      this.sessions = sortSessions(mergeSessionRows(previous, next))
       this.applyActiveSessionModel()
       this.emit()
       return

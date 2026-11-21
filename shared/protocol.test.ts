@@ -21,6 +21,8 @@ import {
   normalizeModels,
   normalizeProfiles,
   normalizeSessions,
+  mergeSessionRows,
+  pickReconnectProfile,
   orderedParts,
   questionFromControlEvent,
   questionFromRequest,
@@ -146,6 +148,18 @@ test('reads stored history and session rows', () => {
   })
   assert.equal(sessions[0].source, 'telegram')
   assert.equal(sessions[0].title, 'Notes')
+})
+
+test('keeps omitted rows when a live fallback is a subset, and preserves the reconnect profile', () => {
+  const row = (id: string) => ({ id, title: id, preview: '', source: 'telegram', model: '', updatedAt: null, messageCount: 0, running: false, pinned: false })
+  const merged = mergeSessionRows([row('old-a'), row('old-b')], [row('new-c'), row('old-b')])
+  assert.deepEqual(merged.map(item => item.id).sort(), ['new-c', 'old-a', 'old-b'])
+  const profiles = [
+    { gatewayId: 'primary', name: 'default', label: 'Hermes' },
+    { gatewayId: 'primary', name: 'scout', label: 'Scout' }
+  ] as any
+  assert.equal(pickReconnectProfile(profiles, 'primary', 'scout')?.name, 'scout')
+  assert.equal(pickReconnectProfile(profiles, 'primary', 'missing')?.name, undefined)
 })
 
 test('keeps session.create inside the gateway contract', () => {
