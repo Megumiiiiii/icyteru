@@ -28,6 +28,8 @@ import {
   type MemoryView,
   type OutgoingAttachment,
   type PendingQuestion,
+  type RemoteApproval,
+  type RemoteClarify,
   type SessionRow,
   type Transcript
 } from '../shared/protocol'
@@ -97,6 +99,10 @@ export class HermesClient {
   private queued: QueuedMessage[] = []
   private queuePoll: ReturnType<typeof setInterval> | null = null
   private queuePolling = false
+  private clarifyPoll: ReturnType<typeof setInterval> | null = null
+  private clarifyPolling = false
+  private remoteClarifies: RemoteClarify[] = []
+  private remoteApprovals: RemoteApproval[] = []
   private executionGeneration = 0
   private tokenWindow: Array<{ t: number; chars: number }> = []
   private usageTokensPerSecond: number | null = null
@@ -131,6 +137,8 @@ export class HermesClient {
       transcript: this.transcript,
       sessions: this.sessions,
       question: this.question,
+      remoteClarifies: this.remoteClarifies,
+      remoteApprovals: this.remoteApprovals,
       queued: this.queued.filter(entry => entry.sessionId === this.live?.stored),
       connected: Boolean(this.socket?.isOpen),
       activeSessionId: this.live?.stored || '',
@@ -224,6 +232,7 @@ export class HermesClient {
     if (home) this.applyProfile(home)
     await this.refreshSideData()
     await this.refreshSessions()
+    this.startClarifyPolling()
   }
 
   async setExtraGateways(extras: GatewayInput[]): Promise<void> {
@@ -353,11 +362,86 @@ export class HermesClient {
     if (this.queuePoll) clearInterval(this.queuePoll)
     this.queuePoll = null
     this.queuePolling = false
+    if (this.clarifyPoll) clearInterval(this.clarifyPoll)
+    this.clarifyPoll = null
+    this.clarifyPolling = false
+    this.remoteClarifies = []
+    this.remoteApprovals = []
     this.socket?.close()
     this.socket = null
     this.live = null
     this.question = null
     this.transcript = emptyTranscript()
+  }
+
+  private startClarifyPolling(): void {
+    if (this.clarifyPoll) return
+    void this.refreshRemotePrompts()
+    this.clarifyPoll = setInterval(() => {
+      void this.refreshRemotePrompts()
+    }, 4000)
+  }
+
+  private async refreshRemotePrompts(): Promise<void> {
+    if (this.clarifyPolling || !this.socket?.isOpen) return
+    this.clarifyPolling = true
+    try {
+      const [clarifyPayload, approvalPayload] = await Promise.all([
+        this.getJson('/api/plugins/icyteru-push/pending-clarify'),
+        this.getJson('/api/plugins/icyteru-push/pending-approvals')
+      ])
+      const clarifyRows = asRecord(clarifyPayload).pending
+      const approvalRows = asRecord(approvalPayload).pending
+      const nextClarifies: RemoteClarify[] = (Array.isArray(clarifyRows) ? clarifyRows : []).map(item => {
+        const row = asRecord(item)
+        return {
+          clarifyId: String(row.clarify_id || ''),
+          sessionKey: String(row.session_key || ''),
+          question: String(row.question || ''),
+          choices: Array.isArray(row.choices) ? row.choices.map(choice => String(choice)) : [],
+          multiSelect: Boolean(row.multi_select),
+          awaitingText: Boolean(row.awaiting_text)
+        }
+      }).filter(item => item.clarifyId && item.question)
+      const nextApprovals: RemoteApproval[] = (Array.isArray(approvalRows) ? approvalRows : []).map(item => {
+        const row = asRecord(item)
+        return {
+          sessionKey: String(row.session_key || ''),
+          requestId: String(row.request_id || ''),
+          command: String(row.command || ''),
+          description: String(row.description || ''),
+          allowSession: Boolean(row.allow_session),
+          allowPermanent: Boolean(row.allow_permanent),
+          smartDenied: Boolean(row.smart_denied),
+          denyOnly: Boolean(row.card_deny_only)
+        }
+      }).filter(item => item.sessionKey && item.requestId)
+      const before = JSON.stringify([this.remoteClarifies, this.remoteApprovals])
+      const after = JSON.stringify([nextClarifies, nextApprovals])
+      if (before !== after) {
+        this.remoteClarifies = nextClarifies
+        this.remoteApprovals = nextApprovals
+        this.emit()
+      }
+    } catch {
+      // The bridge routes are absent until the gateway is restarted after the plugin update.
+    } finally {
+      this.clarifyPolling = false
+    }
+  }
+
+  async answerRemoteClarify(clarifyId: string, answer: string): Promise<void> {
+    await this.postJson('/api/plugins/icyteru-push/answer-clarify', { clarify_id: clarifyId, answer })
+    this.remoteClarifies = this.remoteClarifies.filter(item => item.clarifyId !== clarifyId)
+    this.emit()
+  }
+
+  async answerRemoteApproval(sessionKey: string, requestId: string, choice: string, reason = ''): Promise<void> {
+    const body: Record<string, unknown> = { session_key: sessionKey, request_id: requestId, choice }
+    if (reason.trim()) body.reason = reason.trim()
+    await this.postJson('/api/plugins/icyteru-push/answer-approval', body)
+    this.remoteApprovals = this.remoteApprovals.filter(item => item.requestId !== requestId || item.sessionKey !== sessionKey)
+    this.emit()
   }
 
   async testApproval(): Promise<{ ok: boolean; session_id: string }> {

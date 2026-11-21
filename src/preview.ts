@@ -150,6 +150,34 @@ export function previewSnapshot(shot: string): Snapshot {
       executionGeneration: 7
     }
   }
+  if (shot === 'remote-clarify') {
+    base.transcript.streaming = true
+    base.remoteClarifies = [{
+      clarifyId: 'remote-q-preview',
+      sessionKey: 'agent:main:telegram:dm:1924400666',
+      question: '9router cuma terdaftar di profil aino, dialpool, hotaru, dan rin. Mau aku daftarkan di profil default?',
+      choices: [
+        'Daftarkan + jadi fallback di belakang deepseek',
+        'Daftarkan sebagai provider saja (dipilih manual)',
+        'Jangan, biarkan profil default apa adanya'
+      ],
+      multiSelect: false,
+      awaitingText: false
+    }]
+  }
+  if (shot === 'remote-approval') {
+    base.transcript.streaming = true
+    base.remoteApprovals = [{
+      sessionKey: 'agent:main:telegram:dm:1924400666',
+      requestId: 'remote-a-preview',
+      command: "rm -rf /tmp/icyteru-approval-test && echo 'cleaned'",
+      description: 'Clean up the temporary approval test directory.',
+      allowSession: true,
+      allowPermanent: false,
+      smartDenied: false,
+      denyOnly: false
+    }]
+  }
   if (shot === 'media') {
     base.transcript.streaming = false
     base.transcript.messages = [
@@ -245,6 +273,8 @@ export function installPreview(shot: string): void {
     testApproval: () => Promise.resolve({ ok: true, session_id: 'preview' }),
     interrupt: () => Promise.resolve(),
     answer: () => Promise.resolve(),
+    answerRemoteClarify: () => Promise.resolve(),
+    answerRemoteApproval: () => Promise.resolve(),
     setModel: () => Promise.resolve(''),
     setSessionModel: (_model: string, _provider: string, _confirm = false) => Promise.resolve('Session model set in preview.'),
     cancelSessionModel: () => undefined,

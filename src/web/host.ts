@@ -147,6 +147,8 @@ function snapshot(): Snapshot {
   if (state.side.instructionsNote) base.instructionsNote = state.side.instructionsNote
   else if (state.side.memory.instructions) base.instructionsNote = ''
   base.question = state.question
+  base.remoteClarifies = state.remoteClarifies
+  base.remoteApprovals = state.remoteApprovals
   base.queued = state.queued
   return base
 }
@@ -183,7 +185,7 @@ async function syncPushToken(): Promise<void> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.47' })
+      body: JSON.stringify({ token, platform: 'android', app_version: '0.0.48' })
     })
     const pending = await IcyteruPush.consumeSession()
     if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)
@@ -373,6 +375,8 @@ export function installWebHost(): void {
     notify: async (payload: NotificationPayload) => sendNotification(payload),
     interrupt: () => client.interrupt(),
     answer: (id: string, result: unknown) => client.answer(id, result),
+    answerRemoteClarify: (clarifyId: string, answer: string) => client.answerRemoteClarify(clarifyId, answer),
+    answerRemoteApproval: (sessionKey: string, requestId: string, choice: string, reason = '') => client.answerRemoteApproval(sessionKey, requestId, choice, reason),
     setModel: (model: string, provider: string, confirm = false) => client.setModel(model, provider, confirm),
     setSessionModel: (model: string, provider: string, confirm = false) => client.setSessionModel(model, provider, confirm),
     cancelSessionModel: () => client.cancelSessionModel(),

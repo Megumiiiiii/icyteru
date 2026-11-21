@@ -790,6 +790,28 @@ export interface PendingQuestion {
   test?: boolean
 }
 
+/** A blocking clarify owned by any Hermes transport, bridged through the plugin. */
+export interface RemoteClarify {
+  clarifyId: string
+  sessionKey: string
+  question: string
+  choices: string[]
+  multiSelect: boolean
+  awaitingText: boolean
+}
+
+/** A blocking approval owned by any Hermes transport, bridged through the plugin. */
+export interface RemoteApproval {
+  sessionKey: string
+  requestId: string
+  command: string
+  description: string
+  allowSession: boolean
+  allowPermanent: boolean
+  smartDenied: boolean
+  denyOnly: boolean
+}
+
 export function questionFromRequest(id: string, method: string, params: unknown): PendingQuestion | null {
   const body = asRecord(params)
   const sessionId = typeof body.session_id === 'string' ? body.session_id : ''

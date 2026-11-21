@@ -1,4 +1,4 @@
-import type { AgentProfile, AuthMode, MemoryView, ModelChoice, PendingQuestion, SessionRow, SkillRow, Transcript } from './protocol'
+import type { AgentProfile, AuthMode, MemoryView, ModelChoice, PendingQuestion, RemoteApproval, RemoteClarify, SessionRow, SkillRow, Transcript } from './protocol'
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 export type AppScreen = 'connect' | 'chat' | 'settings'
@@ -63,6 +63,8 @@ export interface Snapshot {
   memory: MemoryView
   instructionsNote: string
   question: PendingQuestion | null
+  remoteClarifies: RemoteClarify[]
+  remoteApprovals: RemoteApproval[]
   queued: QueuedMessage[]
 }
 
@@ -93,6 +95,8 @@ export function emptySnapshot(connection: ConnectionInfo): Snapshot {
     memory: { available: false, summary: '', notes: '', user: '', instructions: '' },
     instructionsNote: 'Instructions live in SOUL.md on the Hermes machine. Chats on Telegram, Discord, and here all use that same file.',
     question: null,
+    remoteClarifies: [],
+    remoteApprovals: [],
     queued: []
   }
 }

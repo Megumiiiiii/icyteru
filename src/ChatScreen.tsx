@@ -2,7 +2,7 @@ import { Fragment, useContext, useEffect, useMemo, useRef, useState, type Pointe
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
-import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, sourceLabel, type OutgoingAttachment, type ToolCall } from '../shared/protocol'
+import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type ToolCall } from '../shared/protocol'
 import { Avatar } from './Avatar'
 import { Markdown } from './Markdown'
 import { ago } from './time'
@@ -732,6 +732,12 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
           </button>
         )}
         {snapshot.question && <QuestionCard question={snapshot.question} />}
+        {!snapshot.question && snapshot.remoteApprovals[0] && (
+          <RemoteApprovalCard approval={snapshot.remoteApprovals[0]} more={snapshot.remoteApprovals.length - 1} />
+        )}
+        {!snapshot.question && snapshot.remoteClarifies[0] && (
+          <RemoteClarifyCard clarify={snapshot.remoteClarifies[0]} more={snapshot.remoteClarifies.length - 1} />
+        )}
         {steerNote && (
           <StatusBar
             state="running"
@@ -1038,6 +1044,145 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
           </div>
         </form>
       )}
+      {note && <p className="inline-error">{note}</p>}
+    </section>
+  )
+}
+
+function remoteSourceLabel(sessionKey: string): string {
+  if (!sessionKey) return 'another session'
+  if (sessionKey.includes(':telegram:')) return 'Telegram session'
+  if (sessionKey.includes(':discord:')) return 'Discord session'
+  if (sessionKey.includes(':slack:')) return 'Slack session'
+  if (sessionKey.includes(':detached:')) return `session ${sessionKey.split(':').pop()?.slice(0, 10) ?? ''}…`
+  if (sessionKey.includes(':local:')) return 'Desktop session'
+  return sessionKey.split(':').pop() || sessionKey
+}
+
+function RemoteClarifyCard({ clarify, more }: { clarify: RemoteClarify; more: number }) {
+  const [picked, setPicked] = useState<string[]>([])
+  const [custom, setCustom] = useState('')
+  const [note, setNote] = useState('')
+  const [sending, setSending] = useState(false)
+
+  async function send(answer: string) {
+    if (!answer.trim() || sending) return
+    setSending(true)
+    setNote('')
+    try {
+      await window.icyteru.answerRemoteClarify(clarify.clarifyId, answer.trim())
+      setPicked([])
+      setCustom('')
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : 'Could not send that answer.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  function toggle(choice: string) {
+    if (!clarify.multiSelect) {
+      setPicked([choice])
+      return
+    }
+    setPicked(current => current.includes(choice) ? current.filter(item => item !== choice) : [...current, choice])
+  }
+
+  const selected = picked.join(', ')
+  const value = custom.trim() || selected
+
+  return (
+    <section className="question remote-card">
+      <h2>Question from Hermes</h2>
+      <p className="question-source">Pending in {remoteSourceLabel(clarify.sessionKey)}{more > 0 ? ` · +${more} more` : ''}</p>
+      <div className="clarify">
+        <p>{clarify.question}</p>
+        {clarify.choices.length > 0 && (
+          <div className="row">
+            {clarify.choices.map(choice => {
+              const isPicked = picked.includes(choice)
+              return (
+                <button
+                  key={choice}
+                  className={isPicked ? 'solid picked' : 'ghost'}
+                  aria-pressed={isPicked}
+                  onClick={() => toggle(choice)}
+                  type="button"
+                >
+                  {isPicked ? `✓ ${choice}` : choice}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        <input
+          value={custom}
+          onChange={event => setCustom(event.target.value)}
+          placeholder={clarify.choices.length ? 'Or type your own answer' : 'Type your answer'}
+          aria-label="Answer"
+        />
+      </div>
+      <div className="question-actions">
+        <button className="solid" disabled={!value || sending} onClick={() => void send(value)} type="button">
+          {sending ? 'Sending…' : 'Send answer'}
+        </button>
+      </div>
+      {note && <p className="inline-error">{note}</p>}
+    </section>
+  )
+}
+
+function RemoteApprovalCard({ approval, more }: { approval: RemoteApproval; more: number }) {
+  const [note, setNote] = useState('')
+  const [reason, setReason] = useState('')
+  const [sending, setSending] = useState('')
+
+  async function answer(choice: string) {
+    if (sending) return
+    setSending(choice)
+    setNote('')
+    try {
+      await window.icyteru.answerRemoteApproval(approval.sessionKey, approval.requestId, choice, reason)
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : 'Could not send that approval.')
+    } finally {
+      setSending('')
+    }
+  }
+
+  const choices = ['once', 'session', 'always', 'deny'].filter(choice => {
+    if (choice === 'session') return approval.allowSession && !approval.smartDenied
+    if (choice === 'always') return approval.allowPermanent && !approval.smartDenied
+    return true
+  })
+
+  return (
+    <section className="question remote-card approval-card">
+      <h2>Approval required</h2>
+      <p className="question-source">Pending in {remoteSourceLabel(approval.sessionKey)}{more > 0 ? ` · +${more} more` : ''}</p>
+      {approval.description && <p className="question-body">{approval.description}</p>}
+      <pre className="remote-command">{approval.command}</pre>
+      {approval.denyOnly && <p className="question-note">This request was Deny-only until the full command was shown. Review it before approving.</p>}
+      <div className="row">
+        {choices.map(choice => (
+          <button
+            key={choice}
+            className={choice === 'deny' ? 'ghost' : 'solid'}
+            onClick={() => void answer(choice)}
+            disabled={Boolean(sending)}
+            type="button"
+          >
+            {sending === choice ? 'Sending…' : approvalLabel(choice)}
+          </button>
+        ))}
+      </div>
+      <input
+        className="custom-answer"
+        value={reason}
+        onChange={event => setReason(event.target.value)}
+        placeholder="Optional reason for deny"
+        aria-label="Approval reason"
+      />
       {note && <p className="inline-error">{note}</p>}
     </section>
   )

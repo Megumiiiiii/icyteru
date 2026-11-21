@@ -36,6 +36,8 @@ const api = {
   testApproval: (): Promise<{ ok: boolean; session_id: string }> => ipcRenderer.invoke('test-approval'),
   interrupt: (): Promise<void> => ipcRenderer.invoke('interrupt'),
   answer: (id: string, result: unknown): Promise<void> => ipcRenderer.invoke('answer', { id, result }),
+  answerRemoteClarify: (clarifyId: string, answer: string): Promise<void> => ipcRenderer.invoke('answer-remote-clarify', { clarifyId, answer }),
+  answerRemoteApproval: (sessionKey: string, requestId: string, choice: string, reason = ''): Promise<void> => ipcRenderer.invoke('answer-remote-approval', { sessionKey, requestId, choice, reason }),
   setModel: (model: string, provider: string, confirm = false): Promise<string> => ipcRenderer.invoke('set-model', { model, provider, confirm }),
   setSessionModel: (model: string, provider: string, confirm = false): Promise<string | { confirmationRequired: true; message: string; model: string; provider: string }> => ipcRenderer.invoke('set-session-model', { model, provider, confirm }),
   cancelSessionModel: (): void => ipcRenderer.send('cancel-session-model'),

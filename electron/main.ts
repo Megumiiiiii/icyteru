@@ -80,6 +80,8 @@ function snapshot(): Snapshot {
   if (state.side.instructionsNote) base.instructionsNote = state.side.instructionsNote
   else if (state.side.memory.instructions) base.instructionsNote = ''
   base.question = state.question
+  base.remoteClarifies = state.remoteClarifies
+  base.remoteApprovals = state.remoteApprovals
   base.queued = state.queued
   return base
 }
@@ -280,6 +282,12 @@ function registerIpc(): void {
   })
   ipcMain.handle('interrupt', () => client.interrupt())
   ipcMain.handle('answer', (_event, payload: { id: string; result: unknown }) => client.answer(payload.id, payload.result))
+  ipcMain.handle('answer-remote-clarify', (_event, payload: { clarifyId: string; answer: string }) => (
+    client.answerRemoteClarify(payload.clarifyId, payload.answer)
+  ))
+  ipcMain.handle('answer-remote-approval', (_event, payload: { sessionKey: string; requestId: string; choice: string; reason?: string }) => (
+    client.answerRemoteApproval(payload.sessionKey, payload.requestId, payload.choice, payload.reason || '')
+  ))
   ipcMain.handle('set-model', (_event, payload: { model: string; provider: string; confirm?: boolean }) => (
     client.setModel(payload.model, payload.provider, Boolean(payload.confirm))
   ))
