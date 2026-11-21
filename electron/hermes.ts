@@ -7,6 +7,7 @@ import {
   historyFromRows,
   normalizeMemory,
   normalizeModels,
+  modelOptionsPath,
   normalizeSessions,
   normalizeSkills,
   sortSessions,
@@ -585,6 +586,7 @@ export class HermesClient {
     this.question = null
     this.subagents = []
     await this.readReasoning().catch(() => undefined)
+    await this.refreshModelOptions().catch(() => undefined)
     this.emit()
   }
 
@@ -1094,10 +1096,16 @@ export class HermesClient {
     if (described.ok) this.contract = readCreateContract(described.value)
   }
 
+  /** Re-read just the model inventory for the live session, not the profile default. */
+  private async refreshModelOptions(): Promise<void> {
+    const models = await this.getJson(modelOptionsPath(this.live?.live)).catch(() => null)
+    if (models) this.side.models = normalizeModels(models)
+  }
+
   private async refreshSideData(): Promise<void> {
     const soulPath = `/api/profiles/${encodeURIComponent(this.activeProfile || 'default')}/soul`
     const [models, skills, memory, soul] = await Promise.all([
-      this.getJson('/api/model/options').catch(() => null),
+      this.getJson(modelOptionsPath(this.live?.live)).catch(() => null),
       this.getJson('/api/skills').catch(() => null),
       this.getJson('/api/memory').catch(() => null),
       this.getJson(soulPath).catch(() => null)
@@ -1107,7 +1115,7 @@ export class HermesClient {
     const globalReasoning = this.side.globalReasoning
     const tokensPerSecond = this.side.tokensPerSecond
     this.side = {
-      models: models ? normalizeModels(models) : { currentModel: '', currentProvider: '', models: [] },
+      models: models ? normalizeModels(models) : this.side.models,
       reasoning,
       globalReasoning,
       tokensPerSecond,

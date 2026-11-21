@@ -1,5 +1,12 @@
 # Icyteru release notes
 
+## v0.0.53
+
+### Fixed
+
+- **The model header now follows the open session.** `refreshSideData()` and `openSession()` request `/api/model/options?session_id=<session>`, so switching the model in one chat can no longer repaint another chat’s header with the profile default. Model options are refreshed again after a session resumes, and a regression test covers the session-scoped URL.
+- **Phone touch targets.** The header back `‹` keeps its compact 28px visual but now has a 44px hit area, and the Settings link is 46×44. At 390px the header has no horizontal overflow and the title stays around 106px.
+
 ## v0.0.52
 
 ### Fixed

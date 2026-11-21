@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import {
   acceptAvatar,
@@ -13,6 +14,7 @@ import {
   emptyTranscript,
   historyFromRows,
   modelIdsMatch,
+  modelOptionsPath,
   normalizeMemory,
   normalizeModels,
   normalizeProfiles,
@@ -226,6 +228,27 @@ test('matches model ids with or without their provider prefix', () => {
   assert.equal(modelIdsMatch('DeepSeek/DeepSeek-V4.1-Flash', 'deepseek-v4.1-flash'), true)
   assert.equal(modelIdsMatch('gpt-6.2', 'deepseek-v4.1-flash'), false)
   assert.equal(modelIdsMatch('', 'gpt-6.2'), false)
+})
+
+test('scopes model options to the open session', () => {
+  assert.equal(modelOptionsPath(), '/api/model/options')
+  assert.equal(
+    modelOptionsPath('20261119_205710_f5c946e4'),
+    '/api/model/options?session_id=20261119_205710_f5c946e4'
+  )
+  assert.equal(modelOptionsPath('a b'), '/api/model/options?session_id=a%20b')
+})
+
+test('refreshes the model header from the live session, never the profile default', () => {
+  const source = readFileSync('electron/hermes.ts', 'utf8')
+  const start = source.indexOf('private async refreshSideData')
+  const body = source.slice(start, source.indexOf('side: {', start))
+  assert.match(body, /modelOptionsPath\(this\.live\?\.live\)/)
+  assert.doesNotMatch(body, /getJson\('\/api\/model\/options'\)/)
+
+  const openStart = source.indexOf('async openSession')
+  const openBody = source.slice(openStart, source.indexOf('async setSessionPinned', openStart))
+  assert.match(openBody, /refreshModelOptions/)
 })
 
 test('builds cards from approval and clarify control events', () => {

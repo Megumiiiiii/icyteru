@@ -553,6 +553,11 @@ export function modelIdsMatch(a: string, b: string): boolean {
   return left === right || bareModelId(left) === bareModelId(right) || left === bareModelId(right) || bareModelId(left) === right
 }
 
+export function modelOptionsPath(sessionId?: string): string {
+  const id = (sessionId || '').trim()
+  return id ? `/api/model/options?session_id=${encodeURIComponent(id)}` : '/api/model/options'
+}
+
 export function normalizeModels(payload: unknown): { currentModel: string; currentProvider: string; models: ModelChoice[] } {
   const body = asRecord(payload)
   const models: ModelChoice[] = []

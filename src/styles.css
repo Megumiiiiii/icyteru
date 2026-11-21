@@ -1166,6 +1166,18 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 /* Touch devices: keep the layout compact but give every control a 44px target. */
 @media (max-width: 760px), (pointer: coarse) {
+  .left-toggle {
+    position: relative;
+  }
+  .left-toggle::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border-radius: 10px;
+  }
+  .settings-link {
+    min-height: 44px;
+  }
   .bar-actions .icon-button,
   .bar-actions .top-action,
   .bar-actions .history-button {
