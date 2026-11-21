@@ -191,7 +191,7 @@ The Android app is the same screen as the desktop app, packed with Capacitor. On
 
 1. Install [Node.js 22 LTS](https://nodejs.org/), [Git](https://git-scm.com/download/win), and [Android Studio](https://developer.android.com/studio).
 2. Open Android Studio once. In **SDK Manager**, install **Android SDK Platform 35** and **Android SDK Build-Tools**.
-3. Clone the repository, check out `main`, and run `npm install`.
+3. Clone the repository, check out `main`, and run `npm install`. The Firebase client config is not committed: put your `google-services.json` at `android/app/google-services.json` before building. CI reads the same file from the `GOOGLE_SERVICES_JSON` Actions secret.
 4. Build the web app and copy it into the Android project:
 
 ```bash

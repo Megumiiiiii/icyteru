@@ -21,5 +21,8 @@ android/.idea/
 android/app/*.keystore
 android/app/icyteru.keystore
 
+# Firebase client config is injected from the GOOGLE_SERVICES_JSON Actions secret
+android/app/google-services.json
+
 # Local working notes
 STATUS.md
