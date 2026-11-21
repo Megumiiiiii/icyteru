@@ -120,6 +120,10 @@ export function previewSnapshot(shot: string): Snapshot {
       }
     ]
   }
+  if (shot === 'tool') {
+    base.transcript.streaming = true
+    base.transcript.messages[1].tools[0].status = 'running'
+  }
   if (markdown) {
     const sample = [
       '# Panduan upload ke Arweave',

@@ -130,6 +130,10 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
   const active = snapshot.sessions.find(session => session.id === snapshot.activeSessionId)
   const profile = snapshot.profiles.find(item => item.gatewayId === snapshot.activeGatewayId && item.name === snapshot.activeProfile)
   const streaming = snapshot.transcript.streaming
+  const toolRunning = useMemo(
+    () => snapshot.transcript.messages.some(message => message.tools.some(tool => tool.status === 'running')),
+    [snapshot.transcript.messages]
+  )
   const toolCount = useMemo(
     () => snapshot.transcript.messages.reduce((count, message) => count + message.tools.length, 0),
     [snapshot.transcript.messages]
@@ -661,11 +665,11 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
             </button>
             {streaming && (
               <span
-                className={snapshot.tokensPerSecond ? 'tok-pill' : 'tok-pill pending'}
-                title="Live output speed"
-                aria-label="Tokens per second"
+                className={toolRunning ? 'tok-pill tool' : snapshot.tokensPerSecond ? 'tok-pill' : 'tok-pill pending'}
+                title={toolRunning ? 'Tool call in progress' : 'Live output speed'}
+                aria-label={toolRunning ? 'Tool call in progress' : 'Tokens per second'}
               >
-                <span aria-hidden="true">⚡</span>
+                <span aria-hidden="true">{toolRunning ? '⚔️' : '⌨️'}</span>
                 {snapshot.tokensPerSecond ? `${snapshot.tokensPerSecond} Tok/s` : '… Tok/s'}
               </span>
             )}

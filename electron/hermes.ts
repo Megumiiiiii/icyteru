@@ -98,6 +98,8 @@ export class HermesClient {
   private queuePoll: ReturnType<typeof setInterval> | null = null
   private queuePolling = false
   private executionGeneration = 0
+  private tokenWindow: Array<{ t: number; chars: number }> = []
+  private usageTokensPerSecond: number | null = null
   private revision = 0
   private wsUrl = ''
   private protocols: string[] = []
@@ -1200,6 +1202,23 @@ export class HermesClient {
     })
   }
 
+  private noteStreamText(text: string): void {
+    const chars = text.length
+    if (!chars) return
+    const now = Date.now()
+    this.tokenWindow.push({ t: now, chars })
+    const cutoff = now - 1000
+    this.tokenWindow = this.tokenWindow.filter(entry => entry.t >= cutoff)
+    const total = this.tokenWindow.reduce((sum, entry) => sum + entry.chars, 0)
+    const live = Math.round(total / 4)
+    this.side.tokensPerSecond = live > 0 ? live : this.usageTokensPerSecond
+  }
+
+  private resetStreamRate(): void {
+    this.tokenWindow = []
+    this.side.tokensPerSecond = this.usageTokensPerSecond
+  }
+
   private onEvent(event: GatewayEventFrame): void {
     if (event.type === 'gateway.ready') return
     const sessionId = event.session_id
@@ -1239,12 +1258,15 @@ export class HermesClient {
       const usage = asRecord(payload.usage)
       const raw = usage.avg_tps ?? payload.tokens_per_s
       const tokensPerSecond = typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? Math.round(raw) : null
+      this.usageTokensPerSecond = tokensPerSecond
       this.side.tokensPerSecond = tokensPerSecond
       this.emit()
       return
     }
     const interesting = event.type.startsWith('message.') || event.type.startsWith('tool.') || event.type === 'error'
     if (interesting) {
+      if (event.type === 'message.delta' && typeof event.payload?.text === 'string') this.noteStreamText(event.payload.text)
+      if (event.type === 'message.complete' || event.type === 'error') this.resetStreamRate()
       this.transcript = applyGatewayEvent(this.transcript, event)
       if (event.type === 'message.complete') void this.refreshSessions()
     }

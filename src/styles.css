@@ -494,7 +494,7 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
 .tok-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   padding: 6px 10px;
   border: 1px solid #e6c9a3;
   border-radius: 999px;
@@ -507,6 +507,7 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
 }
 .tok-pill span[aria-hidden] { font-size: 14px; line-height: 1; }
 .tok-pill.pending { background: #f7ead6; border-color: #eadbc2; color: #a98b5f; }
+.tok-pill.tool { background: #f0dcbf; border-color: #d9b98d; color: #7a4f28; }
 .composer .attach {
   border: 0;
   background: transparent;
