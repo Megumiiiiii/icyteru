@@ -1,4 +1,4 @@
-import type { AuthDiscovery, NotificationPayload, OutgoingAttachment } from '../shared/protocol'
+import type { AuthDiscovery, NotificationPayload, OutgoingAttachment, SessionInfo } from '../shared/protocol'
 import type { AppScreen, Snapshot, TestResult, ThemePreference } from '../shared/snapshot'
 
 export interface ConnectionInput {
@@ -23,6 +23,7 @@ declare global {
       refreshSessions: () => Promise<void>
       openSession: (id: string) => Promise<void>
       setSessionPinned: (id: string, pinned: boolean) => Promise<void>
+      sessionInfo: (id: string) => Promise<SessionInfo>
       newChat: () => Promise<void>
       sendMessage: (text: string, attachments?: OutgoingAttachment[]) => Promise<void>
       steer: (text: string) => Promise<string>

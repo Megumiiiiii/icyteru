@@ -494,6 +494,35 @@ test('openSocket falls back to the token attempt when the cookie attempt fails',
   assert.equal(calls, 2)
 })
 
+test('sessionInfo reads live context and transcript estimate, and /usage is client-side', async () => {
+  const c = client()
+  c.live = live('s1')
+  c.sessions = [{ id: 's1', title: 'Session One', preview: '', source: 'telegram', model: 'deepseek', updatedAt: null, messageCount: 30, running: false, pinned: false }]
+  c.socket = { isOpen: true }
+  c.rpc = async (method: string) => {
+    assert.equal(method, 'session.stats')
+    return { context_tokens: 24817, context_length: 200000, model: 'deepseek-v4.1-flash', input_tokens: 1000, output_tokens: 200, total_tokens: 1200, api_calls: 3 }
+  }
+  c.getJson = async () => Array.from({ length: 30 }, (_, index) => ({ role: 'user', content: `message ${index} ${'x'.repeat(40)}` }))
+  const info = await c.sessionInfo('s1')
+  assert.equal(info.messages, 30)
+  assert.equal(info.estimatedTokens, 24817)
+  const usage = await c.slash('/usage')
+  assert.match(usage, /📊 Usage/)
+  assert.match(usage, /Context: 24,817/)
+  assert.match(usage, /Messages: 30/)
+})
+
+test('sessionInfo falls back to the transcript estimate without live stats', async () => {
+  const c = client()
+  c.sessions = [{ id: 's1', title: 'Old', preview: '', source: 'telegram', model: '', updatedAt: null, messageCount: 2, running: false, pinned: false }]
+  c.socket = { isOpen: false }
+  c.getJson = async () => [{ role: 'user', content: 'x'.repeat(400) }, { role: 'assistant', content: 'y'.repeat(400) }]
+  const info = await c.sessionInfo('s1')
+  assert.equal(info.messages, 2)
+  assert.equal(info.estimatedTokens, 200)
+})
+
 test('disconnect stops polling and clears ephemeral session state', () => {
   const c = client()
   c.live = live()

@@ -2,7 +2,7 @@ import { Fragment, useContext, useEffect, useMemo, useRef, useState, type Pointe
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
-import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, pickReasoning, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SubagentProgress, type ToolCall } from '../shared/protocol'
+import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, pickReasoning, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SessionInfo, type SessionRow, type SubagentProgress, type ToolCall } from '../shared/protocol'
 import { Avatar } from './Avatar'
 import { Markdown } from './Markdown'
 import { PinIcon } from './PinIcon'
@@ -1697,6 +1697,38 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
 }) {
   const phone = useContext(PhoneNav)
   const [closedGroups, setClosedGroups] = useState<Set<string>>(() => new Set())
+  const [sessionInfo, setSessionInfo] = useState<{
+    session: SessionRow
+    loading: boolean
+    data?: SessionInfo
+    error?: string
+  } | null>(null)
+
+  useEffect(() => {
+    if (!sessionInfo) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSessionInfo(null)
+    }
+    const onBack = (event: Event) => {
+      event.preventDefault()
+      setSessionInfo(null)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('icyteru:back', onBack)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('icyteru:back', onBack)
+    }
+  }, [sessionInfo])
+
+  function openSessionInfo(session: SessionRow) {
+    setSessionInfo({ session, loading: true })
+    void window.icyteru.sessionInfo(session.id)
+      .then(data => setSessionInfo(current => current?.session.id === session.id ? { session, loading: false, data } : current))
+      .catch(error => setSessionInfo(current => current?.session.id === session.id
+        ? { session, loading: false, error: error instanceof Error ? error.message : 'Could not read session info.' }
+        : current))
+  }
   const needle = query.trim().toLowerCase()
   const sessions = snapshot.sessions.filter(session => `${session.title} ${session.preview} ${session.source}`.toLowerCase().includes(needle))
   const bySource = new Map<string, typeof sessions>()
@@ -1769,6 +1801,19 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
                         </span>
                       </button>
                       <button
+                        className="session-info-button"
+                        type="button"
+                        title={`Session info: ${session.title}`}
+                        aria-label={`Session info for ${session.title}`}
+                        onClick={() => openSessionInfo(session)}
+                      >
+                        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                          <rect x="4" y="13" width="3.2" height="7" rx="1" fill="currentColor" />
+                          <rect x="10.4" y="8" width="3.2" height="12" rx="1" fill="currentColor" />
+                          <rect x="16.8" y="3" width="3.2" height="17" rx="1" fill="currentColor" />
+                        </svg>
+                      </button>
+                      <button
                         className={session.pinned ? 'session-pin on' : 'session-pin'}
                         type="button"
                         title={session.pinned ? 'Unpin session' : 'Pin session'}
@@ -1837,6 +1882,27 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
               </ul>
             </div>
           </details>
+        </div>
+      )}
+      {sessionInfo && (
+        <div className="session-info-backdrop" role="presentation" onPointerDown={event => {
+          if (event.currentTarget === event.target) setSessionInfo(null)
+        }}>
+          <section className="session-info-card" role="dialog" aria-modal="true" aria-labelledby="session-info-title">
+            <header className="session-info-head">
+              <span id="session-info-title">📊 Session Info</span>
+              <button type="button" className="session-info-close" onClick={() => setSessionInfo(null)} title="Close session info" aria-label="Close session info">×</button>
+            </header>
+            <p className="session-info-session" title={sessionInfo.session.title}>{sessionInfo.session.title}</p>
+            {sessionInfo.loading && <p className="hint">Reading session stats…</p>}
+            {sessionInfo.error && <p className="inline-error">{sessionInfo.error}</p>}
+            {sessionInfo.data && !sessionInfo.loading && !sessionInfo.error && (
+              <div className="session-info-stats">
+                <p><strong>Messages:</strong> {sessionInfo.data.messages.toLocaleString()}</p>
+                <p><strong>Estimated context:</strong> ~{sessionInfo.data.estimatedTokens.toLocaleString()} tokens</p>
+              </div>
+            )}
+          </section>
         </div>
       )}
     </aside>

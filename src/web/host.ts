@@ -6,7 +6,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { HermesClient } from '../../electron/hermes'
 import { emptySnapshot, type AppScreen, type Snapshot, type ThemePreference } from '../../shared/snapshot'
-import type { AuthDiscovery, NotificationPayload, OutgoingAttachment } from '../../shared/protocol'
+import type { AuthDiscovery, NotificationPayload, OutgoingAttachment, SessionInfo } from '../../shared/protocol'
 import { enableNotifications, sendNotification } from '../notifications'
 import { APP_VERSION } from '../version'
 import type { ConnectionInput } from '../global'
@@ -377,6 +377,7 @@ export function installWebHost(): void {
     refreshSessions: () => client.refreshSessions(),
     openSession: (id: string) => client.openSession(id),
     setSessionPinned: (id: string, pinned: boolean) => client.setSessionPinned(id, pinned),
+    sessionInfo: (id: string): Promise<SessionInfo> => client.sessionInfo(id),
     newChat: () => client.newChat(),
     sendMessage: async (text: string, attachments?: OutgoingAttachment[]) => client.send(text, attachments),
     steer: async (text: string) => client.steer(text),

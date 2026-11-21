@@ -495,6 +495,13 @@ export interface SessionRow {
   pinned: boolean
 }
 
+export interface SessionInfo {
+  id: string
+  title: string
+  messages: number
+  estimatedTokens: number
+}
+
 export function normalizeSessions(payload: unknown): SessionRow[] {
   const body = asRecord(payload)
   const list = Array.isArray(payload)

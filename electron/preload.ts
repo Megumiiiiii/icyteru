@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AuthDiscovery, NotificationPayload, OutgoingAttachment } from '../shared/protocol'
+import type { AuthDiscovery, NotificationPayload, OutgoingAttachment, SessionInfo } from '../shared/protocol'
 import type { AppScreen, Snapshot, TestResult, ThemePreference } from '../shared/snapshot'
 import type { ConnectionInput } from '../src/global'
 
@@ -22,6 +22,7 @@ const api = {
   refreshSessions: (): Promise<void> => ipcRenderer.invoke('refresh-sessions'),
   openSession: (id: string): Promise<void> => ipcRenderer.invoke('open-session', id),
   setSessionPinned: (id: string, pinned: boolean): Promise<void> => ipcRenderer.invoke('set-session-pinned', { id, pinned }),
+  sessionInfo: (id: string): Promise<SessionInfo> => ipcRenderer.invoke('session-info', id),
   newChat: (): Promise<void> => ipcRenderer.invoke('new-chat'),
   sendMessage: (text: string, attachments?: OutgoingAttachment[]): Promise<void> => ipcRenderer.invoke('send-message', text, attachments),
   steer: (text: string): Promise<string> => ipcRenderer.invoke('steer', text),

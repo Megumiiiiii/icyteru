@@ -35,6 +35,7 @@ import {
   type RemoteApproval,
   type RemoteClarify,
   type SessionRow,
+  type SessionInfo,
   type SubagentProgress,
   type Transcript
 } from '../shared/protocol'
@@ -624,6 +625,68 @@ export class HermesClient {
     await this.refreshSessions()
   }
 
+  /** Read one row's message count and context estimate without opening it. */
+  async sessionInfo(id: string): Promise<SessionInfo> {
+    const row = this.sessions.find(item => item.id === id)
+    let messages = row?.messageCount || 0
+    let estimatedTokens = 0
+    if (this.socket?.isOpen) {
+      try {
+        const stats = asRecord(await this.rpc('session.stats', this.scope({ session_id: id })))
+        const usage = asRecord(stats.usage)
+        const used = Number(stats.context_tokens ?? stats.last_prompt_tokens ?? usage.context_used)
+        if (Number.isFinite(used) && used > 0) estimatedTokens = Math.round(used)
+      } catch {
+        // History mounts have no live agent; the message estimate below still answers.
+      }
+    }
+    try {
+      const raw = await this.getJson(`/api/sessions/${encodeURIComponent(id)}/messages?limit=200&order=oldest`)
+      const rows = Array.isArray(raw) ? raw : asRecord(raw).messages
+      if (Array.isArray(rows)) {
+        messages = Math.max(messages, rows.length)
+        if (!estimatedTokens) estimatedTokens = estimateContextTokens(rows)
+      }
+    } catch {
+      // A missing transcript still leaves the session row count.
+    }
+    return { id, title: row?.title || '', messages, estimatedTokens }
+  }
+
+  private async usageReport(): Promise<string> {
+    if (!this.live?.live) await this.ensureLive()
+    const sessionId = this.live!.live
+    const storedId = this.live!.stored
+    const info = await this.sessionInfo(storedId).catch(() => null)
+    let stats: Record<string, unknown> = {}
+    try {
+      stats = asRecord(await this.rpc('session.stats', this.scope({ session_id: sessionId })))
+    } catch {
+      // A history mount has no live stats; use the transcript estimate.
+    }
+    const usage = asRecord(stats.usage)
+    const fmt = (value: unknown) => {
+      const number = Number(value)
+      return Number.isFinite(number) && number > 0 ? Math.round(number).toLocaleString('en-US') : ''
+    }
+    const lines = ['📊 Usage']
+    const model = typeof stats.model === 'string' && stats.model ? stats.model : (typeof usage.model === 'string' ? usage.model : '')
+    if (model) lines.push(`Model: ${model}`)
+    if (fmt(stats.input_tokens)) lines.push(`Input: ${fmt(stats.input_tokens)} tokens`)
+    if (fmt(stats.output_tokens)) lines.push(`Output: ${fmt(stats.output_tokens)} tokens`)
+    if (fmt(stats.total_tokens)) lines.push(`Total: ${fmt(stats.total_tokens)} tokens`)
+    if (fmt(stats.api_calls)) lines.push(`API calls: ${fmt(stats.api_calls)}`)
+    const context = fmt(stats.context_tokens ?? stats.last_prompt_tokens ?? usage.context_used)
+    const max = fmt(stats.context_length ?? usage.context_max)
+    if (context) lines.push(`Context: ${context}${max ? ` / ${max}` : ''} tokens`)
+    if (info) {
+      if (!context && info.estimatedTokens) lines.push(`Estimated context: ~${info.estimatedTokens.toLocaleString('en-US')} tokens`)
+      lines.push(`Messages: ${info.messages.toLocaleString('en-US')}`)
+    }
+    if (lines.length === 1) lines.push('No usage data is available for this session yet.')
+    return lines.join('\n')
+  }
+
   async newChat(): Promise<void> {
     this.openEpoch += 1
     await this.detach()
@@ -847,10 +910,12 @@ export class HermesClient {
   /** Fallback for any other gateway slash command. */
   async slash(command: string): Promise<string> {
     await this.ensureLive()
-    const name = command.trim().replace(/^\/+/, '').split(/\s+/)[0] || 'command'
+    const cleaned = command.trim().replace(/^\/+/, '')
+    const name = cleaned.split(/\s+/)[0] || 'command'
+    if (name === 'usage' && !cleaned.includes(' ')) return await this.usageReport()
     const result = await this.rpc('slash.exec', {
       session_id: this.live!.live,
-      command: command.trim().replace(/^\/+/, '')
+      command: cleaned
     })
     const record = asRecord(result)
     if ((record.type === 'send' || record.type === 'skill') && typeof record.text === 'string' && record.text.trim()) {
@@ -1709,6 +1774,25 @@ function authModeHint(mode: AuthMode): string {
   if (mode === 'either') return 'session token or password'
   if (mode === 'unknown') return 'gateway login'
   return 'open gateway'
+}
+
+function estimateContextTokens(rows: unknown[]): number {
+  let chars = 0
+  const collect = (value: unknown): string => {
+    if (typeof value === 'string') return value
+    if (Array.isArray(value)) return value.map(collect).join(' ')
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>
+      return [record.text, record.content, record.message].map(collect).filter(Boolean).join(' ')
+    }
+    return ''
+  }
+  for (const row of rows) {
+    const record = asRecord(row)
+    chars += collect(record.content ?? record.text ?? record.message).length
+    if (Array.isArray(record.tool_calls)) chars += JSON.stringify(record.tool_calls).length
+  }
+  return Math.max(0, Math.round(chars / 4))
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

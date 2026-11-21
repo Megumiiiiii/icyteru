@@ -1,5 +1,15 @@
 # Icyteru release notes
 
+## v0.0.58
+
+### Added
+
+- **Session Info in history.** Every session row now has a small bar-chart button next to the pin. It opens a `📊 Session Info` card with the session title, `Messages`, and `Estimated context` tokens. Live sessions read `session.stats`; history mounts fall back to a transcript estimate. Closes with `×`, outside click, Escape, or Android Back.
+
+### Fixed
+
+- **`/usage` works in Icyteru.** The gateway’s `slash.exec` authorizes only local sessions, so `/usage` in Telegram/history sessions returned `permission_denied`. Icyteru now answers `/usage` client-side from `session.stats` (model, input/output, total, API calls, context) with a transcript estimate as fallback; no gateway config change is needed.
+
 ## v0.0.57
 
 ### Fixed
