@@ -94,7 +94,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
       const last = fresh[fresh.length - 1]
       pendingReply.current = {
         title: `${snapshot.profileName} · ${sessionTitle}`,
-        body: plainText(last.text).slice(0, 180),
+        body: notificationPreview(last.text, 280),
         ids: fresh.map(message => message.id)
       }
       notifyTimer.current = window.setTimeout(() => {
@@ -398,7 +398,26 @@ function clampSize(value: number, min: number, max: number): number {
 function plainText(value: string): string {
   return value
     .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/[`*_>#|~]+/g, ' ')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .replace(/[`*_>#|]+/g, ' ')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
     .replace(/\s+/g, ' ')
+    .replace(/\s+([:;,.!?])/g, '$1')
     .trim()
+}
+
+function notificationPreview(value: string, limit: number): string {
+  const text = plainText(value)
+  if (text.length <= limit) return text
+  const slice = text.slice(0, limit)
+  const finish = (cut: string) => `${cut.trimEnd().replace(/[.,;:!?]+$/, '')}…`
+  const sentence = Math.max(
+    slice.lastIndexOf('. '),
+    slice.lastIndexOf('! '),
+    slice.lastIndexOf('? ')
+  )
+  if (sentence >= limit * 0.6) return finish(slice.slice(0, sentence + 1))
+  const word = slice.lastIndexOf(' ')
+  return finish(slice.slice(0, word > 0 ? word : limit))
 }

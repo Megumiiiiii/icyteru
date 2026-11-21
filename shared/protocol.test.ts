@@ -17,6 +17,7 @@ import {
   normalizeModels,
   normalizeProfiles,
   normalizeSessions,
+  orderedParts,
   questionFromControlEvent,
   questionFromRequest,
   readCreateContract
@@ -72,6 +73,26 @@ test('replaces a tool.generating placeholder with the real tool call', () => {
     payload: { tool_id: 'call-1', name: 'terminal', result: 'hi', is_error: false }
   })
   assert.equal(transcript.messages[0].tools[0].status, 'done')
+})
+
+test('keeps tool calls after the final text when a preamble is replaced', () => {
+  let transcript = emptyTranscript()
+  transcript = applyGatewayEvent(transcript, {
+    type: 'message.delta', payload: { text: 'Checking the data.', offset: 0, turn_id: 't', segment: 0 }
+  })
+  transcript = applyGatewayEvent(transcript, {
+    type: 'tool.start', payload: { tool_id: 'call-1', name: 'terminal', args: { command: 'echo hi' } }
+  })
+  transcript = applyGatewayEvent(transcript, {
+    type: 'tool.complete', payload: { tool_id: 'call-1', name: 'terminal', result: 'hi', is_error: false }
+  })
+  transcript = applyGatewayEvent(transcript, {
+    type: 'message.complete', payload: { text: 'Final answer with results.', status: 'ok' }
+  })
+  const parts = orderedParts(transcript.messages[0])
+  assert.equal(parts.length, 1)
+  assert.equal(parts[0].text, 'Final answer with results.')
+  assert.equal(parts[0].tools.length, 1)
 })
 
 test('folds subagent lifecycle events into one live row', () => {

@@ -1,4 +1,4 @@
-import type { AgentProfile, SessionRow } from '../shared/protocol'
+import { applyGatewayEvent, emptyTranscript, type AgentProfile, type SessionRow } from '../shared/protocol'
 import { emptySnapshot, type Snapshot } from '../shared/snapshot'
 
 type ProfileSeed = Pick<AgentProfile, 'name' | 'label' | 'initial' | 'preview' | 'pinned' | 'lastActive'>
@@ -130,6 +130,60 @@ export function previewSnapshot(shot: string): Snapshot {
   if (shot === 'tool') {
     base.transcript.streaming = true
     base.transcript.messages[1].tools[0].status = 'running'
+  }
+  if (shot === 'split-fixed') {
+    let transcript = emptyTranscript()
+    transcript.messages.push({
+      id: 'user-split', role: 'user', text: 'kenapa pesan kebelah tool call?', tools: [], pending: false
+    })
+    transcript = applyGatewayEvent(transcript, {
+      type: 'message.delta',
+      payload: { text: 'Aku cek transcript dan offset tool dulu.', offset: 0, turn_id: 'split', segment: 0 }
+    })
+    for (let i = 1; i <= 6; i += 1) {
+      transcript = applyGatewayEvent(transcript, {
+        type: 'tool.start',
+        payload: { tool_id: `split-${i}`, name: 'terminal', args: { command: `probe ${i}` } }
+      })
+      transcript = applyGatewayEvent(transcript, {
+        type: 'tool.complete',
+        payload: { tool_id: `split-${i}`, name: 'terminal', result: `ok ${i}`, is_error: false }
+      })
+    }
+    transcript = applyGatewayEvent(transcript, {
+      type: 'message.complete',
+      payload: {
+        text: 'Itu bukan 700 pesan chat baru, sayang. Itu hitungan baris aktif setelah compression, dan mayoritas isinya tool call. Bubble ini harus tetap utuh, lalu blok tool muncul setelah teks.',
+        status: 'ok'
+      }
+    })
+    base.transcript = transcript
+  }
+  if (shot === 'split-normal') {
+    base.transcript.messages = [
+      base.transcript.messages[0],
+      {
+        id: 'normal-a1',
+        role: 'assistant',
+        text: 'Aku tulis release notes dulu.',
+        tools: [{ id: 'n1', name: 'write_file', argsText: 'release notes', resultText: 'written', status: 'done' }],
+        pending: false
+      },
+      {
+        id: 'normal-a2',
+        role: 'assistant',
+        text: 'Sekarang bump versi dan verifikasi.',
+        tools: [{ id: 'n2', name: 'terminal', argsText: 'npm run version:set', resultText: '0.0.51', status: 'done' }],
+        pending: false
+      },
+      {
+        id: 'normal-a3',
+        role: 'assistant',
+        text: 'Tag terkirim, aku pantau workflow.',
+        tools: [],
+        pending: false
+      }
+    ]
   }
   if (shot === 'question') {
     base.transcript.streaming = true

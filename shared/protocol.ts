@@ -322,12 +322,21 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
     const full = payload.text
     const reused = payload.response_reused === true
     if (!reused && typeof full === 'string' && full.trim()) {
+      const previous = assistant.text
       const meta = streamMeta.get(assistant)
       if (meta) {
         meta.segments.clear()
         meta.order.length = 0
       }
       assistant.text = full
+      // A tool-call preamble can be replaced by a different final answer. Its
+      // textOffset then points into the middle of the new text and would split
+      // the final bubble around the tool block. Keep tools after the final text
+      // unless the completed text is a continuation of what was streamed.
+      const continues = Boolean(previous) && (full.startsWith(previous) || previous.startsWith(full))
+      if (!continues) {
+        for (const tool of assistant.tools) tool.textOffset = full.length
+      }
     }
     if (typeof payload.error === 'string' && payload.error) assistant.error = payload.error
     else if (payload.status === 'failed' || payload.status === 'error') {

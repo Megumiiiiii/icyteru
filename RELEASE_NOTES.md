@@ -1,5 +1,12 @@
 # Icyteru release notes
 
+## v0.0.51
+
+### Fixed
+
+- **One assistant message no longer splits around a tool block.** When `message.complete` replaces a streamed preamble with a different final answer, every tool `textOffset` is moved to the end of the final text. The final bubble stays whole and the tool block appears after it. Normal turns with separate assistant messages still show each message’s tool block in event order.
+- **Windows notification previews are cleaner and longer.** The renderer now uses a 280-character preview, strips bullets/code, preserves `~/` paths, fixes spacing before punctuation, and cuts at a sentence or word boundary. Long final answers no longer look like they stopped at the first heading.
+
 ## v0.0.50
 
 ### Fixed
