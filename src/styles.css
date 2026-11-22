@@ -1126,6 +1126,7 @@ html[data-backdrop="kraft"] .sky-dim { opacity: 0; }
   font-size: 12px; line-height: 1; text-decoration: none;
 }
 .incoming-media-download:hover { border-color: var(--ink); background: var(--surface); }
+.media-save-note { align-self: center; color: var(--muted); font-size: 11px; white-space: nowrap; }
 .incoming-image { max-width: min(360px, 70vw); max-height: 320px; border-radius: 12px; border: 1px solid var(--line); object-fit: contain; background: var(--panel); }
 .media-preview {
   position: fixed; inset: 0; z-index: 80;

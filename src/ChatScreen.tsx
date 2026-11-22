@@ -1,4 +1,4 @@
-import { Fragment, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { Fragment, useContext, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
@@ -204,6 +204,21 @@ function MediaAttachment({ path, name, image, src }: IncomingAttachment & { src?
   const [dataUrl, setDataUrl] = useState(src || '')
   const [error, setError] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [saveNote, setSaveNote] = useState('')
+
+  async function download(event: ReactMouseEvent<HTMLAnchorElement>) {
+    // WebView ignores the HTML download attribute for data: URLs. Use the
+    // native MediaStore bridge on Android; desktop/browser keeps the anchor.
+    if (!isAndroid) return
+    event.preventDefault()
+    try {
+      const saved = await window.icyteru.saveDownload(name, dataUrl)
+      setSaveNote(saved ? 'Saved to Downloads' : 'Saved')
+      setTimeout(() => setSaveNote(''), 2600)
+    } catch (err) {
+      setSaveNote(err instanceof Error ? err.message : 'Could not save that file.')
+    }
+  }
 
   useEffect(() => {
     if (src) {
@@ -257,9 +272,10 @@ function MediaAttachment({ path, name, image, src }: IncomingAttachment & { src?
               ? <img className="incoming-image" src={dataUrl} alt={name} />
               : <span className="incoming-file-name">{name}</span>}
           </button>
-          <a className="incoming-media-download" href={dataUrl} download={name} title={`Download ${name}`} aria-label={`Download ${name}`}>
-            <span aria-hidden="true">↓</span>
+          <a className="incoming-media-download" href={dataUrl} download={name} onClick={event => void download(event)} title={saveNote || `Download ${name}`} aria-label={`Download ${name}`}>
+            <span aria-hidden="true">{saveNote ? '✓' : '↓'}</span>
           </a>
+          {saveNote && <span className="media-save-note">{saveNote}</span>}
         </div>
         {previewOpen && (
           <div className="media-preview" role="dialog" aria-modal="true" aria-label={`${name} preview`}>
@@ -268,8 +284,8 @@ function MediaAttachment({ path, name, image, src }: IncomingAttachment & { src?
               <header className="media-preview-head">
                 <span className="media-preview-name" title={name}>{name}</span>
                 <div className="media-preview-actions">
-                  <a className="media-preview-download" href={dataUrl} download={name} title={`Download ${name}`} aria-label={`Download ${name}`}>
-                    <span aria-hidden="true">↓</span> Download
+                  <a className="media-preview-download" href={dataUrl} download={name} onClick={event => void download(event)} title={saveNote || `Download ${name}`} aria-label={`Download ${name}`}>
+                    <span aria-hidden="true">{saveNote ? '✓' : '↓'}</span> Download
                   </a>
                   <button type="button" className="media-preview-close" onClick={() => setPreviewOpen(false)} title="Close preview" aria-label="Close preview">
                     <span aria-hidden="true">×</span>
@@ -340,7 +356,7 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
   const hasLiveSubagent = snapshot.subagents.some(item =>
     !['completed', 'failed', 'timed_out', 'timeout', 'cancelled', 'error', 'stopped'].includes(item.status)
   )
-  const streaming = snapshot.transcript.streaming || Boolean(active?.running) || hasLiveSubagent
+  const streaming = snapshot.transcript.streaming || hasLiveSubagent
   const toolRunning = useMemo(
     () => snapshot.transcript.messages.some(message => message.tools.some(tool => tool.status === 'running')),
     [snapshot.transcript.messages]
@@ -1808,7 +1824,6 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
   const activeSessionRunning = snapshot.transcript.streaming
     || snapshot.transcript.messages.some(message => message.tools.some(tool => tool.status === 'running'))
     || snapshot.subagents.some(item => !['completed', 'failed', 'timed_out', 'timeout', 'cancelled', 'error', 'stopped'].includes(item.status))
-    || Boolean(snapshot.sessions.find(session => session.id === snapshot.activeSessionId)?.running)
   const sessions = snapshot.sessions.filter(session => `${session.title} ${session.preview} ${session.source}`.toLowerCase().includes(needle))
   const bySource = new Map<string, typeof sessions>()
   for (const session of sessions) {
@@ -1871,7 +1886,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
                         onClick={() => { phone.setView('chat'); void window.icyteru.openSession(session.id) }}
                       >
                         <span className="session-title">
-                          {(session.running || (session.id === snapshot.activeSessionId && activeSessionRunning)) && (
+                          {(session.id === snapshot.activeSessionId ? activeSessionRunning : session.running) && (
                             <i className="dot" title="Session is running" aria-label="Session is running" />
                           )}
                           {session.title}

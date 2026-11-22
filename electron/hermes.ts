@@ -776,6 +776,7 @@ export class HermesClient {
     const messages = Array.isArray(body.display_messages) ? body.display_messages : body.messages
     this.transcript = historyFromRows(messages)
     if (typeof body.running === 'boolean') this.transcript = { ...this.transcript, streaming: body.running }
+    if (body.running === false) this.markSessionIdle()
     const info = asRecord(body.info)
     const infoModel = typeof info.model === 'string' && info.model ? info.model : ''
     const infoProvider = typeof info.provider === 'string' && info.provider ? info.provider : ''

@@ -31,6 +31,7 @@ declare global {
       deleteQueued: (id: string) => Promise<void>
       mediaUrl: (path: string) => Promise<string>
       mediaData: (path: string) => Promise<string>
+      saveDownload: (name: string, dataUrl: string) => Promise<string>
       compress: () => Promise<string>
       slash: (command: string) => Promise<string>
       enableNotifications: () => Promise<boolean>

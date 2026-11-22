@@ -15,6 +15,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(IcyteruPushPlugin.class);
+        registerPlugin(IcyteruDownloadPlugin.class);
         super.onCreate(savedInstanceState);
         handlePushIntent(getIntent());
     }

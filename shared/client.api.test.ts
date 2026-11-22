@@ -614,6 +614,19 @@ test('compress handles pending and rows, and steer handles rejection', async () 
   assert.match(await c.steer('x'), /rejected/)
 })
 
+test('opening an idle session clears a stale running row and streaming state', async () => {
+  const c = client()
+  c.sessions = [{ id: 's1', title: 'Dialectica earn', preview: '', source: 'telegram', model: 'deepseek', updatedAt: null, messageCount: 438, running: true, pinned: true }]
+  c.rpc = async (method: string) => {
+    if (method === 'session.resume') return { messages: [], running: false, execution_generation: 42 }
+    throw new Error(method)
+  }
+  c.getJson = async () => null
+  await c.openSession('s1')
+  assert.equal(c.transcript.streaming, false)
+  assert.equal(c.sessions[0].running, false)
+})
+
 test('steer on an idle session clears a stale working state instead of failing', async () => {
   const c = client()
   c.live = live('s1')

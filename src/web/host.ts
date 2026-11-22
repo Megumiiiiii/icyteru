@@ -22,6 +22,12 @@ interface IcyteruPushBridge {
 
 const IcyteruPush = registerPlugin<IcyteruPushBridge>('IcyteruPush')
 
+interface IcyteruDownloadBridge {
+  save: (options: { name: string; dataUrl: string }) => Promise<{ path: string; uri?: string }>
+}
+
+const IcyteruDownload = registerPlugin<IcyteruDownloadBridge>('IcyteruDownload')
+
 interface SavedGateway {
   id: string
   url: string
@@ -385,6 +391,11 @@ export function installWebHost(): void {
     deleteQueued: async (id: string) => client.deleteQueued(id),
     mediaUrl: async (path: string) => client.mediaUrl(path),
     mediaData: async (path: string) => client.mediaData(path),
+    saveDownload: async (name: string, dataUrl: string) => {
+      if (Capacitor.getPlatform() !== 'android') return ''
+      const result = await IcyteruDownload.save({ name, dataUrl })
+      return result.path || ''
+    },
     compress: async () => client.compress(),
     slash: async (command: string) => client.slash(command),
     testApproval: async () => client.testApproval(),

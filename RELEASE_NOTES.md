@@ -1,5 +1,12 @@
 # Icyteru release notes
 
+## v0.0.73
+
+### Fixed
+
+- **Download buttons now work on Android.** Media attachments use a native `MediaStore` bridge instead of the HTML `download` attribute, which Android WebView ignores for `data:` URLs. Files are saved under **Downloads/Icyteru/**, with a ✓ confirmation.
+- **The “Ineffa is working…” indicator no longer sticks on an idle history session.** The composer was treating a stale `SessionRow.running` flag as authoritative after a turn had already ended. It now follows the transcript/live subagent state, and reopening a session with `running: false` clears both the working indicator and the stale row.
+
 ## v0.0.72
 
 ### Fixed

@@ -77,6 +77,10 @@ export function previewSnapshot(shot: string): Snapshot {
     session('s3', 'Say hello in one short sentence.', 'discord', 30)
   ]
   base.activeSessionId = 's1'
+  if (shot === 'idle-running') {
+    base.sessions[0].running = true
+    base.transcript.streaming = false
+  }
   base.currentModel = 'deepseek/deepseek-v4.1-flash'
   base.currentProvider = 'commandcode'
   if (shot === 'settings-global') {
@@ -432,6 +436,7 @@ export function installPreview(shot: string): void {
             ? sampleVideo
             : `data:text/plain;base64,${btoa('Hello from Icyteru preview.')}`
     ),
+    saveDownload: () => Promise.resolve('Download/Icyteru/preview'),
     compress: () => Promise.resolve('Compressed the conversation.'),
     slash: (command: string) => Promise.resolve(`Ran ${command}.`),
     enableNotifications: () => Promise.resolve(true),
