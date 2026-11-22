@@ -312,7 +312,7 @@ test('updates the reasoning header optimistically without a new turn', async () 
   ;(client as unknown as { rpc: () => Promise<unknown> }).rpc = async () => ({ value: 'max' })
   await client.setGlobalReasoning('max')
   assert.equal(client.side.globalReasoning, 'max')
-  assert.equal(client.side.reasoning, 'max')
+  assert.equal(client.side.reasoning, 'high')
 })
 
 test('refreshes the model header from the live session, never the profile default', () => {

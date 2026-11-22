@@ -1,5 +1,16 @@
 # Icyteru release notes
 
+## v0.0.60
+
+### Fixed
+
+- **Model picker marks the real provider again.** The active marker used the first inventory row that contained the model id, so a no-override session could show a check next to Nous Portal while the header and global provider were `opencode-go`. The session/global provider is now authoritative; inventory inference is only a fallback.
+- **Reasoning falls back to the current global level.** Icyteru now honors the gateway’s `explicit` flag: an inherited or frozen effort is not treated as a per-session override, so the header shows the global level when the user never chose one. `newChat()` clears the session value, and saving a global level no longer overwrites an explicit session override.
+
+### Changed
+
+- The reasoning fallback requires the gateway’s `config.get` response to include `explicit` and `global` (loaded by the gateway restart). Older gateways keep the previous effective-value behavior until restarted.
+
 ## v0.0.59
 
 ### Fixed

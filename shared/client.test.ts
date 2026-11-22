@@ -226,6 +226,34 @@ test('refreshSideData keeps the session header while reading the global default 
   assert.equal(client.side.globalProvider, 'opencode-go')
 })
 
+test('refreshSideData keeps the global provider when the inventory lists the same model under another provider', async () => {
+  const client = clientWithSession('20261119_091305_9daddf0f', 'deepseek/deepseek-v4.1-flash')
+  ;(client as unknown as { side: { models: { currentModel: string; currentProvider: string; models: unknown[] } } }).side.models = {
+    currentModel: 'deepseek/deepseek-v4.1-flash',
+    currentProvider: '',
+    models: []
+  }
+  ;(client as unknown as { getJson: GetJson }).getJson = async path => {
+    if (path.includes('session_id=')) return {
+      model: 'deepseek/deepseek-v4.1-flash',
+      provider: '',
+      providers: [
+        { name: 'Nous Portal', slug: 'nous', models: [{ id: 'deepseek/deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash' }] },
+        { name: 'OpenRouter', slug: 'openrouter', models: [{ id: 'deepseek/deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash' }] }
+      ]
+    }
+    if (path.endsWith('/api/model/options')) return {
+      model: 'deepseek/deepseek-v4.1-flash',
+      provider: 'opencode-go',
+      providers: [{ name: 'OpenCode Go', slug: 'opencode-go', models: [{ id: 'deepseek/deepseek-v4.1-flash' }] }]
+    }
+    return null
+  }
+  await (client as unknown as { refreshSideData: () => Promise<void> }).refreshSideData()
+  assert.equal(client.side.models.currentModel, 'deepseek/deepseek-v4.1-flash')
+  assert.equal(client.side.models.currentProvider, 'opencode-go')
+})
+
 test('setSessionModel updates the row and the header, then survives a reopen', async () => {
   const id = '20261119_091305_9daddf0f'
   const client = clientWithSession(id, 'deepseek/deepseek-v4.1-flash')
@@ -273,8 +301,20 @@ test('reasoning header updates immediately and new chats use the global level', 
   }
   await client.setGlobalReasoning('max')
   assert.equal(client.side.globalReasoning, 'max')
-  assert.equal(client.side.reasoning, 'max')
+  assert.equal(client.side.reasoning, 'high')
 
   await client.newChat()
-  assert.equal(client.side.reasoning, 'max')
+  assert.equal(client.side.reasoning, '')
+})
+
+test('readReasoning treats an inherited effort as no explicit session override', async () => {
+  const client = new HermesClient(() => undefined)
+  ;(client as unknown as { live: unknown }).live = { live: 's1', stored: 's1', subscriptionId: '' }
+  ;(client as unknown as { socket: { isOpen: boolean } }).socket = { isOpen: true }
+  ;(client as unknown as { rpc: Rpc }).rpc = async () => ({ value: 'medium', explicit: false, global: 'max' })
+  await (client as unknown as { readReasoning: () => Promise<void> }).readReasoning()
+  assert.equal(client.side.reasoning, '')
+  ;(client as unknown as { rpc: Rpc }).rpc = async () => ({ value: 'high', explicit: true, global: 'max' })
+  await (client as unknown as { readReasoning: () => Promise<void> }).readReasoning()
+  assert.equal(client.side.reasoning, 'high')
 })

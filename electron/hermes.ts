@@ -579,8 +579,10 @@ export class HermesClient {
     if (!this.live?.live) return
     const row = this.sessions.find(item => item.id === this.live?.live || item.id === this.live?.stored)
     if (!row?.model) return
+    const sameModel = modelIdsMatch(this.side.models.currentModel, row.model)
+    const provider = (sameModel ? this.side.models.currentProvider : '') || this.providerForModel(row.model)
     this.side.models.currentModel = row.model
-    this.side.models.currentProvider = this.providerForModel(row.model) || this.side.models.currentProvider
+    if (provider) this.side.models.currentProvider = provider
   }
 
   async openSession(id: string): Promise<void> {
@@ -614,7 +616,9 @@ export class HermesClient {
     const infoProvider = typeof info.provider === 'string' && info.provider ? info.provider : ''
     const row = this.sessions.find(item => item.id === id || item.id === stored || item.id === ids.live)
     const chosenModel = pickSessionModel(row?.model, infoModel, this.side.models.currentModel)
-    const chosenProvider = this.providerForModel(chosenModel) || infoProvider || this.side.models.currentProvider
+    const sameModel = modelIdsMatch(this.side.models.currentModel, chosenModel)
+    const chosenProvider = infoProvider || (sameModel ? this.side.models.currentProvider : '')
+      || this.providerForModel(chosenModel) || this.side.models.currentProvider
     if (chosenModel) this.side.models.currentModel = chosenModel
     if (chosenProvider) this.side.models.currentProvider = chosenProvider
     if (!this.transcript.messages.length) {
@@ -710,7 +714,7 @@ export class HermesClient {
     this.transcript = emptyTranscript()
     this.question = null
     this.subagents = []
-    this.side.reasoning = this.side.globalReasoning || ''
+    this.side.reasoning = ''
     this.emit()
   }
 
@@ -1094,7 +1098,12 @@ export class HermesClient {
       }))
       const body = asRecord(result)
       const value = body.value
-      this.side.reasoning = typeof value === 'string' ? value : ''
+      // Older gateways only returned the effective effort. With the flag, an
+      // inherited/frozen value is not an explicit session choice and must not
+      // hide the current global default.
+      this.side.reasoning = typeof body.explicit === 'boolean'
+        ? (body.explicit && typeof value === 'string' ? value : '')
+        : (typeof value === 'string' ? value : '')
     } catch {
       // A gateway without the reasoning control keeps the menu but leaves it unset.
     }
@@ -1115,7 +1124,7 @@ export class HermesClient {
     }))
     const body = asRecord(result)
     const reported = typeof body.value === 'string' ? body.value : level
-    const next = level === 'reset' ? (this.side.globalReasoning || 'medium') : reported
+    const next = level === 'reset' ? '' : reported
     // Show the chosen level immediately. The gateway can keep returning the
     // previous agent's level until its next turn rebuilds the agent.
     this.side.reasoning = next
@@ -1195,8 +1204,11 @@ export class HermesClient {
     }))
     const body = asRecord(result)
     const reported = typeof body.value === 'string' ? body.value : level
+    const hadSessionOverride = Boolean(this.side.reasoning)
     this.side.globalReasoning = reported
-    this.side.reasoning = reported
+    // Do not overwrite an explicit session override; otherwise the header
+    // falls back to the new global value through pickReasoning().
+    if (!hadSessionOverride) this.side.reasoning = ''
     await this.readGlobalReasoning().catch(() => undefined)
     this.emit()
     return `Global reasoning set to ${reported}. New chats use it.`
@@ -1208,7 +1220,7 @@ export class HermesClient {
     try {
       const result = await this.rpc('config.get', this.scope({ key: 'reasoning' }))
       const body = asRecord(result)
-      const value = body.value
+      const value = typeof body.global === 'string' ? body.global : body.value
       this.side.globalReasoning = typeof value === 'string' ? value : ''
     } catch {
       // A gateway without the reasoning control keeps the menu but leaves it unset.
@@ -1260,8 +1272,10 @@ export class HermesClient {
     if (!models) return
     const next = normalizeModels(models)
     if (currentModel) {
+      const sameModel = modelIdsMatch(currentModel, next.currentModel)
+      const provider = (sameModel ? currentProvider : '') || this.providerForModel(currentModel, next.models) || currentProvider
       next.currentModel = currentModel
-      next.currentProvider = this.providerForModel(currentModel, next.models) || currentProvider
+      next.currentProvider = provider
     }
     this.side.models = next
   }
@@ -1287,8 +1301,13 @@ export class HermesClient {
       const row = this.sessions.find(item => item.id === this.live?.live || item.id === this.live?.stored)
       const chosenModel = pickSessionModel(row?.model, previousModel)
       if (chosenModel) {
+        const globalMatch = nextGlobal && modelIdsMatch(chosenModel, nextGlobal.currentModel)
+        const sameModel = modelIdsMatch(chosenModel, previousModel)
+        const authoritative = (sameModel ? previousProvider : '')
+          || nextModels.currentProvider
+          || (globalMatch ? nextGlobal.currentProvider : '')
         nextModels.currentModel = chosenModel
-        nextModels.currentProvider = this.providerForModel(chosenModel, nextModels.models) || previousProvider
+        nextModels.currentProvider = authoritative || this.providerForModel(chosenModel, nextModels.models) || previousProvider
       }
     }
     this.side = {
