@@ -95,6 +95,11 @@ jobs:
             release/*.AppImage
             release/*.deb
           if-no-files-found: error
+          # The macOS bundle alone is ~218 MB, and this workflow can run several
+          # times a day; without a short retention these artifacts alone blow the
+          # 0.5 GB Actions storage of the free plan. The installers are published
+          # as release assets (which do not count), so a day is plenty.
+          retention-days: 1
 
   android:
     name: Build (Android)
@@ -188,6 +193,7 @@ jobs:
           name: icyteru-Android
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+          retention-days: 1
 
   release:
     name: Publish GitHub Release
