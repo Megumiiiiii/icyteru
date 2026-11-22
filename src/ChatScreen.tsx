@@ -338,6 +338,11 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
     () => snapshot.transcript.messages.some(message => message.tools.some(tool => tool.status === 'running')),
     [snapshot.transcript.messages]
   )
+  const lastUserIndex = snapshot.transcript.messages.map(message => message.role).lastIndexOf('user')
+  const hasAssistantText = snapshot.transcript.messages.some(
+    (message, index) => index > lastUserIndex && message.role === 'assistant' && message.text.trim().length > 0
+  )
+  const thinking = streaming && !toolRunning && !snapshot.tokensPerSecond && !hasAssistantText
   const toolCount = useMemo(
     () => snapshot.transcript.messages.reduce((count, message) => count + message.tools.length, 0),
     [snapshot.transcript.messages]
@@ -926,12 +931,21 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
             </button>
             {streaming && (
               <span
-                className={toolRunning ? 'tok-pill tool' : snapshot.tokensPerSecond ? 'tok-pill' : 'tok-pill pending'}
-                title={toolRunning ? 'Tool call in progress' : 'Live output speed'}
-                aria-label={toolRunning ? 'Tool call in progress' : 'Tokens per second'}
+                className={thinking ? 'tok-pill thinking' : toolRunning ? 'tok-pill tool' : 'tok-pill'}
+                title={thinking ? 'Thinking' : toolRunning ? 'Tool call in progress' : 'Live output speed'}
+                aria-label={thinking ? 'Thinking' : toolRunning ? 'Tool call in progress' : 'Tokens per second'}
               >
-                <span className="tok-emoji" aria-hidden="true">{toolRunning ? '⚔️' : '⌨️'}</span>
-                {snapshot.tokensPerSecond ? `${snapshot.tokensPerSecond} Tok/s` : '… Tok/s'}
+                {thinking ? (
+                  <>
+                    <span className="tok-emoji" aria-hidden="true">🔮</span>
+                    <span>Thinking<span className="thinking-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></span>
+                  </>
+                ) : (
+                  <>
+                    <span className="tok-emoji" aria-hidden="true">{toolRunning ? '⚔️' : '⌨️'}</span>
+                    {`${snapshot.tokensPerSecond ?? 0} Tok/s`}
+                  </>
+                )}
               </span>
             )}
           </div>

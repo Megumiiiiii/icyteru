@@ -1,5 +1,16 @@
 # Icyteru release notes
 
+## v0.0.61
+
+### Added
+
+- **Thinking state in the composer.** While a turn is streaming with no output yet, the pill shows `🔮 Thinking...`; only the three dots animate and the crystal stays static. The first assistant delta switches to `⌨️ N Tok/s`; a running tool switches to `⚔️ N Tok/s`. The text check only considers assistant rows after the latest user message, so old history does not skip the thinking phase.
+
+### Fixed
+
+- **Tok/s no longer starts from the previous turn.** `send`, `newChat`, `openSession`, and `disconnect` now clear the rolling window, the previous `session.usage` average, and the displayed value. A new turn starts at `🔮 Thinking...` instead of showing an old `87 Tok/s`.
+- **Tok/s pill follows light/dark theme.** Background, border, text, pending/tool states, and the spark use theme variables instead of hardcoded beige.
+
 ## v0.0.60
 
 ### Fixed

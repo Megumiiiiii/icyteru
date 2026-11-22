@@ -132,6 +132,12 @@ export function previewSnapshot(shot: string): Snapshot {
   if (shot === 'tok-chat') {
     base.transcript.streaming = true
   }
+  if (shot === 'thinking') {
+    base.transcript.streaming = true
+    base.tokensPerSecond = null
+    base.transcript.messages[1].text = ''
+    base.transcript.messages[1].tools = []
+  }
   if (shot === 'tool') {
     base.transcript.streaming = true
     base.transcript.messages[1].tools[0].status = 'running'

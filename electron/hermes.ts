@@ -413,6 +413,7 @@ export class HermesClient {
     this.live = null
     this.question = null
     this.transcript = emptyTranscript()
+    this.resetTokenRate()
   }
 
   private startClarifyPolling(): void {
@@ -586,6 +587,7 @@ export class HermesClient {
   }
 
   async openSession(id: string): Promise<void> {
+    this.resetTokenRate()
     const epoch = ++this.openEpoch
     await this.detach()
     if (epoch !== this.openEpoch) return
@@ -715,6 +717,7 @@ export class HermesClient {
     this.question = null
     this.subagents = []
     this.side.reasoning = ''
+    this.resetTokenRate()
     this.emit()
   }
 
@@ -722,6 +725,7 @@ export class HermesClient {
     const body = text.trim()
     if (!body && attachments.length === 0) return
     await this.ensureLive()
+    this.resetTokenRate()
     const submissionId = crypto.randomUUID()
     const displayAttachments = attachments.map(file => ({
       name: file.name,
@@ -1600,6 +1604,12 @@ export class HermesClient {
     const total = this.tokenWindow.reduce((sum, entry) => sum + entry.chars, 0)
     const live = Math.round(total / 4)
     this.side.tokensPerSecond = live > 0 ? live : this.usageTokensPerSecond
+  }
+
+  private resetTokenRate(): void {
+    this.tokenWindow = []
+    this.usageTokensPerSecond = null
+    this.side.tokensPerSecond = null
   }
 
   private resetStreamRate(): void {

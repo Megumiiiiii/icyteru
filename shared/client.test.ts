@@ -307,6 +307,21 @@ test('reasoning header updates immediately and new chats use the global level', 
   assert.equal(client.side.reasoning, '')
 })
 
+test('newChat and send clear the previous turn Tok/s before a new reply starts', async () => {
+  const c = clientWithSession('s1', 'deepseek/deepseek-v4.1-flash')
+  ;(c as unknown as { side: { tokensPerSecond: number | null } }).side.tokensPerSecond = 87
+  ;(c as unknown as { usageTokensPerSecond: number | null }).usageTokensPerSecond = 87
+  await c.newChat()
+  assert.equal((c as unknown as { side: { tokensPerSecond: number | null } }).side.tokensPerSecond, null)
+
+  ;(c as unknown as { live: unknown }).live = { live: 's1', stored: 's1', subscriptionId: '' }
+  ;(c as unknown as { rpc: Rpc }).rpc = async method => method === 'prompt.submit' ? { status: 'accepted' } : {}
+  ;(c as unknown as { side: { tokensPerSecond: number | null } }).side.tokensPerSecond = 87
+  ;(c as unknown as { usageTokensPerSecond: number | null }).usageTokensPerSecond = 87
+  await c.send('hello')
+  assert.equal((c as unknown as { side: { tokensPerSecond: number | null } }).side.tokensPerSecond, null)
+})
+
 test('readReasoning treats an inherited effort as no explicit session override', async () => {
   const client = new HermesClient(() => undefined)
   ;(client as unknown as { live: unknown }).live = { live: 's1', stored: 's1', subscriptionId: '' }
