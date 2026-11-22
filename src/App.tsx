@@ -10,6 +10,7 @@ import { initialPhone, PhoneNav, type PhoneView } from './phone'
 import { PinIcon } from './PinIcon'
 import { SakuraPetals } from './SakuraPetals'
 import { Starfield } from './Starfield'
+import { Snowflakes } from './Snowflakes'
 import { isRecent } from './time'
 
 type Appearance = { dim: number; blur: number; light: string | null; dark: string | null }
@@ -219,6 +220,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
       <div className="sky" aria-hidden="true">
         {mode === 'dark' && !image && <Starfield />}
         {mode === 'sakura' && !image && <SakuraPetals />}
+        {mode === 'antartika' && !image && <Snowflakes />}
         {image && <div className="sky-photo" style={{ backgroundImage: `url("${image}")` }} />}
         <div className="sky-dim" />
       </div>

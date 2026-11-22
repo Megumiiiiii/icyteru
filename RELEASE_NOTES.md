@@ -1,5 +1,12 @@
 # Icyteru release notes
 
+## v0.0.66
+
+### Changed
+
+- **Abyss is now a dark-red chasm.** The teal palette is replaced with deep wine surfaces, crimson accents, and a static canyon backdrop: black/maroon cliff walls, a red rim glow, and a black bottom. No animation, so it stays calm behind long chats.
+- **Antartika has falling snow.** A new `Snowflakes` layer drifts 28 SVG flakes with varied size, sway, spin, and negative delays, matching the Sakura petal treatment. The layer stays behind the chat and is hidden under `prefers-reduced-motion`.
+
 ## v0.0.65
 
 ### Fixed

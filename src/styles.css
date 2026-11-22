@@ -69,24 +69,24 @@
 
 :root[data-theme="abyss"] {
   color-scheme: dark;
-  --bg: #041e22;
-  --sidebar: #062830;
-  --panel: #09323b;
-  --surface: #0a3540;
-  --ink: #e6f7f5;
-  --muted: #8bcfc7;
-  --line: rgba(94, 216, 229, 0.18);
-  --accent: #2dd4bf;
-  --accent-ink: #02181b;
-  --user: #0f4c4a;
-  --bubble-user: #126e6a;
-  --bubble-assistant: rgba(10, 53, 64, 0.72);
-  --bubble-shadow: 0 6px 18px rgba(0, 10, 12, 0.28);
+  --bg: #170406;
+  --sidebar: #21070b;
+  --panel: #280a0f;
+  --surface: #300f15;
+  --ink: #f8e8e9;
+  --muted: #c59aa0;
+  --line: rgba(225, 110, 118, 0.20);
+  --accent: #ec5a66;
+  --accent-ink: #1b0306;
+  --user: #4a1119;
+  --bubble-user: #6d1b24;
+  --bubble-assistant: rgba(48, 15, 21, 0.76);
+  --bubble-shadow: 0 6px 18px rgba(20, 0, 2, 0.35);
   --danger: #ffb4b4;
-  --ok: #7ef0c8;
-  --ok-bg: #0d3b35;
-  --shadow: 0 18px 50px rgba(0, 10, 12, 0.5);
-  --glass: rgba(10, 53, 64, 0.82);
+  --ok: #f1a2a7;
+  --ok-bg: #4a1219;
+  --shadow: 0 18px 50px rgba(20, 0, 2, 0.58);
+  --glass: rgba(40, 10, 15, 0.84);
 }
 
 :root[data-theme="antartika"] {
@@ -252,6 +252,33 @@ html[data-backdrop="plain"] .sky { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sakura-petals { display: none; }
+}
+.snowfall { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.snowflake {
+  position: absolute;
+  top: -14%;
+  display: block;
+  color: #6fa9c8;
+  opacity: 0;
+  animation-name: snow-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+.snowflake svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 1px 2px rgba(75, 129, 158, 0.28));
+}
+@keyframes snow-fall {
+  0% { transform: translate3d(0, -14vh, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: var(--flake-opacity, 0.6); }
+  50% { transform: translate3d(calc(var(--sway, 20px) * -0.35), 52vh, 0) rotate(calc(var(--spin, 240deg) * 0.5)); }
+  100% { transform: translate3d(var(--sway, 20px), 114vh, 0) rotate(var(--spin, 240deg)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .snowfall { display: none; }
 }
 .star-field {
   position: absolute;
@@ -663,15 +690,35 @@ html[data-theme="sakura"] .settings {
   background-size: 100% 100%, 100% 100%;
 }
 html[data-backdrop="abyss"] .sky {
+  overflow: hidden;
   background:
-    radial-gradient(ellipse at 18% 0%, rgba(45, 212, 191, 0.18), transparent 45%),
-    radial-gradient(ellipse at 82% 100%, rgba(13, 148, 136, 0.16), transparent 50%),
-    linear-gradient(180deg, #041e22 0%, #021216 100%);
+    radial-gradient(ellipse at 50% -18%, rgba(236, 90, 102, 0.16), transparent 52%),
+    radial-gradient(ellipse at 50% 118%, rgba(0, 0, 0, 0.96), transparent 58%),
+    linear-gradient(180deg, #24070b 0%, #100204 48%, #030001 100%);
+}
+html[data-backdrop="abyss"] .sky::before,
+html[data-backdrop="abyss"] .sky::after {
+  content: '';
+  position: absolute;
+  top: -12%;
+  bottom: -12%;
+  width: 44%;
+  pointer-events: none;
+  background: linear-gradient(90deg, #090102 0%, #3a0c12 32%, rgba(70, 15, 23, 0.5) 58%, transparent 100%);
+}
+html[data-backdrop="abyss"] .sky::before {
+  left: -6%;
+  clip-path: polygon(0 0, 100% 0, 72% 17%, 90% 31%, 66% 45%, 86% 59%, 60% 74%, 79% 87%, 55% 100%, 0 100%);
+}
+html[data-backdrop="abyss"] .sky::after {
+  right: -6%;
+  transform: scaleX(-1);
+  clip-path: polygon(0 0, 100% 0, 72% 17%, 90% 31%, 66% 45%, 86% 59%, 60% 74%, 79% 87%, 55% 100%, 0 100%);
 }
 html[data-backdrop="abyss"] .chat,
 html[data-backdrop="abyss"] .settings {
   background-color: transparent;
-  background-image: radial-gradient(circle at 50% 0%, rgba(94, 216, 229, 0.06), transparent 55%);
+  background-image: radial-gradient(circle at 50% 0%, rgba(236, 90, 102, 0.06), transparent 55%);
 }
 html[data-backdrop="antartika"] .sky {
   background:
