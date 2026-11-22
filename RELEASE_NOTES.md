@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.64
+
+### Changed
+
+- **Custom background images now belong to GitHub Light/Dark only.** Paper, Stars, Sakura, Antartika, Kraft, and Abyss keep their signature backgrounds. GitHub Light uses the light image, GitHub Dark uses the dark image, and `System` follows whichever GitHub mode is active. Settings cards are labelled **GitHub Light background** / **GitHub Dark background** to match.
+
 ## v0.0.63
 
 ### Added

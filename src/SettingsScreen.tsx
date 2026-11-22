@@ -271,15 +271,15 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
               </button>
             ))}
           </div>
-          <p className="hint">Paper is the warm writing paper. Sakura is pink with petals. Antartika is icy blue, Kraft is warm cardboard, Stars is the purple night sky, Abyss is deep teal, and the GitHub themes are the familiar plain light/dark palettes. System follows GitHub Light/Dark.</p>
+          <p className="hint">Paper is the warm writing paper. Sakura is pink with petals. Antartika is icy blue, Kraft is warm cardboard, Stars is the purple night sky, Abyss is deep teal, and the GitHub themes are the familiar plain light/dark palettes. System follows GitHub Light/Dark. Custom images below apply to GitHub Light/Dark only.</p>
           <BackgroundCard
-            title="Light background"
+            title="GitHub Light background"
             image={appearance?.light ?? null}
             onPick={file => void pick('light', file, onAppearance)}
             onReset={() => void window.icyteru.clearBackground('light').then(onAppearance)}
           />
           <BackgroundCard
-            title="Dark background"
+            title="GitHub Dark background"
             image={appearance?.dark ?? null}
             onPick={file => void pick('dark', file, onAppearance)}
             onReset={() => void window.icyteru.clearBackground('dark').then(onAppearance)}

@@ -124,8 +124,8 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   }, [])
   useEffect(() => {
     const root = document.documentElement
-    const image = snapshot.connection.theme === 'light' || snapshot.connection.theme === 'dark'
-      ? (dark ? appearance?.dark : appearance?.light)
+    const image = mode === 'github-light' || mode === 'github-dark'
+      ? (mode === 'github-dark' ? appearance?.dark : appearance?.light)
       : null
     root.dataset.backdrop = image
       ? 'image'
