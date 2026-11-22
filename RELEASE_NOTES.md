@@ -1,5 +1,16 @@
 # Icyteru release notes
 
+## v0.0.62
+
+### Fixed
+
+- **Session Info stays inside the viewport.** The card lived inside the resizable history panel, whose `overflow:hidden` and optional `backdrop-filter` clipped it when the panel got narrow. It now renders through a portal to `document.body`, centers in the viewport, and caps its height with scroll on short screens.
+
+### Changed
+
+- **Light mode has a paper background.** Default light mode now uses a warm paper color with faint ruled lines, a margin line, and subtle grain. The treatment is limited to the chat/settings surfaces so bubbles stay readable.
+- **Dark-mode stars are smaller.** Canvas star sizes and CSS twinkles were reduced for a calmer night sky.
+
 ## v0.0.61
 
 ### Added

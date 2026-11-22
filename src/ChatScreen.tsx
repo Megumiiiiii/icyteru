@@ -1,4 +1,5 @@
 import { Fragment, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
@@ -1898,7 +1899,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
           </details>
         </div>
       )}
-      {sessionInfo && (
+      {sessionInfo && createPortal(
         <div className="session-info-backdrop" role="presentation" onPointerDown={event => {
           if (event.currentTarget === event.target) setSessionInfo(null)
         }}>
@@ -1917,7 +1918,8 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
               </div>
             )}
           </section>
-        </div>
+        </div>,
+        document.body
       )}
     </aside>
   )

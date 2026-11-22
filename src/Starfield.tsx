@@ -32,13 +32,13 @@ export function Starfield() {
         const x = rand() * width
         const y = rand() * height
         const roll = rand()
-        const size = roll < 0.72 ? 0.8 + rand() * 0.7 : roll < 0.94 ? 1.7 + rand() * 0.9 : 2.8 + rand() * 1.1
+        const size = roll < 0.72 ? 0.55 + rand() * 0.45 : roll < 0.94 ? 1.2 + rand() * 0.6 : 1.9 + rand() * 0.8
         const lavender = rand() > 0.62
         const alpha = 0.62 + rand() * 0.38
-        if (size > 1.6) {
-          context.fillStyle = lavender ? `rgba(214, 190, 255, ${alpha * 0.45})` : `rgba(255, 255, 255, ${alpha * 0.35})`
+        if (size > 1.2) {
+          context.fillStyle = lavender ? `rgba(214, 190, 255, ${alpha * 0.4})` : `rgba(255, 255, 255, ${alpha * 0.3})`
           context.beginPath()
-          context.arc(x, y, size * 2.6, 0, Math.PI * 2)
+          context.arc(x, y, size * 2.2, 0, Math.PI * 2)
           context.fill()
         }
         context.fillStyle = lavender ? `rgba(226, 210, 255, ${alpha})` : `rgba(255, 255, 255, ${alpha})`
@@ -69,14 +69,14 @@ export function Starfield() {
 }
 
 const TWINKLES = [
-  { id: 1, left: '8%', top: '14%', width: 3, height: 3, animationDelay: '0s' },
-  { id: 2, left: '22%', top: '58%', width: 4, height: 4, animationDelay: '1.2s' },
-  { id: 3, left: '41%', top: '20%', width: 2, height: 2, animationDelay: '2.1s' },
-  { id: 4, left: '57%', top: '74%', width: 3, height: 3, animationDelay: '0.6s' },
-  { id: 5, left: '70%', top: '12%', width: 4, height: 4, animationDelay: '1.8s' },
-  { id: 6, left: '84%', top: '42%', width: 2, height: 2, animationDelay: '2.8s' },
-  { id: 7, left: '16%', top: '84%', width: 3, height: 3, animationDelay: '0.4s' },
-  { id: 8, left: '90%', top: '80%', width: 2, height: 2, animationDelay: '1.5s' },
-  { id: 9, left: '33%', top: '36%', width: 2, height: 2, animationDelay: '2.4s' },
-  { id: 10, left: '51%', top: '88%', width: 3, height: 3, animationDelay: '0.9s' }
+  { id: 1, left: '8%', top: '14%', width: 2, height: 2, animationDelay: '0s' },
+  { id: 2, left: '22%', top: '58%', width: 2.5, height: 2.5, animationDelay: '1.2s' },
+  { id: 3, left: '41%', top: '20%', width: 1.5, height: 1.5, animationDelay: '2.1s' },
+  { id: 4, left: '57%', top: '74%', width: 2, height: 2, animationDelay: '0.6s' },
+  { id: 5, left: '70%', top: '12%', width: 2.5, height: 2.5, animationDelay: '1.8s' },
+  { id: 6, left: '84%', top: '42%', width: 1.5, height: 1.5, animationDelay: '2.8s' },
+  { id: 7, left: '16%', top: '84%', width: 2, height: 2, animationDelay: '0.4s' },
+  { id: 8, left: '90%', top: '80%', width: 1.5, height: 1.5, animationDelay: '1.5s' },
+  { id: 9, left: '33%', top: '36%', width: 1.5, height: 1.5, animationDelay: '2.4s' },
+  { id: 10, left: '51%', top: '88%', width: 2, height: 2, animationDelay: '0.9s' }
 ]
