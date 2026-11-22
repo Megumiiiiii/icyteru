@@ -1048,7 +1048,7 @@ export class HermesClient {
     await this.ensureLive()
     let generation = this.executionGeneration
     if (!generation) generation = await this.fetchGeneration()
-    if (!generation) throw new Error('Steer needs a running turn. Send it as a normal message instead.')
+    if (!generation) return 'not_running'
     let result: unknown
     try {
       result = await this.rpc('session.steer', { session_id: this.live!.live, text: text.trim(), execution_generation: generation })
@@ -1056,8 +1056,17 @@ export class HermesClient {
       const message = error instanceof Error ? error.message : ''
       if (!/invalid_params|stale_generation/i.test(message)) throw error
       generation = await this.fetchGeneration()
-      if (!generation) throw new Error('Steer needs a running turn. Send it as a normal message instead.')
-      result = await this.rpc('session.steer', { session_id: this.live!.live, text: text.trim(), execution_generation: generation })
+      if (!generation) return 'not_running'
+      try {
+        result = await this.rpc('session.steer', { session_id: this.live!.live, text: text.trim(), execution_generation: generation })
+      } catch (retry) {
+        const retryMessage = retry instanceof Error ? retry.message : ''
+        if (/stale_generation/i.test(retryMessage)) {
+          this.markSessionIdle()
+          return 'not_running'
+        }
+        throw retry
+      }
     }
     const record = asRecord(result)
     if (record.status === 'queued') return 'Steered — the agent will read it at its next tool call.'
@@ -1115,17 +1124,32 @@ export class HermesClient {
     return output || `/${name}: no output`
   }
 
-  /** The live turn's generation, read from a resume when no event carried it yet. */
+  /** The live turn's generation, or 0 when the session is not running. */
   private async fetchGeneration(): Promise<number> {
     if (!this.live) return 0
     try {
       const resumed = await this.rpc('session.resume', { session_id: this.live.live })
       const body = asRecord(resumed)
+      if (body.running === false) {
+        this.markSessionIdle()
+        return 0
+      }
       if (typeof body.execution_generation === 'number') this.executionGeneration = body.execution_generation
     } catch {
       // The caller turns a missing generation into a clear message.
     }
     return this.executionGeneration
+  }
+
+  /** Clear a stale working state when the gateway says this session has no live turn. */
+  private markSessionIdle(): void {
+    this.executionGeneration = 0
+    this.transcript = { ...this.transcript, streaming: false }
+    if (this.live) {
+      this.sessions = this.sessions.map(row =>
+        row.id === this.live?.live || row.id === this.live?.stored ? { ...row, running: false } : row)
+    }
+    this.emit()
   }
 
   private async ensureLive(): Promise<void> {

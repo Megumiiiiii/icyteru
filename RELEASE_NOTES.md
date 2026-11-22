@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.72
+
+### Fixed
+
+- **Steer on an idle session no longer fails with `stale_generation`.** If a history session still looked like it was working but the gateway reported `running: false`, the client kept using an old execution generation. It now clears the stale working state and sends the text as a normal message instead of surfacing a gateway error.
+
 ## v0.0.71
 
 ### Added

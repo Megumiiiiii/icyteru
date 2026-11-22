@@ -614,6 +614,21 @@ test('compress handles pending and rows, and steer handles rejection', async () 
   assert.match(await c.steer('x'), /rejected/)
 })
 
+test('steer on an idle session clears a stale working state instead of failing', async () => {
+  const c = client()
+  c.live = live('s1')
+  c.executionGeneration = 42
+  c.transcript = { messages: [], streaming: true }
+  c.rpc = async (method: string) => {
+    if (method === 'session.steer') throw new Error('stale_generation')
+    if (method === 'session.resume') return { running: false, execution_generation: 42 }
+    throw new Error(method)
+  }
+  assert.equal(await c.steer('are you there?'), 'not_running')
+  assert.equal(c.transcript.streaming, false)
+  assert.equal(c.executionGeneration, 0)
+})
+
 test('answer covers generic server responses and no live interrupt', async () => {
   const c = client()
   let responded = ''

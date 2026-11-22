@@ -433,8 +433,8 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
     if (accepted.length) setFiles(current => [...current, ...accepted])
   }
 
-  async function submit(text: string, sendingFiles: OutgoingAttachment[]): Promise<void> {
-    if ((!text && sendingFiles.length === 0) || sending) return
+  async function submit(text: string, sendingFiles: OutgoingAttachment[], force = false): Promise<void> {
+    if ((!text && sendingFiles.length === 0) || (sending && !force)) return
     setDraft('')
     setFiles([])
     setSending(true)
@@ -612,6 +612,10 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
         setNotice('')
         try {
           const note = await window.icyteru.steer(arg)
+          if (note === 'not_running') {
+            await submit(arg, [], true)
+            return
+          }
           if (/^Steered|^Steer sent/.test(note)) beginSteer(note)
           else setNotice(note)
         } catch (error) {
@@ -682,6 +686,10 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
       setNotice('')
       try {
         const note = await window.icyteru.steer(pending.text)
+        if (note === 'not_running') {
+          await submit(pending.text, [], true)
+          return
+        }
         if (/^Steered|^Steer sent/.test(note)) beginSteer(note)
         else setNotice(note)
         setDraft('')
