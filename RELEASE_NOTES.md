@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.68
+
+### Fixed
+
+- **The Jobs history group now loads.** The gateway dashboard caps `/api/sessions` `limit` at 100, but Icyteru asked for 200, so every one-shot Jobs request returned 422 and the group silently disappeared. The client now requests the dashboard's 100-row cap, and a regression test covers the one-shot path.
+
 ## v0.0.67
 
 ### Fixed

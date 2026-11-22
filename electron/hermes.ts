@@ -603,7 +603,7 @@ export class HermesClient {
 
   /** Jobs are intentionally omitted from the human picker; read them by profile. */
   private async listJobSessions(): Promise<SessionRow[]> {
-    const path = this.profileApiPath('/api/sessions?source=oneshot&limit=200&order=recent')
+    const path = this.profileApiPath('/api/sessions?source=oneshot&limit=100&order=recent')
     const payload = await this.getJson(path).catch(() => null)
     return payload ? sortSessions(normalizeSessions(payload)) : []
   }

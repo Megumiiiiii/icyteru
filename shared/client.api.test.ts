@@ -117,6 +117,21 @@ test('refreshSessions merges one-shot jobs hidden by the picker', async () => {
   assert.equal(c.profileApiPath('/api/sessions?source=oneshot'), '/p/dialpool/api/sessions?source=oneshot')
 })
 
+test('listJobSessions respects the dashboard limit and reads one-shot rows', async () => {
+  const c = client()
+  let seen = ''
+  c.getJson = async (path: string) => {
+    seen = path
+    return { data: [{ id: 'job-1', source: 'oneshot', title: 'Gleam audit', message_count: 15 }] }
+  }
+  const rows = await c.listJobSessions()
+  assert.match(seen, /source=oneshot/)
+  assert.match(seen, /limit=100/)
+  assert.doesNotMatch(seen, /limit=200/)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].id, 'job-1')
+})
+
 test('onEvent never paints another session into an empty chat', () => {
   const c = client()
   c.live = null
