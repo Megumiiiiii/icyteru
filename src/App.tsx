@@ -51,6 +51,9 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   const mode = snapshot.connection.theme === 'system'
     ? (dark ? 'github-dark' : 'github-light')
     : snapshot.connection.theme
+  const image = mode === 'github-light' || mode === 'github-dark'
+    ? (mode === 'github-dark' ? appearance?.dark : appearance?.light)
+    : null
   useEffect(() => {
     void window.icyteru.getAppearance().then(setAppearance).catch(() => undefined)
   }, [])
@@ -124,9 +127,6 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   }, [])
   useEffect(() => {
     const root = document.documentElement
-    const image = mode === 'github-light' || mode === 'github-dark'
-      ? (mode === 'github-dark' ? appearance?.dark : appearance?.light)
-      : null
     root.dataset.backdrop = image
       ? 'image'
       : mode === 'sakura'
@@ -142,7 +142,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
                 : 'plain'
     root.style.setProperty('--bg-dim', String(appearance?.dim ?? 0.4))
     root.style.setProperty('--panel-blur', `${appearance?.blur ?? 12}px`)
-  }, [mode, dark, appearance, snapshot.connection.theme])
+  }, [mode, image, dark, appearance, snapshot.connection.theme])
 
   useEffect(() => {
     if (Capacitor.getPlatform() !== 'android') return
@@ -175,7 +175,6 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
     }
   }, [phoneView, snapshot.screen])
 
-  const image = dark ? appearance?.dark : appearance?.light
   const shellStyle = {
     '--sidebar-width': `${leftWidth}px`,
     '--details-width': `${rightWidth}px`

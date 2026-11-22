@@ -1,5 +1,15 @@
 # Icyteru release notes
 
+## v0.0.65
+
+### Fixed
+
+- **Custom backgrounds no longer leak into signature themes.** A second, ungated `image` variable in `App.tsx` bypassed the GitHub-only check, so Sakura, Abyss, Antartika, and Kraft could render the custom GitHub image. A single gated source now drives both the backdrop and the photo layer. Only GitHub Light, GitHub Dark, and `System` when it resolves to them use a custom image.
+
+### Changed
+
+- **Stars got the portfolio night-sky treatment.** Three CSS depth layers, 18 individually twinkling star dots (9 bright), and 5 soft glow stars replace the old single canvas. The Stars chat surface is more transparent and unblurred so the layers read through; reduced-motion still disables every star animation.
+
 ## v0.0.64
 
 ### Changed

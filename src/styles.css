@@ -200,8 +200,8 @@ html[data-backdrop="stars"] .connect-card {
   backdrop-filter: blur(var(--panel-blur));
 }
 html[data-backdrop="stars"] .chat {
-  background: color-mix(in srgb, var(--bg) 22%, transparent);
-  backdrop-filter: blur(2px);
+  background: color-mix(in srgb, var(--bg) 12%, transparent);
+  backdrop-filter: none;
 }
 html[data-backdrop="image"] .chat {
   background: color-mix(in srgb, var(--bg) 42%, transparent);
@@ -217,7 +217,7 @@ html[data-backdrop="image"] .sky-dim { opacity: var(--bg-dim); }
 html[data-backdrop="stars"] .sky-dim { opacity: 0; }
 html[data-backdrop="sakura"] .sky-dim { opacity: 0; }
 html[data-backdrop="plain"] .sky { display: none; }
-.starfield, .starfield canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.starfield, .starfield canvas { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }
 .sakura-petals { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .sakura-blossom {
   position: absolute;
@@ -253,14 +253,90 @@ html[data-backdrop="plain"] .sky { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .sakura-petals { display: none; }
 }
-.twinkle {
-  position: absolute; border-radius: 99px; background: #fff;
-  box-shadow: 0 0 6px rgba(220, 200, 255, 0.9);
-  animation: twinkle 3.8s ease-in-out infinite;
+.star-field {
+  position: absolute;
+  inset: -25%;
+  will-change: opacity, transform;
 }
-@keyframes twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+.star-far {
+  background-image:
+    radial-gradient(1.6px 1.6px at 12px 24px, rgb(255 255 255 / 0.75), transparent),
+    radial-gradient(1.6px 1.6px at 68px 132px, rgb(233 213 255 / 0.6), transparent),
+    radial-gradient(1.6px 1.6px at 118px 58px, rgb(255 255 255 / 0.55), transparent),
+    radial-gradient(1.6px 1.6px at 154px 196px, rgb(216 180 254 / 0.6), transparent),
+    radial-gradient(1.6px 1.6px at 206px 96px, rgb(255 255 255 / 0.5), transparent),
+    radial-gradient(1.6px 1.6px at 44px 218px, rgb(255 255 255 / 0.45), transparent),
+    radial-gradient(1.6px 1.6px at 232px 164px, rgb(233 213 255 / 0.5), transparent),
+    radial-gradient(1.6px 1.6px at 96px 8px, rgb(255 255 255 / 0.4), transparent);
+  background-size: 220px 220px;
+}
+.star-mid {
+  background-image:
+    radial-gradient(2.4px 2.4px at 36px 74px, rgb(255 255 255 / 0.95), transparent),
+    radial-gradient(2.4px 2.4px at 148px 22px, rgb(243 233 255 / 0.9), transparent),
+    radial-gradient(2.4px 2.4px at 92px 168px, rgb(255 255 255 / 0.85), transparent),
+    radial-gradient(2.4px 2.4px at 214px 128px, rgb(216 180 254 / 0.85), transparent),
+    radial-gradient(2.4px 2.4px at 268px 62px, rgb(255 255 255 / 0.8), transparent),
+    radial-gradient(2.4px 2.4px at 176px 244px, rgb(233 213 255 / 0.8), transparent);
+  background-size: 290px 290px;
+}
+.star-near {
+  background-image:
+    radial-gradient(3.2px 3.2px at 58px 118px, rgb(255 255 255 / 1), transparent),
+    radial-gradient(3.2px 3.2px at 202px 36px, rgb(255 255 255 / 0.95), transparent),
+    radial-gradient(3.2px 3.2px at 132px 232px, rgb(243 233 255 / 0.95), transparent),
+    radial-gradient(3.2px 3.2px at 300px 176px, rgb(255 255 255 / 0.9), transparent);
+  background-size: 380px 380px;
+}
+.glow-star {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 255 255 / 1) 0%, rgb(233 213 255 / 0.85) 35%, transparent 70%);
+  box-shadow: 0 0 16px 4px rgb(216 180 254 / 0.65);
+}
+.glow-star-1 { top: 18%; left: 22%; }
+.glow-star-2 { top: 62%; left: 74%; width: 6px; height: 6px; }
+.star-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 5px 1px rgb(233 213 255 / 0.8);
+  opacity: 0.72;
+  animation: star-pulse 5s ease-in-out infinite;
+}
+.star-dot.bright {
+  background: #fff;
+  box-shadow: 0 0 9px 2px rgb(216 180 254 / 0.9);
+}
+.glow-star-3 { top: 78%; left: 34%; width: 5px; height: 5px; }
+.glow-star-4 { top: 30%; left: 84%; width: 5px; height: 5px; }
+.glow-star-5 { top: 10%; left: 56%; width: 4px; height: 4px; }
+@keyframes star-twinkle {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}
+@keyframes star-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-90px, 60px, 0); }
+}
+@keyframes star-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .star-far { animation: star-twinkle 9s ease-in-out infinite alternate, star-drift 320s linear infinite; }
+  .star-mid { animation: star-twinkle 6.5s ease-in-out -2s infinite alternate, star-drift 240s linear infinite reverse; }
+  .star-near { animation: star-twinkle 4.5s ease-in-out -1s infinite alternate, star-drift 180s linear infinite; }
+  .glow-star-1 { animation: star-pulse 5s ease-in-out infinite; }
+  .glow-star-2 { animation: star-pulse 6.5s ease-in-out -1.8s infinite; }
+  .glow-star-3 { animation: star-pulse 4.2s ease-in-out -0.7s infinite; }
+  .glow-star-4 { animation: star-pulse 5.7s ease-in-out -2.4s infinite; }
+  .glow-star-5 { animation: star-pulse 4.9s ease-in-out -1.2s infinite; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .twinkle { animation: none; opacity: 0.8; }
+  .star-field, .glow-star, .star-dot { animation: none !important; }
 }
 .bg-card { display: grid; gap: 8px; margin-top: 14px; }
 .bg-preview {

@@ -1,82 +1,49 @@
-import { useEffect, useRef } from 'react'
+/** Three depth layers of CSS stars plus a few soft glow stars, matching the portfolio night sky. */
+const STARS = [
+  { left: 7, top: 16, size: 3, delay: 0.2 },
+  { left: 13, top: 68, size: 2, delay: 1.1 },
+  { left: 19, top: 37, size: 4, delay: 2.4 },
+  { left: 25, top: 82, size: 2, delay: 0.7 },
+  { left: 31, top: 12, size: 3, delay: 3.1 },
+  { left: 37, top: 57, size: 2, delay: 1.8 },
+  { left: 43, top: 29, size: 4, delay: 0.4 },
+  { left: 49, top: 74, size: 2, delay: 2.7 },
+  { left: 55, top: 44, size: 3, delay: 1.4 },
+  { left: 61, top: 9, size: 2, delay: 3.6 },
+  { left: 67, top: 63, size: 3, delay: 0.9 },
+  { left: 73, top: 35, size: 2, delay: 2.1 },
+  { left: 79, top: 79, size: 4, delay: 1.6 },
+  { left: 85, top: 22, size: 3, delay: 0.5 },
+  { left: 91, top: 54, size: 2, delay: 2.9 },
+  { left: 11, top: 91, size: 2, delay: 1.3 },
+  { left: 46, top: 6, size: 2, delay: 3.4 },
+  { left: 58, top: 88, size: 3, delay: 2.2 },
+]
 
-const NIGHT = '#1c1233'
-
-/** A cheap night sky. Stars are drawn once; a few CSS dots twinkle, and that animation stops when the user asks for less motion. */
 export function Starfield() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const context = canvas.getContext('2d')
-    if (!context) return
-    let frame = 0
-
-    const paint = () => {
-      const width = canvas.clientWidth
-      const height = canvas.clientHeight
-      const ratio = Math.min(window.devicePixelRatio || 1, 2)
-      canvas.width = Math.max(1, Math.floor(width * ratio))
-      canvas.height = Math.max(1, Math.floor(height * ratio))
-      context.setTransform(ratio, 0, 0, ratio, 0, 0)
-      context.fillStyle = NIGHT
-      context.fillRect(0, 0, width, height)
-      const count = Math.round((width * height) / 3800)
-      let seed = 20261119
-      const rand = () => {
-        seed = (seed * 1664525 + 1013904223) % 4294967296
-        return seed / 4294967296
-      }
-      for (let i = 0; i < count; i += 1) {
-        const x = rand() * width
-        const y = rand() * height
-        const roll = rand()
-        const size = roll < 0.72 ? 0.55 + rand() * 0.45 : roll < 0.94 ? 1.2 + rand() * 0.6 : 1.9 + rand() * 0.8
-        const lavender = rand() > 0.62
-        const alpha = 0.62 + rand() * 0.38
-        if (size > 1.2) {
-          context.fillStyle = lavender ? `rgba(214, 190, 255, ${alpha * 0.4})` : `rgba(255, 255, 255, ${alpha * 0.3})`
-          context.beginPath()
-          context.arc(x, y, size * 2.2, 0, Math.PI * 2)
-          context.fill()
-        }
-        context.fillStyle = lavender ? `rgba(226, 210, 255, ${alpha})` : `rgba(255, 255, 255, ${alpha})`
-        context.beginPath()
-        context.arc(x, y, size, 0, Math.PI * 2)
-        context.fill()
-      }
-    }
-
-    const onResize = () => {
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(paint)
-    }
-    paint()
-    window.addEventListener('resize', onResize)
-    return () => {
-      cancelAnimationFrame(frame)
-      window.removeEventListener('resize', onResize)
-    }
-  }, [])
-
   return (
     <div className="starfield" aria-hidden="true">
-      <canvas ref={canvasRef} />
-      {TWINKLES.map(star => <i key={star.id} className="twinkle" style={star} />)}
+      <span className="star-field star-far" />
+      <span className="star-field star-mid" />
+      <span className="star-field star-near" />
+      {STARS.map((star, index) => (
+        <i
+          key={index}
+          className={star.size >= 3 ? 'star-dot bright' : 'star-dot'}
+          style={{
+            left: `${star.left}%`,
+            top: `${star.top}%`,
+            width: star.size,
+            height: star.size,
+            animationDelay: `-${star.delay}s`,
+          }}
+        />
+      ))}
+      <span className="glow-star glow-star-1" />
+      <span className="glow-star glow-star-2" />
+      <span className="glow-star glow-star-3" />
+      <span className="glow-star glow-star-4" />
+      <span className="glow-star glow-star-5" />
     </div>
   )
 }
-
-const TWINKLES = [
-  { id: 1, left: '8%', top: '14%', width: 2, height: 2, animationDelay: '0s' },
-  { id: 2, left: '22%', top: '58%', width: 2.5, height: 2.5, animationDelay: '1.2s' },
-  { id: 3, left: '41%', top: '20%', width: 1.5, height: 1.5, animationDelay: '2.1s' },
-  { id: 4, left: '57%', top: '74%', width: 2, height: 2, animationDelay: '0.6s' },
-  { id: 5, left: '70%', top: '12%', width: 2.5, height: 2.5, animationDelay: '1.8s' },
-  { id: 6, left: '84%', top: '42%', width: 1.5, height: 1.5, animationDelay: '2.8s' },
-  { id: 7, left: '16%', top: '84%', width: 2, height: 2, animationDelay: '0.4s' },
-  { id: 8, left: '90%', top: '80%', width: 1.5, height: 1.5, animationDelay: '1.5s' },
-  { id: 9, left: '33%', top: '36%', width: 1.5, height: 1.5, animationDelay: '2.4s' },
-  { id: 10, left: '51%', top: '88%', width: 2, height: 2, animationDelay: '0.9s' }
-]
