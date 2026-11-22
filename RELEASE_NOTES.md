@@ -1,5 +1,18 @@
 # Icyteru release notes
 
+## v0.0.67
+
+### Fixed
+
+- **Profiles no longer share history.** Switching agents clears the previous history immediately and ignores a late refresh from the profile that was just left, so an empty profile cannot show another agent's sessions.
+- **Tool calls and messages stay in their own session.** Events from another session, profile, or a chat that is no longer live can no longer be painted into an empty "New chat". Approval and clarify cards remain global so they still reach you from any transport.
+- **Dialpool job history is visible.** One-shot `hermes -z` sessions are hidden by the gateway's normal picker; Icyteru now fetches the active profile's jobs from the profile-prefixed REST endpoint and lists them under **Jobs**. Job sessions without a live subscription open read-only.
+- **The working indicator stays honest.** A matching `session.info.running` is authoritative, with the session row and live subagents as fallbacks. After a tool-call preamble, **Ineffa is working…**, Stop, and Steer no longer disappear while the gateway is still thinking.
+
+### Changed
+
+- Session and side-panel refreshes are guarded by a profile epoch, preventing stale responses from repainting the newly selected agent.
+
 ## v0.0.66
 
 ### Changed

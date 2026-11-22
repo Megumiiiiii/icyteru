@@ -117,6 +117,7 @@ export class HermesClient {
   private usageTokensPerSecond: number | null = null
   private revision = 0
   private openEpoch = 0
+  private profileEpoch = 0
   private pendingModelConfirmation: { sessionId: string; model: string; provider: string; token: string } | null = null
   private wsUrl = ''
   private protocols: string[] = []
@@ -363,7 +364,12 @@ export class HermesClient {
     if (this.activeGatewayId !== gateway.id || !this.socket?.isOpen) {
       await this.activateGateway(gateway)
     }
+    // Never show the previous profile's rows while the new profile's list is
+    // loading, and never let a late response from that previous profile win.
+    this.sessions = []
+    this.listStyle = 'picker'
     this.applyProfile(profile)
+    this.emit()
     await this.newChat()
     await this.refreshSideData()
     await this.refreshSessions()
@@ -545,15 +551,26 @@ export class HermesClient {
   }
 
   async refreshSessions(): Promise<void> {
+    const profile = this.activeProfile
+    const gatewayId = this.activeGatewayId
+    const epoch = this.profileEpoch
+    const merge = this.reconnectMerge
+    const current = () => this.activeProfile === profile && this.activeGatewayId === gatewayId && this.profileEpoch === epoch
     const previous = this.sessions
+    // One-shot jobs (`hermes -z`) are deliberately hidden by the gateway's
+    // human session picker, so fetch them explicitly for the profile's history.
+    const jobs = await this.listJobSessions().catch(() => [])
+    if (!current()) return
     if (this.listStyle === 'picker') {
       const listed = await this.listSessions({ scope: 'stored', limit: 200, picker: true })
+      if (!current()) return
       if (listed.ok) {
         const next = sortSessions(normalizeSessions(listed.value))
         // A picker that briefly returns an empty page must not wipe a working history.
         if (next.length || !previous.length) {
-          this.sessions = this.reconnectMerge ? sortSessions(mergeSessionRows(previous, next)) : next
+          this.sessions = sortSessions(merge ? mergeSessionRows(previous, next) : next)
         }
+        this.sessions = sortSessions(mergeSessionRows(this.sessions, jobs))
         this.applyActiveSessionModel()
         this.emit()
         return
@@ -561,18 +578,34 @@ export class HermesClient {
       if (/unsupported|unknown method|invalid params|extra inputs/i.test(listed.error || '')) this.listStyle = 'plain'
     }
     const fallback = await this.listSessions({ limit: 200 })
+    if (!current()) return
     if (fallback.ok) {
       const next = sortSessions(normalizeSessions(fallback.value))
       // The live-only fallback is a subset after a reconnect; keep rows it omits.
-      this.sessions = sortSessions(mergeSessionRows(previous, next))
+      if (next.length || !previous.length) {
+        this.sessions = sortSessions(mergeSessionRows(previous, next))
+      }
+      this.sessions = sortSessions(mergeSessionRows(this.sessions, jobs))
       this.applyActiveSessionModel()
       this.emit()
       return
     }
-    const rest = await this.getJson('/api/sessions?limit=200&order=recent').catch(() => null)
-    if (rest) this.sessions = sortSessions(normalizeSessions(rest))
+    const rest = await this.getJson(this.profileApiPath('/api/sessions?limit=200&order=recent')).catch(() => null)
+    if (!current()) return
+    if (rest) {
+      const next = sortSessions(normalizeSessions(rest))
+      this.sessions = sortSessions(merge ? mergeSessionRows(previous, next) : next)
+      this.sessions = sortSessions(mergeSessionRows(this.sessions, jobs))
+    }
     this.applyActiveSessionModel()
     this.emit()
+  }
+
+  /** Jobs are intentionally omitted from the human picker; read them by profile. */
+  private async listJobSessions(): Promise<SessionRow[]> {
+    const path = this.profileApiPath('/api/sessions?source=oneshot&limit=200&order=recent')
+    const payload = await this.getJson(path).catch(() => null)
+    return payload ? sortSessions(normalizeSessions(payload)) : []
   }
 
   /** Keep the header on the live session's stored model, not the profile default. */
@@ -596,7 +629,23 @@ export class HermesClient {
       resumed = await this.rpc('session.resume', this.scope({ session_id: id, display_projection: true }))
     } catch {
       if (epoch !== this.openEpoch) return
-      resumed = await this.rpc('session.resume', this.scope({ session_id: id }))
+      try {
+        resumed = await this.rpc('session.resume', this.scope({ session_id: id }))
+      } catch (error) {
+        // One-shot/job rows are stored history without a resumable live
+        // subscription. Open them read-only from the profile's REST store.
+        if (epoch !== this.openEpoch) return
+        const raw = await this.getJson(this.profileApiPath(`/api/sessions/${encodeURIComponent(id)}/messages?limit=200&order=oldest`)).catch(() => null)
+        if (epoch !== this.openEpoch) return
+        const rows = Array.isArray(raw) ? raw : asRecord(raw).messages
+        if (!Array.isArray(rows)) throw error
+        this.live = { live: id, stored: id, subscriptionId: '' }
+        this.transcript = historyFromRows(rows)
+        this.question = null
+        this.subagents = []
+        this.emit()
+        return
+      }
     }
     if (epoch !== this.openEpoch) return
     const ids = pickSessionIds(resumed) ?? { live: id, stored: id }
@@ -613,6 +662,7 @@ export class HermesClient {
     }
     const messages = Array.isArray(body.display_messages) ? body.display_messages : body.messages
     this.transcript = historyFromRows(messages)
+    if (typeof body.running === 'boolean') this.transcript = { ...this.transcript, streaming: body.running }
     const info = asRecord(body.info)
     const infoModel = typeof info.model === 'string' && info.model ? info.model : ''
     const infoProvider = typeof info.provider === 'string' && info.provider ? info.provider : ''
@@ -661,7 +711,7 @@ export class HermesClient {
       }
     }
     try {
-      const raw = await this.getJson(`/api/sessions/${encodeURIComponent(id)}/messages?limit=200&order=oldest`)
+      const raw = await this.getJson(this.profileApiPath(`/api/sessions/${encodeURIComponent(id)}/messages?limit=200&order=oldest`))
       const rows = Array.isArray(raw) ? raw : asRecord(raw).messages
       if (Array.isArray(rows)) {
         messages = Math.max(messages, rows.length)
@@ -1285,6 +1335,7 @@ export class HermesClient {
   }
 
   private async refreshSideData(): Promise<void> {
+    const profileEpoch = this.profileEpoch
     const soulPath = `/api/profiles/${encodeURIComponent(this.activeProfile || 'default')}/soul`
     const [models, globalModels, skills, memory, soul] = await Promise.all([
       this.getJson(modelOptionsPath(this.live?.live)).catch(() => null),
@@ -1293,6 +1344,9 @@ export class HermesClient {
       this.getJson('/api/memory').catch(() => null),
       this.getJson(soulPath).catch(() => null)
     ])
+    // A profile switch while these requests were in flight must not repaint
+    // the new profile with the previous profile's side data.
+    if (profileEpoch !== this.profileEpoch) return
     const soulText = typeof asRecord(soul).content === 'string' ? String(asRecord(soul).content).trim() : ''
     const reasoning = this.side.reasoning
     const globalReasoning = this.side.globalReasoning
@@ -1365,6 +1419,12 @@ export class HermesClient {
   }
 
   private applyProfile(profile: AgentProfile): void {
+    if (this.activeProfile !== profile.name || this.activeGatewayId !== profile.gatewayId) {
+      // In-flight REST/WS reads from the profile the user just left must not
+      // land in the new profile's history.
+      this.profileEpoch += 1
+      this.sessions = []
+    }
     this.activeProfile = profile.name
     this.activeGatewayId = profile.gatewayId
     this.profileName = profile.label
@@ -1491,6 +1551,13 @@ export class HermesClient {
     if (!this.activeProfile || /[?&]profile=/.test(path)) return path
     const join = path.includes('?') ? '&' : '?'
     return `${path}${join}profile=${encodeURIComponent(this.activeProfile)}`
+  }
+
+  /** REST profile selection is a URL prefix, not a `?profile=` hint. */
+  private profileApiPath(path: string): string {
+    const profile = (this.activeProfile || '').trim()
+    if (!profile || profile === 'default' || path.startsWith('/p/')) return path
+    return `/p/${encodeURIComponent(profile)}${path.startsWith('/') ? path : `/${path}`}`
   }
 
   private async readStatus(baseUrl: string): Promise<{ version: string; authRequired: boolean }> {
@@ -1620,6 +1687,8 @@ export class HermesClient {
   private onEvent(event: GatewayEventFrame): void {
     if (event.type === 'gateway.ready') return
     const sessionId = event.session_id
+    const activeIds = this.live ? [this.live.live, this.live.stored] : []
+    const matchesActive = typeof sessionId === 'string' && sessionId.length > 0 && activeIds.includes(sessionId)
     // Control events belong to the turn, not to the session list. A prompt can
     // arrive while the client is between a stored and a live session id, so do
     // not drop it on that mismatch alone.
@@ -1632,18 +1701,6 @@ export class HermesClient {
       }
       return
     }
-    if (event.type.startsWith('subagent.')) {
-      if (!this.live) return
-      if (sessionId && sessionId !== this.live.live && sessionId !== this.live.stored) return
-      this.subagents = applySubagentEvent(this.subagents, event)
-      this.emit()
-      return
-    }
-    if (sessionId && this.live && sessionId !== this.live.live && sessionId !== this.live.stored) {
-      if (event.type === 'session.title' || event.type === 'message.complete') void this.refreshSessions()
-      return
-    }
-    if (typeof event.execution_generation === 'number') this.executionGeneration = event.execution_generation
     if (event.type === 'approval.settled' || event.type === 'clarify.settled') {
       const promptId = typeof event.payload?.prompt_id === 'string' ? event.payload.prompt_id : ''
       if (this.question && (!promptId || this.question.promptId === promptId || this.question.id === promptId)) {
@@ -1652,13 +1709,48 @@ export class HermesClient {
       }
       return
     }
-    if (event.type === 'session.title') {
-      const title = typeof event.payload?.title === 'string' ? event.payload.title : ''
-      if (title && this.live) {
-        this.sessions = this.sessions.map(row => row.id === this.live?.stored || row.id === this.live?.live ? { ...row, title } : row)
+    if (event.type.startsWith('subagent.')) {
+      // A closed/empty chat has no subscriber to attribute this event to.
+      if (!this.live || !matchesActive) return
+      this.subagents = applySubagentEvent(this.subagents, event)
+      this.emit()
+      return
+    }
+    if (event.type === 'session.info') {
+      // The authoritative turn state. A tool-call preamble can emit
+      // `message.complete` while the agent keeps working; a matching
+      // session.info with running=true must keep the working/Stop UI alive.
+      if (!this.live || !matchesActive) return
+      const payload = asRecord(event.payload)
+      if (typeof event.execution_generation === 'number') this.executionGeneration = event.execution_generation
+      if (typeof payload.revision === 'number') this.revision = payload.revision
+      if (typeof payload.running === 'boolean') {
+        this.transcript = { ...this.transcript, streaming: payload.running }
+        this.sessions = this.sessions.map(row =>
+          row.id === this.live?.live || row.id === this.live?.stored ? { ...row, running: payload.running as boolean } : row
+        )
+      }
+      this.emit()
+      return
+    }
+    // A history refresh can still be useful while the chat is empty, but the
+    // event must never be painted into the transcript.
+    if (event.type === 'session.title' || event.type === 'message.complete') {
+      if (!this.live || (sessionId && !matchesActive)) {
+        void this.refreshSessions()
+        return
       }
     }
+    if (event.type === 'session.title') {
+      const title = typeof event.payload?.title === 'string' ? event.payload.title : ''
+      if (title) {
+        this.sessions = this.sessions.map(row => row.id === this.live?.stored || row.id === this.live?.live ? { ...row, title } : row)
+      }
+      this.emit()
+      return
+    }
     if (event.type === 'session.usage') {
+      if (!this.live || (sessionId && !matchesActive)) return
       const payload = asRecord(event.payload)
       const usage = asRecord(payload.usage)
       const raw = usage.avg_tps ?? payload.tokens_per_s
@@ -1670,6 +1762,11 @@ export class HermesClient {
     }
     const interesting = event.type.startsWith('message.') || event.type.startsWith('tool.') || event.type === 'error'
     if (interesting) {
+      // A message/tool/error event without an active matching session is from
+      // another profile or a chat the user already left. Painting it into the
+      // empty "New chat" transcript leaks another agent's turn.
+      if (!this.live || !matchesActive) return
+      if (typeof event.execution_generation === 'number') this.executionGeneration = event.execution_generation
       if (event.type === 'message.delta' && typeof event.payload?.text === 'string') this.noteStreamText(event.payload.text)
       if (event.type === 'message.complete' || event.type === 'error') this.resetStreamRate()
       this.transcript = applyGatewayEvent(this.transcript, event)

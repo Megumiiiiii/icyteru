@@ -334,7 +334,13 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const active = snapshot.sessions.find(session => session.id === snapshot.activeSessionId)
   const profile = snapshot.profiles.find(item => item.gatewayId === snapshot.activeGatewayId && item.name === snapshot.activeProfile)
-  const streaming = snapshot.transcript.streaming
+  // The stored row can still say `running` after an intermediate
+  // `message.complete`; keep the working/Stop UI alive until the gateway says
+  // the turn is idle. A live delegated child is also a running turn.
+  const hasLiveSubagent = snapshot.subagents.some(item =>
+    !['completed', 'failed', 'timed_out', 'timeout', 'cancelled', 'error', 'stopped'].includes(item.status)
+  )
+  const streaming = snapshot.transcript.streaming || Boolean(active?.running) || hasLiveSubagent
   const toolRunning = useMemo(
     () => snapshot.transcript.messages.some(message => message.tools.some(tool => tool.status === 'running')),
     [snapshot.transcript.messages]

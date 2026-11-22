@@ -72,6 +72,7 @@ test('selectProfile applies the profile and starts a fresh chat', async () => {
   c.gateways = [{ id: 'primary', url: 'http://gw' }]
   c.profiles = [{ gatewayId: 'primary', name: 'scout', label: 'Scout' }]
   c.activeGatewayId = 'primary'
+  c.sessions = [{ id: 'old-profile-row', title: 'Old profile' }]
   c.socket = { isOpen: true }
   let selected = ''
   c.applyProfile = (profile: { name: string }) => { selected = profile.name }
@@ -80,6 +81,71 @@ test('selectProfile applies the profile and starts a fresh chat', async () => {
   c.refreshSessions = async () => undefined
   await c.selectProfile('primary', 'scout')
   assert.equal(selected, 'scout')
+  assert.equal(c.sessions.length, 0)
+})
+
+test('refreshSessions ignores a stale response after the profile changes', async () => {
+  const c = client()
+  c.activeProfile = 'rin'
+  c.profileEpoch = 1
+  c.sessions = [{ id: 'rin-row', title: 'Rin' }]
+  c.listJobSessions = async () => []
+  let resolveList: (value: unknown) => void = () => undefined
+  c.listSessions = () => new Promise(resolve => { resolveList = resolve })
+  const pending = c.refreshSessions()
+  c.activeProfile = 'dialpool'
+  c.profileEpoch = 2
+  c.sessions = []
+  resolveList({ ok: true, value: { sessions: [{ session_id: 'rin-row', title: 'Rin old' }] } })
+  await pending
+  assert.equal(c.sessions.length, 0)
+})
+
+test('refreshSessions merges one-shot jobs hidden by the picker', async () => {
+  const c = client()
+  c.activeProfile = 'dialpool'
+  c.sessions = []
+  c.listStyle = 'plain'
+  c.listJobSessions = async () => [{
+    id: 'job-1', title: 'Job one', preview: '', source: 'oneshot', model: '',
+    updatedAt: 2, messageCount: 4, running: false, pinned: false
+  }]
+  c.listSessions = async () => ({ ok: true, value: { sessions: [] } })
+  await c.refreshSessions()
+  assert.equal(c.sessions.length, 1)
+  assert.equal(c.sessions[0].id, 'job-1')
+  assert.equal(c.profileApiPath('/api/sessions?source=oneshot'), '/p/dialpool/api/sessions?source=oneshot')
+})
+
+test('onEvent never paints another session into an empty chat', () => {
+  const c = client()
+  c.live = null
+  c.transcript = { messages: [], streaming: false }
+  c.refreshSessions = async () => undefined
+  c.onEvent({ type: 'message.delta', session_id: 'other', payload: { text: 'leak', offset: 0, turn_id: 't', segment: 0 } })
+  c.onEvent({ type: 'tool.start', session_id: 'other', payload: { tool_id: 't1', name: 'terminal' } })
+  c.onEvent({ type: 'message.complete', session_id: 'other', payload: { text: 'done', status: 'ok' } })
+  assert.equal(c.transcript.messages.length, 0)
+  assert.equal(c.transcript.streaming, false)
+})
+
+test('session.info keeps the active turn running after a tool preamble', () => {
+  const c = client()
+  c.live = live('s1')
+  c.transcript = { messages: [], streaming: false }
+  c.sessions = [{ id: 's1', title: 'Active', running: false }]
+  c.onEvent({
+    type: 'session.info',
+    session_id: 's1',
+    execution_generation: 9,
+    payload: { running: true, revision: 7 }
+  })
+  assert.equal(c.transcript.streaming, true)
+  assert.equal(c.sessions[0].running, true)
+  assert.equal(c.executionGeneration, 9)
+  assert.equal(c.revision, 7)
+  c.onEvent({ type: 'session.info', session_id: 'other', payload: { running: true } })
+  assert.equal(c.transcript.streaming, true)
 })
 
 test('setPinned and createProfile call the gateway and refresh the roster', async () => {

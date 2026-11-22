@@ -843,6 +843,7 @@ export function sourceLabel(source: string): string {
     gui: 'Desktop',
     desktop: 'Desktop',
     cron: 'Schedule',
+    oneshot: 'Jobs',
     api: 'API',
     acp: 'Editor'
   }
