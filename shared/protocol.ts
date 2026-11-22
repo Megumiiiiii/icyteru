@@ -950,6 +950,15 @@ export interface PendingQuestion {
   choices: string[]
   secret: boolean
   questions: Array<{ id: string; question: string; choices: string[]; multiSelect?: boolean }>
+  /** Browser-vault prompt metadata; secrets stay in the input until the answer frame. */
+  vault?: {
+    kind: 'unlock' | 'code' | 'save_login'
+    backend?: string
+    displayName?: string
+    site?: string
+    origin?: string
+    hint?: string
+  }
   /** Event-backed approval/clarify prompt (gateway control stream). */
   promptId?: string
   executionGeneration?: number
@@ -1025,7 +1034,52 @@ export function questionFromRequest(id: string, method: string, params: unknown)
       questions
     }
   }
-  if (method === 'sudo' || method === 'secret' || method === 'vault.code' || method === 'vault.unlock_prompt') {
+  if (method === 'vault.unlock_prompt') {
+    const backend = textField(body, ['backend'])
+    const displayName = textField(body, ['display_name', 'backend']) || 'your password manager'
+    return {
+      id,
+      method,
+      sessionId,
+      title: `Unlock ${displayName}`,
+      body: 'Enter the master password here. It is sent straight to the vault and never reaches the model.',
+      choices: [],
+      secret: true,
+      questions: [],
+      vault: { kind: 'unlock', backend, displayName }
+    }
+  }
+  if (method === 'vault.code') {
+    const site = textField(body, ['site']) || 'this site'
+    const hint = textField(body, ['hint'])
+    return {
+      id,
+      method,
+      sessionId,
+      title: `Code for ${site}`,
+      body: hint || `Enter the one-time code ${site} sent you. It is sent straight to the vault and never reaches the model.`,
+      choices: [],
+      secret: true,
+      questions: [],
+      vault: { kind: 'code', site, hint }
+    }
+  }
+  if (method === 'vault.save_login') {
+    const site = textField(body, ['site']) || 'this site'
+    const origin = textField(body, ['origin'])
+    return {
+      id,
+      method,
+      sessionId,
+      title: `Save login for ${site}`,
+      body: `Save this login for ${origin || site}? The identifier and password stay in the vault and never reach the model.`,
+      choices: [],
+      secret: false,
+      questions: [],
+      vault: { kind: 'save_login', site, origin }
+    }
+  }
+  if (method === 'sudo' || method === 'secret') {
     return {
       id,
       method,

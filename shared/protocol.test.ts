@@ -217,6 +217,32 @@ test('normalizes models, memory, and approval cards', () => {
   assert.equal(questionFromRequest('srq-2', 'terminal.read', {}) , null)
 })
 
+test('normalizes browser-vault cards without putting secrets in the card body', () => {
+  const unlock = questionFromRequest('srq-v1', 'vault.unlock_prompt', {
+    session_id: 's', backend: 'bitwarden', display_name: 'Bitwarden'
+  })
+  assert.equal(unlock?.title, 'Unlock Bitwarden')
+  assert.equal(unlock?.secret, true)
+  assert.equal(unlock?.vault?.kind, 'unlock')
+  assert.equal(unlock?.vault?.backend, 'bitwarden')
+  assert.doesNotMatch(unlock?.body || '', /correct horse/)
+
+  const code = questionFromRequest('srq-v2', 'vault.code', {
+    session_id: 's', site: 'github.com', hint: 'Check your email'
+  })
+  assert.equal(code?.title, 'Code for github.com')
+  assert.equal(code?.body, 'Check your email')
+  assert.equal(code?.vault?.kind, 'code')
+
+  const login = questionFromRequest('srq-v3', 'vault.save_login', {
+    session_id: 's', site: 'github.com', origin: 'https://github.com'
+  })
+  assert.equal(login?.title, 'Save login for github.com')
+  assert.equal(login?.secret, false)
+  assert.equal(login?.vault?.kind, 'save_login')
+  assert.equal(login?.vault?.origin, 'https://github.com')
+})
+
 test('detects the login a gateway asks for from its public status', () => {
   assert.equal(detectAuthMode({ auth_required: false }), 'none')
   assert.equal(detectAuthMode({ auth_required: true, auth_providers: ['basic'] }), 'password')

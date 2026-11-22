@@ -242,6 +242,34 @@ export function previewSnapshot(shot: string): Snapshot {
       executionGeneration: 7
     }
   }
+  if (shot === 'vault-save') {
+    base.transcript.streaming = true
+    base.question = {
+      id: 'q-preview-vault-save',
+      method: 'vault.save_login',
+      sessionId: 's1',
+      title: 'Save login for github.com',
+      body: 'Save this login for https://github.com? The identifier and password stay in the vault and never reach the model.',
+      choices: [],
+      secret: false,
+      questions: [],
+      vault: { kind: 'save_login', site: 'github.com', origin: 'https://github.com' }
+    }
+  }
+  if (shot === 'vault-code') {
+    base.transcript.streaming = true
+    base.question = {
+      id: 'q-preview-vault-code',
+      method: 'vault.code',
+      sessionId: 's1',
+      title: 'Code for github.com',
+      body: 'Enter the one-time code github.com sent you. It is sent straight to the vault and never reaches the model.',
+      choices: [],
+      secret: true,
+      questions: [],
+      vault: { kind: 'code', site: 'github.com' }
+    }
+  }
   if (shot === 'remote-clarify') {
     base.transcript.streaming = true
     base.remoteClarifies = [{

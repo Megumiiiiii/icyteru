@@ -1,5 +1,16 @@
 # Icyteru release notes
 
+## v0.0.71
+
+### Added
+
+- **Rich browser-vault cards.** Icyteru now renders `vault.unlock_prompt`, `vault.code`, and `vault.save_login` as dedicated cards: password-manager unlock, one-time code with the site/hint, and save-login with identifier + password fields. Secrets stay in the input and travel only in the answer frame; they never enter the transcript, logs, or model context.
+- **Vault prompts can reach Icyteru from Telegram/Discord sessions.** When the same session is open in Icyteru, the gateway sends the vault request to that viewer instead of only local Desktop turns. If no viewer is attached, the prompt is skipped immediately rather than waiting.
+
+### Fixed
+
+- `vault.save_login` was previously not understood by the client, and unlock/code cards appeared as a generic “Hermes needs a secret” prompt. Each kind now has the correct title, body, fields, and reply payload.
+
 ## v0.0.70
 
 ### Fixed

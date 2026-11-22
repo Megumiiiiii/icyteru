@@ -1106,6 +1106,7 @@ function SubagentGroup({ subagents }: { subagents: SubagentProgress[] }) {
 
 function QuestionCard({ question }: { question: NonNullable<Snapshot['question']> }) {
   const [secret, setSecret] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [multi, setMulti] = useState<Record<string, string[]>>({})
   const [custom, setCustom] = useState<Record<string, string>>({})
@@ -1133,6 +1134,8 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
     if (item.multiSelect) return (multi[item.id] || []).length > 0
     return Boolean((answers[item.id] || '').trim())
   })
+  const saveLogin = question.vault?.kind === 'save_login'
+  const secretPlaceholder = question.vault?.kind === 'code' ? 'One-time code' : 'Master password'
 
   return (
     <section className="question">
@@ -1224,9 +1227,52 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
           </button>
         </div>
       )}
-      {question.secret && (
+      {saveLogin && (
+        <form
+          className="vault-fields"
+          onSubmit={event => {
+            event.preventDefault()
+            const login = identifier.trim()
+            if (!login || !secret) return
+            void send({ value: JSON.stringify({ identifier: login, password: secret }) })
+          }}
+        >
+          <label>
+            <span>Email, phone, or username</span>
+            <input
+              value={identifier}
+              onChange={event => setIdentifier(event.target.value)}
+              autoComplete="username"
+              placeholder="Email, phone, or username"
+            />
+          </label>
+          <label>
+            <span>Password</span>
+            <input
+              type="password"
+              value={secret}
+              onChange={event => setSecret(event.target.value)}
+              autoComplete="current-password"
+              placeholder="Password"
+            />
+          </label>
+          <div className="row">
+            <button className="solid" type="submit" disabled={!identifier.trim() || !secret || sending}>
+              {sending ? 'Saving…' : 'Save login'}
+            </button>
+            <button className="ghost" onClick={() => void send({ value: '' })} disabled={sending} type="button">Skip</button>
+          </div>
+        </form>
+      )}
+      {question.secret && !saveLogin && (
         <form onSubmit={event => { event.preventDefault(); void send({ value: secret }) }}>
-          <input type="password" value={secret} onChange={event => setSecret(event.target.value)} placeholder="Password or secret" />
+          <input
+            type="password"
+            value={secret}
+            onChange={event => setSecret(event.target.value)}
+            autoComplete={question.vault?.kind === 'code' ? 'one-time-code' : 'current-password'}
+            placeholder={secretPlaceholder}
+          />
           <div className="row">
             <button className="solid" type="submit" disabled={sending}>Send</button>
             <button className="ghost" onClick={() => void send({ value: '' })} disabled={sending} type="button">Skip</button>
