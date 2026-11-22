@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.70
+
+### Fixed
+
+- **Pinned sessions stay pinned.** Live session rows were merged without the picker fields, so their `pinned` value became false and overwrote the stored pin. History then showed only a subset of pins and a second pin attempt hit the gateway's 404 "no change" path. Live history now requests picker fields and keeps the authoritative pinned state; a regression test covers live and stored rows.
+
 ## v0.0.69
 
 ### Added

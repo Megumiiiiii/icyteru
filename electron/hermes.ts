@@ -668,7 +668,7 @@ export class HermesClient {
         // The stored picker only lists legacy/closed rows. A live local session
         // created by this client is in the live feed, not that picker, so merge
         // the live page as well; otherwise the chat vanishes from History.
-        const live = await this.listSessions({ limit: 200 })
+        const live = await this.listSessions({ limit: 200, picker: true })
         if (!current()) return
         const liveRows = live.ok ? sortSessions(normalizeSessions(live.value)) : []
         // A picker that briefly returns an empty page must not wipe a working history.

@@ -136,11 +136,18 @@ test('refreshSessions merges a live local session the stored picker omits', asyn
   const c = client()
   c.listStyle = 'picker'
   c.listJobSessions = async () => []
-  c.listSessions = async (params: { scope?: string }) => params.scope === 'stored'
-    ? { ok: true, value: { sessions: [{ session_id: 'stored-1', title: 'Stored', source: 'telegram', message_count: 2 }] } }
-    : { ok: true, value: { sessions: [{ session_id: 'live-local', title: 'Ineffa ASCII art self-portrait', source: 'local', message_count: 2, running: true }] } }
+  let liveParams: { picker?: boolean } = {}
+  c.listSessions = async (params: { scope?: string; picker?: boolean }) => {
+    if (params.scope === 'stored') {
+      return { ok: true, value: { sessions: [{ session_id: 'stored-1', title: 'Stored', source: 'telegram', message_count: 2, pinned: true }] } }
+    }
+    liveParams = params
+    return { ok: true, value: { sessions: [{ session_id: 'live-local', title: 'Ineffa ASCII art self-portrait', source: 'local', message_count: 2, running: true, pinned: true }] } }
+  }
   await c.refreshSessions()
+  assert.equal(liveParams.picker, true)
   assert.deepEqual((c.sessions as Array<{ id: string }>).map(row => row.id).sort(), ['live-local', 'stored-1'])
+  assert.equal((c.sessions as Array<{ pinned: boolean }>).every(row => row.pinned), true)
 })
 
 test('subagent.list fills the card when the turn route sends no subagent events', async () => {
