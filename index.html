@@ -8,8 +8,12 @@
     <script>
       try {
         var theme = localStorage.getItem('icyteru-theme') || 'system'
-        var dark = theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        var known = ['light', 'sakura', 'antartika', 'kraft', 'dark', 'abyss', 'github-light', 'github-dark', 'system']
+        if (known.indexOf(theme) < 0) theme = 'system'
+        var mode = theme === 'system'
+          ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'github-dark' : 'github-light')
+          : theme
+        document.documentElement.dataset.theme = mode
       } catch (e) {}
     </script>
   </head>

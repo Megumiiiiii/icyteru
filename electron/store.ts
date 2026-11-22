@@ -1,7 +1,7 @@
 import { app, safeStorage } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { ThemePreference } from '../shared/snapshot'
+import { isThemePreference, type ThemePreference } from '../shared/snapshot'
 
 export interface SavedGateway {
   id: string
@@ -52,7 +52,7 @@ export function loadConnection(): SavedConnection {
       username: decodeToken(parsed.username),
       password: decodeToken(parsed.password),
       method: parsed.method === 'password' || parsed.method === 'token' ? parsed.method : undefined,
-      theme: parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'system' ? parsed.theme : 'system',
+      theme: isThemePreference(parsed.theme) ? parsed.theme : 'system',
       gateways: Array.isArray(parsed.gateways)
         ? parsed.gateways.flatMap(gateway => {
           if (!gateway || typeof gateway.url !== 'string' || !gateway.url) return []

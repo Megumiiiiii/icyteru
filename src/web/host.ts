@@ -5,7 +5,7 @@
  */
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { HermesClient } from '../../electron/hermes'
-import { emptySnapshot, type AppScreen, type Snapshot, type ThemePreference } from '../../shared/snapshot'
+import { emptySnapshot, isThemePreference, type AppScreen, type Snapshot, type ThemePreference } from '../../shared/snapshot'
 import type { AuthDiscovery, NotificationPayload, OutgoingAttachment, SessionInfo } from '../../shared/protocol'
 import { enableNotifications, sendNotification } from '../notifications'
 import { APP_VERSION } from '../version'
@@ -77,7 +77,7 @@ function loadConnection(): SavedConnection {
       username: typeof parsed.username === 'string' ? parsed.username : '',
       password: typeof parsed.password === 'string' ? parsed.password : '',
       method: parsed.method === 'password' || parsed.method === 'token' ? parsed.method : undefined,
-      theme: parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'system' ? parsed.theme : 'system',
+      theme: isThemePreference(parsed.theme) ? parsed.theme : 'system',
       gateways: Array.isArray(parsed.gateways)
         ? parsed.gateways.flatMap(gateway => {
           if (!gateway || typeof gateway.url !== 'string' || !gateway.url) return []
@@ -362,7 +362,7 @@ export function installWebHost(): void {
       return snapshot()
     },
     setTheme: async (theme: ThemePreference) => {
-      if (theme !== 'light' && theme !== 'dark' && theme !== 'system') return snapshot()
+      if (!isThemePreference(theme)) return snapshot()
       saved = { ...saved, theme }
       persist()
       publish()

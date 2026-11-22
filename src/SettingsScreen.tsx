@@ -3,6 +3,7 @@ import { PhoneNav } from './phone'
 import { APP_VERSION } from './version'
 import type { AuthMode } from '../shared/protocol'
 import type { Snapshot, ThemePreference } from '../shared/snapshot'
+import { THEME_PREFERENCES } from '../shared/snapshot'
 
 type Appearance = { dim: number; blur: number; light: string | null; dark: string | null }
 type Method = 'password' | 'token'
@@ -258,19 +259,19 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
         </section>
         <section>
           <h2>Appearance</h2>
-          <div className="theme-choices">
-            {(['light', 'dark', 'system'] as ThemePreference[]).map(theme => (
+          <div className="theme-choices theme-grid">
+            {THEME_PREFERENCES.map(theme => (
               <button
                 key={theme}
                 className={snapshot.connection.theme === theme ? 'solid' : 'ghost'}
                 onClick={() => void window.icyteru.setTheme(theme)}
                 type="button"
               >
-                {theme === 'system' ? 'Match system' : theme === 'light' ? 'Light' : 'Dark'}
+                {themeLabel(theme)}
               </button>
             ))}
           </div>
-          <p className="hint">Light mode is the warm paper look. Dark mode is a purple night sky with stars, unless you set a picture below.</p>
+          <p className="hint">Paper is the warm writing paper. Sakura is pink with petals. Antartika is icy blue, Kraft is warm cardboard, Stars is the purple night sky, Abyss is deep teal, and the GitHub themes are the familiar plain light/dark palettes. System follows GitHub Light/Dark.</p>
           <BackgroundCard
             title="Light background"
             image={appearance?.light ?? null}
@@ -385,6 +386,21 @@ function BackgroundCard({ title, image, onPick, onReset }: {
       </div>
     </div>
   )
+}
+
+function themeLabel(theme: ThemePreference): string {
+  const labels: Record<ThemePreference, string> = {
+    light: 'Paper',
+    sakura: 'Sakura',
+    antartika: 'Antartika',
+    kraft: 'Kraft',
+    dark: 'Stars',
+    abyss: 'Abyss',
+    'github-light': 'GitHub Light',
+    'github-dark': 'GitHub Dark',
+    system: 'System'
+  }
+  return labels[theme]
 }
 
 async function pick(mode: 'light' | 'dark', file: File, onAppearance: (appearance: Appearance) => void) {

@@ -1,6 +1,24 @@
 import type { AgentProfile, AuthMode, MemoryView, ModelChoice, PendingQuestion, RemoteApproval, RemoteClarify, SessionRow, SkillRow, SubagentProgress, Transcript } from './protocol'
 
-export type ThemePreference = 'light' | 'dark' | 'system'
+export type ThemePreference =
+  | 'light'
+  | 'sakura'
+  | 'antartika'
+  | 'kraft'
+  | 'dark'
+  | 'abyss'
+  | 'github-light'
+  | 'github-dark'
+  | 'system'
+
+export const THEME_PREFERENCES: readonly ThemePreference[] = [
+  'light', 'sakura', 'antartika', 'kraft', 'dark', 'abyss', 'github-light', 'github-dark', 'system'
+]
+
+export function isThemePreference(value: unknown): value is ThemePreference {
+  return typeof value === 'string' && (THEME_PREFERENCES as readonly string[]).includes(value)
+}
+
 export type AppScreen = 'connect' | 'chat' | 'settings'
 
 export interface GatewayInfo {

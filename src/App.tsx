@@ -8,6 +8,7 @@ import { ConnectScreen } from './ConnectScreen'
 import { SettingsScreen } from './SettingsScreen'
 import { initialPhone, PhoneNav, type PhoneView } from './phone'
 import { PinIcon } from './PinIcon'
+import { SakuraPetals } from './SakuraPetals'
 import { Starfield } from './Starfield'
 import { isRecent } from './time'
 
@@ -47,6 +48,9 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   const lastQuestion = useRef<string | null>(null)
   const sizeRef = useRef({ left: leftWidth, right: rightWidth })
   const dark = useDark(snapshot.connection.theme)
+  const mode = snapshot.connection.theme === 'system'
+    ? (dark ? 'github-dark' : 'github-light')
+    : snapshot.connection.theme
   useEffect(() => {
     void window.icyteru.getAppearance().then(setAppearance).catch(() => undefined)
   }, [])
@@ -120,11 +124,25 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   }, [])
   useEffect(() => {
     const root = document.documentElement
-    const image = dark ? appearance?.dark : appearance?.light
-    root.dataset.backdrop = image ? 'image' : dark ? 'stars' : 'plain'
+    const image = snapshot.connection.theme === 'light' || snapshot.connection.theme === 'dark'
+      ? (dark ? appearance?.dark : appearance?.light)
+      : null
+    root.dataset.backdrop = image
+      ? 'image'
+      : mode === 'sakura'
+        ? 'sakura'
+        : mode === 'abyss'
+          ? 'abyss'
+          : mode === 'antartika'
+            ? 'antartika'
+            : mode === 'kraft'
+              ? 'kraft'
+              : mode === 'dark'
+                ? 'stars'
+                : 'plain'
     root.style.setProperty('--bg-dim', String(appearance?.dim ?? 0.4))
     root.style.setProperty('--panel-blur', `${appearance?.blur ?? 12}px`)
-  }, [dark, appearance])
+  }, [mode, dark, appearance, snapshot.connection.theme])
 
   useEffect(() => {
     if (Capacitor.getPlatform() !== 'android') return
@@ -200,7 +218,8 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   return (
     <>
       <div className="sky" aria-hidden="true">
-        {dark && !image && <Starfield />}
+        {mode === 'dark' && !image && <Starfield />}
+        {mode === 'sakura' && !image && <SakuraPetals />}
         {image && <div className="sky-photo" style={{ backgroundImage: `url("${image}")` }} />}
         <div className="sky-dim" />
       </div>
@@ -376,12 +395,18 @@ function useDark(theme: ThemePreference): boolean {
   return dark
 }
 
+const DARK_THEMES = new Set<ThemePreference>(['dark', 'abyss', 'github-dark'])
+
 function resolveDark(theme: ThemePreference): boolean {
-  return theme === 'dark' || (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  if (theme === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches
+  return DARK_THEMES.has(theme)
 }
 
 function applyTheme(theme: ThemePreference): void {
-  document.documentElement.dataset.theme = resolveDark(theme) ? 'dark' : 'light'
+  const mode = theme === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'github-dark' : 'github-light')
+    : theme
+  document.documentElement.dataset.theme = mode
   localStorage.setItem('icyteru-theme', theme)
 }
 

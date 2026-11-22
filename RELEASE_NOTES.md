@@ -1,5 +1,16 @@
 # Icyteru release notes
 
+## v0.0.63
+
+### Added
+
+- **Nine themes.** Paper, Sakura, Antartika, Kraft, Stars, Abyss, GitHub Light, GitHub Dark, and System are available in Settings. Sakura now has falling petals and faint blossoms; Abyss has a deep teal-ocean backdrop; Antartika is icy blue; Kraft is warm cardboard; Stars keeps the purple night sky. GitHub themes stay deliberately plain.
+- **System follows GitHub.** When the theme is `System`, light mode resolves to GitHub Light and dark mode to GitHub Dark. The pre-paint script and persisted theme validation understand the new ids.
+
+### Changed
+
+- Settings uses a compact 3×3 theme grid (2 columns on phones), and the theme labels now describe the palettes instead of only Light/Dark.
+
 ## v0.0.62
 
 ### Fixed

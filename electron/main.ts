@@ -6,7 +6,7 @@ import path from 'node:path'
 import { clearBackground, loadAppearance, saveBackdrop, saveBackground, type BackdropMode } from './appearance'
 import { HermesClient, type ConnectionCredentials } from './hermes'
 import { clearConnection, loadConnection, saveConnection, type SavedConnection } from './store'
-import { emptySnapshot, type AppScreen, type Snapshot, type ThemePreference } from '../shared/snapshot'
+import { emptySnapshot, isThemePreference, type AppScreen, type Snapshot, type ThemePreference } from '../shared/snapshot'
 import type { AuthMode, NotificationPayload, OutgoingAttachment } from '../shared/protocol'
 
 type ConnectionInput = { url?: string; token?: string; username?: string; password?: string; method?: 'password' | 'token' }
@@ -247,7 +247,7 @@ function registerIpc(): void {
     return snapshot()
   })
   ipcMain.handle('set-theme', async (_event: IpcMainInvokeEvent, theme: ThemePreference) => {
-    if (theme !== 'light' && theme !== 'dark' && theme !== 'system') return snapshot()
+    if (!isThemePreference(theme)) return snapshot()
     saved = { ...saved, theme }
     saveConnection(saved)
     publish()

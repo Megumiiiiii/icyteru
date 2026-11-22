@@ -1,5 +1,5 @@
 import { applyGatewayEvent, emptyTranscript, type AgentProfile, type SessionRow } from '../shared/protocol'
-import { emptySnapshot, type Snapshot } from '../shared/snapshot'
+import { emptySnapshot, type Snapshot, type ThemePreference } from '../shared/snapshot'
 
 type ProfileSeed = Pick<AgentProfile, 'name' | 'label' | 'initial' | 'preview' | 'pinned' | 'lastActive'>
 
@@ -43,6 +43,8 @@ function session(id: string, title: string, source: string, minutesAgo: number):
 
 export function previewSnapshot(shot: string): Snapshot {
   const dark = shot.startsWith('dark')
+  const namedTheme = ['sakura', 'antartika', 'kraft', 'abyss', 'github-light', 'github-dark']
+    .find(theme => shot.startsWith(theme))
   const connect = shot === 'connect'
   const markdown = shot === 'markdown' || shot === 'dark-markdown'
   const base = emptySnapshot({
@@ -50,14 +52,14 @@ export function previewSnapshot(shot: string): Snapshot {
     hasToken: !connect,
     hasPassword: false,
     authMode: 'token',
-    theme: dark ? 'dark' : 'light',
+    theme: (namedTheme || (dark ? 'dark' : 'light')) as ThemePreference,
     gateways: []
   })
   if (connect) {
     base.screen = 'connect'
     return base
   }
-  base.screen = shot === 'settings' || shot === 'dark-settings' || shot === 'settings-global' ? 'settings' : 'chat'
+  base.screen = shot === 'settings' || shot === 'dark-settings' || shot === 'sakura-settings' || shot === 'settings-global' ? 'settings' : 'chat'
   base.phase = 'ready'
   base.hermesVersion = '0.1.0'
   base.profileName = 'Hermes'
