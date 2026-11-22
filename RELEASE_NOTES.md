@@ -1,5 +1,17 @@
 # Icyteru release notes
 
+## v0.0.69
+
+### Added
+
+- **Code blocks are copyable and expandable.** Fenced code now has a `CODE` header with Copy and Expand actions, a Copied confirmation, and an Android/WebView clipboard fallback. Expanded code opens in a dismissible modal.
+- **Subagent cards work for every session source.** Turns whose gateway route does not publish `subagent.*` events (for example a Telegram session opened in Icyteru) now poll `subagent.list` when `delegate_task` starts, so the live card still shows goals, status, and tool counts.
+
+### Fixed
+
+- **New Chat no longer makes the previous local session vanish.** History now merges the live feed with the stored picker; live local sessions were previously omitted from the sidebar, and New Chat now refreshes history immediately.
+- **Presence dots are honest.** The selected agent always gets a live dot, and the History running dot also follows streaming, tool calls, and live subagents instead of only a gateway row flag. Stale running flags are cleared on refresh.
+
 ## v0.0.68
 
 ### Fixed

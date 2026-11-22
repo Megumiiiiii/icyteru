@@ -884,6 +884,86 @@ html[data-backdrop="kraft"] .sky-dim { opacity: 0; }
   word-break: break-word;
 }
 
+.md-code {
+  margin: 0 0 10px;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.md-code-head, .code-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 5px 4px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.md-code-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+}
+.md-code-lang {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  opacity: 0.75;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.md-code-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.md-code-action {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.md-code-action:hover, .md-code-action:focus-visible { background: var(--glass); color: var(--ink); }
+.md-code-action.copied { color: var(--ok); }
+.md-code > pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.code-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(12, 8, 24, 0.72);
+}
+.code-modal-card {
+  display: flex;
+  width: min(900px, 100%);
+  max-height: min(84dvh, 900px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.code-modal-body { min-height: 0; padding: 14px; overflow: auto; }
+.code-modal-body pre {
+  max-height: none;
+  margin: 0;
+  border: 0;
+  background: var(--bg);
+}
+
 .tools { margin-top: 8px; }
 .tool-status { display: inline-grid; place-items: center; flex: none; width: 1em; height: 1em; line-height: 1; }
 .tool-status.running { box-sizing: border-box; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: tool-spin .8s linear infinite; }
@@ -1648,6 +1728,16 @@ button:disabled { opacity: 0.45; cursor: default; }
   .queue-pill,
   .queue-actions button {
     min-height: 44px;
+  }
+  .md-code-action {
+    width: 44px;
+    height: 44px;
+  }
+  .md-code-head, .code-modal-head {
+    padding: 2px 3px 2px 10px;
+  }
+  .code-modal {
+    padding: 8px;
   }
 }
 

@@ -307,6 +307,15 @@ test('reasoning header updates immediately and new chats use the global level', 
   assert.equal(client.side.reasoning, '')
 })
 
+test('newChat refreshes history so the ended session stays visible', async () => {
+  const c = clientWithSession('s1', 'deepseek/deepseek-v4.1-flash')
+  let refreshed = 0
+  ;(c as unknown as { refreshSessions: () => Promise<void> }).refreshSessions = async () => { refreshed += 1 }
+  await c.newChat()
+  await new Promise(resolve => setTimeout(resolve, 0))
+  assert.equal(refreshed, 1)
+})
+
 test('newChat and send clear the previous turn Tok/s before a new reply starts', async () => {
   const c = clientWithSession('s1', 'deepseek/deepseek-v4.1-flash')
   ;(c as unknown as { side: { tokensPerSecond: number | null } }).side.tokensPerSecond = 87

@@ -1751,6 +1751,10 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
         : current))
   }
   const needle = query.trim().toLowerCase()
+  const activeSessionRunning = snapshot.transcript.streaming
+    || snapshot.transcript.messages.some(message => message.tools.some(tool => tool.status === 'running'))
+    || snapshot.subagents.some(item => !['completed', 'failed', 'timed_out', 'timeout', 'cancelled', 'error', 'stopped'].includes(item.status))
+    || Boolean(snapshot.sessions.find(session => session.id === snapshot.activeSessionId)?.running)
   const sessions = snapshot.sessions.filter(session => `${session.title} ${session.preview} ${session.source}`.toLowerCase().includes(needle))
   const bySource = new Map<string, typeof sessions>()
   for (const session of sessions) {
@@ -1813,7 +1817,9 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
                         onClick={() => { phone.setView('chat'); void window.icyteru.openSession(session.id) }}
                       >
                         <span className="session-title">
-                          {session.running && <i className="dot" />}
+                          {(session.running || (session.id === snapshot.activeSessionId && activeSessionRunning)) && (
+                            <i className="dot" title="Session is running" aria-label="Session is running" />
+                          )}
                           {session.title}
                         </span>
                         <span className="session-meta">

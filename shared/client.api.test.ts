@@ -132,6 +132,67 @@ test('listJobSessions respects the dashboard limit and reads one-shot rows', asy
   assert.equal(rows[0].id, 'job-1')
 })
 
+test('refreshSessions merges a live local session the stored picker omits', async () => {
+  const c = client()
+  c.listStyle = 'picker'
+  c.listJobSessions = async () => []
+  c.listSessions = async (params: { scope?: string }) => params.scope === 'stored'
+    ? { ok: true, value: { sessions: [{ session_id: 'stored-1', title: 'Stored', source: 'telegram', message_count: 2 }] } }
+    : { ok: true, value: { sessions: [{ session_id: 'live-local', title: 'Ineffa ASCII art self-portrait', source: 'local', message_count: 2, running: true }] } }
+  await c.refreshSessions()
+  assert.deepEqual((c.sessions as Array<{ id: string }>).map(row => row.id).sort(), ['live-local', 'stored-1'])
+})
+
+test('subagent.list fills the card when the turn route sends no subagent events', async () => {
+  const c = client()
+  c.live = live('s1')
+  c.socket = { isOpen: true }
+  c.rpc = async (method: string) => {
+    assert.equal(method, 'subagent.list')
+    return {
+      subagents: [{
+        subagent_id: 'sa-1', goal: 'write the guide', status: 'running',
+        parent_id: '', child_session_id: 'child-1', delegation_id: 'deleg-1',
+        depth: 0, model: 'deepseek', tool_count: 3, last_tool: 'write_file',
+        started_at: Date.now() / 1000
+      }]
+    }
+  }
+  await c.refreshSubagents()
+  assert.equal((c.subagents as Array<{ id: string; toolCount: number; lastText: string }>).length, 1)
+  assert.equal(c.subagents[0].id, 'sa-1')
+  assert.equal(c.subagents[0].toolCount, 3)
+  assert.equal(c.subagents[0].lastText, 'write_file')
+})
+
+test('a delegate_task event starts subagent polling and fills the card state', async () => {
+  const c = client()
+  c.live = live('s1')
+  c.socket = { isOpen: true, close() {} }
+  let calls = 0
+  c.rpc = async (method: string) => {
+    if (method !== 'subagent.list') throw new Error(`unexpected ${method}`)
+    calls += 1
+    return {
+      subagents: [{
+        subagent_id: 'sa-0-d2246c6e', goal: 'write the fiction file', status: 'running',
+        parent_id: '', child_session_id: 'child-a', delegation_id: 'deleg-1',
+        depth: 0, model: 'deepseek', tool_count: 1, last_tool: 'write_file',
+        started_at: Date.now() / 1000
+      }]
+    }
+  }
+  c.onEvent({
+    type: 'tool.start', session_id: 's1',
+    payload: { tool_id: 'delegate-1', name: 'delegate_task', args: { tasks: [{ goal: 'write' }] } }
+  })
+  await new Promise(resolve => setTimeout(resolve, 30))
+  assert.ok(calls >= 1)
+  assert.equal((c.subagents as Array<{ id: string }>).length, 1)
+  assert.equal(c.subagents[0].id, 'sa-0-d2246c6e')
+  c.stopSubagentPolling()
+})
+
 test('onEvent never paints another session into an empty chat', () => {
   const c = client()
   c.live = null

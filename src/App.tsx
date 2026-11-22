@@ -307,6 +307,7 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
       <div className="bot-list">
         {snapshot.profiles.map(profile => {
           const selected = profile.gatewayId === snapshot.activeGatewayId && profile.name === snapshot.activeProfile
+          const online = selected || isRecent(profile.lastActive)
           return (
             <div className={selected ? 'bot-row active' : 'bot-row'} key={`${profile.gatewayId}:${profile.name}`}>
               <button
@@ -321,7 +322,7 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
                 <Avatar label={profile.label} initial={profile.initial} src={profile.avatar} />
                 <span className="bot-copy">
                   <span className="bot-name">
-                    <i className={isRecent(profile.lastActive) ? 'presence live' : 'presence'} />
+                    <i className={online ? 'presence live' : 'presence'} />
                     {profile.label}
                   </span>
                 </span>

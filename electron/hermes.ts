@@ -109,6 +109,8 @@ export class HermesClient {
   private queuePolling = false
   private clarifyPoll: ReturnType<typeof setInterval> | null = null
   private clarifyPolling = false
+  private subagentPoll: ReturnType<typeof setInterval> | null = null
+  private subagentPolling = false
   private remoteClarifies: RemoteClarify[] = []
   private remoteApprovals: RemoteApproval[] = []
   private subagents: SubagentProgress[] = []
@@ -411,6 +413,7 @@ export class HermesClient {
     if (this.clarifyPoll) clearInterval(this.clarifyPoll)
     this.clarifyPoll = null
     this.clarifyPolling = false
+    this.stopSubagentPolling()
     this.remoteClarifies = []
     this.remoteApprovals = []
     this.subagents = []
@@ -428,6 +431,102 @@ export class HermesClient {
     this.clarifyPoll = setInterval(() => {
       void this.refreshRemotePrompts()
     }, 4000)
+  }
+
+  private startSubagentPolling(): void {
+    if (this.subagentPoll || !this.live) return
+    void this.refreshSubagents()
+    this.subagentPoll = setInterval(() => {
+      void this.refreshSubagents()
+    }, 2000)
+  }
+
+  private stopSubagentPolling(): void {
+    if (this.subagentPoll) clearInterval(this.subagentPoll)
+    this.subagentPoll = null
+  }
+
+  /**
+   * `subagent.list` is the source of truth for turns whose route does not
+   * publish subagent.* events (for example a Telegram session opened in
+   * Icyteru). Poll while a delegated tool is active and fold the rows into the
+   * same card state the event path uses.
+   */
+  private async refreshSubagents(): Promise<void> {
+    if (this.subagentPolling || !this.live || !this.socket?.isOpen) return
+    this.subagentPolling = true
+    const liveId = this.live.live
+    try {
+      const payload = asRecord(await this.rpc('subagent.list', this.scope({ session_id: liveId })))
+      if (this.live?.live !== liveId) return
+      const rows = Array.isArray(payload.subagents) ? payload.subagents : []
+      const mapped = rows.flatMap(item => {
+        const row = asRecord(item)
+        const id = typeof row.subagent_id === 'string' ? row.subagent_id : ''
+        if (!id) return []
+        return [this.subagentFromList(id, row)]
+      })
+      if (!mapped.length) return
+      const byId = new Map(this.subagents.map(item => [item.id, item]))
+      for (const item of mapped) {
+        const previous = byId.get(item.id)
+        byId.set(item.id, previous
+          ? {
+            ...previous,
+            ...item,
+            goal: item.goal || previous.goal,
+            taskCount: previous.taskCount || item.taskCount,
+            taskIndex: previous.taskIndex || item.taskIndex,
+            toolsets: item.toolsets.length ? item.toolsets : previous.toolsets,
+            lastText: item.lastText || previous.lastText
+          }
+          : item)
+      }
+      this.subagents = [...byId.values()]
+      this.emit()
+      if (mapped.every(item => ['completed', 'failed', 'timed_out', 'timeout', 'cancelled', 'error', 'stopped'].includes(item.status))) {
+        this.stopSubagentPolling()
+      }
+    } catch {
+      // Older gateways may not expose subagent.list; event state still works.
+      this.stopSubagentPolling()
+    } finally {
+      this.subagentPolling = false
+    }
+  }
+
+  private subagentFromList(id: string, row: Record<string, unknown>): SubagentProgress {
+    const text = typeof row.last_tool === 'string' ? row.last_tool : ''
+    const status = typeof row.status === 'string' && row.status ? row.status : 'running'
+    const startedRaw = Number(row.started_at)
+    const startedAt = Number.isFinite(startedRaw) && startedRaw > 0
+      ? (startedRaw > 1e12 ? startedRaw : startedRaw * 1000)
+      : Date.now()
+    const toolsets = Array.isArray(row.toolsets) ? row.toolsets.map(item => String(item)) : []
+    return {
+      id,
+      goal: typeof row.goal === 'string' ? row.goal : '',
+      status,
+      taskIndex: 0,
+      taskCount: 1,
+      parentId: typeof row.parent_id === 'string' ? row.parent_id : '',
+      childSessionId: typeof row.child_session_id === 'string' ? row.child_session_id : '',
+      delegationId: typeof row.delegation_id === 'string' ? row.delegation_id : '',
+      depth: Number(row.depth) || 0,
+      model: typeof row.model === 'string' ? row.model : '',
+      toolCount: Number(row.tool_count) || 0,
+      toolsets,
+      lastText: text,
+      toolName: typeof row.last_tool === 'string' ? row.last_tool : '',
+      activity: text ? 'tool' : status === 'queued' ? 'spawn' : 'progress',
+      startedAt,
+      updatedAt: Date.now(),
+      durationSeconds: 0,
+      summary: '',
+      inputTokens: 0,
+      outputTokens: 0,
+      apiCalls: 0
+    }
   }
 
   private async refreshRemotePrompts(): Promise<void> {
@@ -566,11 +665,18 @@ export class HermesClient {
       if (!current()) return
       if (listed.ok) {
         const next = sortSessions(normalizeSessions(listed.value))
+        // The stored picker only lists legacy/closed rows. A live local session
+        // created by this client is in the live feed, not that picker, so merge
+        // the live page as well; otherwise the chat vanishes from History.
+        const live = await this.listSessions({ limit: 200 })
+        if (!current()) return
+        const liveRows = live.ok ? sortSessions(normalizeSessions(live.value)) : []
         // A picker that briefly returns an empty page must not wipe a working history.
         if (next.length || !previous.length) {
           this.sessions = sortSessions(merge ? mergeSessionRows(previous, next) : next)
         }
-        this.sessions = sortSessions(mergeSessionRows(this.sessions, jobs))
+        this.sessions = sortSessions(mergeSessionRows(this.sessions, [...liveRows, ...jobs]))
+        if (live.ok) this.sessions = this.clearUnconfirmedRunning(this.sessions, liveRows)
         this.applyActiveSessionModel()
         this.emit()
         return
@@ -608,6 +714,12 @@ export class HermesClient {
     return payload ? sortSessions(normalizeSessions(payload)) : []
   }
 
+  /** A row not present in the live page must not keep an old running dot. */
+  private clearUnconfirmedRunning(rows: SessionRow[], liveRows: SessionRow[]): SessionRow[] {
+    const confirmed = new Set(liveRows.map(row => row.id))
+    return rows.map(row => !confirmed.has(row.id) && row.running ? { ...row, running: false } : row)
+  }
+
   /** Keep the header on the live session's stored model, not the profile default. */
   private applyActiveSessionModel(): void {
     if (!this.live?.live) return
@@ -620,6 +732,7 @@ export class HermesClient {
   }
 
   async openSession(id: string): Promise<void> {
+    this.stopSubagentPolling()
     this.resetTokenRate()
     const epoch = ++this.openEpoch
     await this.detach()
@@ -759,6 +872,7 @@ export class HermesClient {
 
   async newChat(): Promise<void> {
     this.openEpoch += 1
+    this.stopSubagentPolling()
     await this.detach()
     this.live = null
     this.executionGeneration = 0
@@ -769,6 +883,9 @@ export class HermesClient {
     this.side.reasoning = ''
     this.resetTokenRate()
     this.emit()
+    // The chat that just ended is still a stored session. Refresh the list so
+    // it appears in History immediately instead of waiting for another event.
+    void this.refreshSessions()
   }
 
   async send(text: string, attachments: OutgoingAttachment[] = []): Promise<void> {
@@ -1766,6 +1883,13 @@ export class HermesClient {
       // another profile or a chat the user already left. Painting it into the
       // empty "New chat" transcript leaks another agent's turn.
       if (!this.live || !matchesActive) return
+      const eventToolName = typeof event.payload?.name === 'string' ? event.payload.name : typeof event.payload?.tool === 'string' ? event.payload.tool : ''
+      if ((event.type === 'tool.start' || event.type === 'tool.generating') && /delegate/i.test(eventToolName)) {
+        // Some routes don't publish subagent.* progress; poll the authoritative
+        // list when the delegation tool starts.
+        this.startSubagentPolling()
+      }
+      if (event.type === 'error') this.stopSubagentPolling()
       if (typeof event.execution_generation === 'number') this.executionGeneration = event.execution_generation
       if (event.type === 'message.delta' && typeof event.payload?.text === 'string') this.noteStreamText(event.payload.text)
       if (event.type === 'message.complete' || event.type === 'error') this.resetStreamRate()
