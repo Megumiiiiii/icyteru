@@ -840,6 +840,7 @@ export function sourceLabel(source: string): string {
     signal: 'Signal',
     cli: 'Terminal',
     tui: 'Terminal',
+    local: 'Local',
     gui: 'Desktop',
     desktop: 'Desktop',
     cron: 'Schedule',

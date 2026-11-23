@@ -1,5 +1,20 @@
 # Icyteru release notes
 
+## v0.0.76
+
+### Added
+
+- **History groups can be reordered by dragging** (carried from v0.0.74): drag the ⠿ handle beside Telegram, Discord, Schedule, Desktop, Jobs, Local, or any source group; order is saved per device.
+- **Session Info shows a tap-to-copy session ID** (carried from v0.0.78): the full ID sits below the context estimate with a ✓ Copied confirmation.
+- **`desktop_preview`/`preview_panel` render a real preview dock** (carried from v0.0.78/v0.0.80): embedded page, Open in browser, close, and a reopen chip. `preview_panel` works for Telegram/Discord/CLI sessions when the gateway exposes it.
+- **Gateway-side preview `read`** (v0.0.80): `preview_panel action=read` fetches a public page and returns extracted visible text with pagination, instead of trying to read a cross-origin iframe.
+
+### Fixed
+
+- **Reconnect survives a WebView/app restart too.** The active session is now remembered in `localStorage` (gateway URL + session ID), not only in the in-memory live object. After a socket drop or Android WebView recreation, Icyteru reopens the last session instead of landing on New chat. Switching to a different gateway or starting a New chat clears the remembered ID.
+- **Local sessions stay in the Local group** (v0.0.79): history also merges the profile REST list for rows the live/stored picker omits, and `local` is labelled `Local`.
+- **The Tok/s pill sits above the upload button** on phone and desktop (v0.0.75), and **pinned/local session state no longer disappears** from history.
+
 ## v0.0.75
 
 ### Changed

@@ -135,6 +135,19 @@ export function previewSnapshot(shot: string): Snapshot {
       }
     ]
   }
+  if (shot === 'desktop-preview' || shot === 'preview-panel') {
+    base.transcript.messages[1].tools.push({
+      id: shot === 'preview-panel' ? 'preview-panel-1' : 'preview-1',
+      name: shot === 'preview-panel' ? 'preview_panel' : 'desktop_preview',
+      argsText: JSON.stringify({
+        action: 'open',
+        url: 'https://example.com',
+        label: 'TAP verify'
+      }),
+      resultText: JSON.stringify({ success: true, url: 'https://example.com', label: 'TAP verify' }),
+      status: 'done'
+    })
+  }
   if (shot === 'tok-chat') {
     base.transcript.streaming = true
   }

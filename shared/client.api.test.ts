@@ -58,6 +58,68 @@ test('probe restores connection state and closes its isolated socket', async () 
   assert.equal(c.cookie, 'old-cookie')
 })
 
+test('refreshSessions keeps a REST-only local session the picker omits', async () => {
+  const c = client()
+  c.listStyle = 'picker'
+  c.sessions = []
+  c.listJobSessions = async () => []
+  c.listSessions = async (params: { scope?: string }) => params.scope === 'stored'
+    ? { ok: true, value: { sessions: [{ session_id: 'stored-1', title: 'Stored', source: 'telegram', message_count: 2 }] } }
+    : { ok: true, value: { sessions: [] } }
+  c.getJson = async () => ({
+    sessions: [{
+      id: 'local-preview', title: 'Buka panel preview', source: 'local', message_count: 36
+    }]
+  })
+  await c.refreshSessions()
+  assert.deepEqual((c.sessions as Array<{ id: string }>).map(row => row.id).sort(), ['local-preview', 'stored-1'])
+})
+
+test('connect reopens the active session after a same-gateway reconnect', async () => {
+  const c = client()
+  c.baseUrl = 'http://gw'
+  c.live = { live: 'live-1', stored: 'stored-1', subscriptionId: 'sub-1' }
+  let opened = ''
+  c.connectInner = async () => undefined
+  c.openSession = async (id: string) => { opened = id }
+  await c.connect('http://gw', { token: 't' })
+  assert.equal(opened, 'stored-1')
+  assert.equal(c.reconnecting, false)
+})
+
+test('connect restores a session remembered across a WebView restart', async () => {
+  const store = new Map<string, string>()
+  ;(globalThis as unknown as { localStorage: Storage }).localStorage = {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => { store.set(key, value) },
+    removeItem: (key: string) => { store.delete(key) },
+    clear: () => store.clear(),
+    key: () => null,
+    length: 0
+  } as Storage
+  store.set('icyteru.active-session.v1', JSON.stringify({ url: 'http://gw', id: 'stored-1' }))
+  const c = client()
+  c.baseUrl = ''
+  c.live = null
+  let opened = ''
+  c.connectInner = async () => undefined
+  c.openSession = async (id: string) => { opened = id }
+  await c.connect('http://gw', { token: 't' })
+  assert.equal(opened, 'stored-1')
+  delete (globalThis as unknown as { localStorage?: Storage }).localStorage
+})
+
+test('connect does not carry the old session to a different gateway', async () => {
+  const c = client()
+  c.baseUrl = 'http://old'
+  c.live = { live: 'live-1', stored: 'stored-1', subscriptionId: 'sub-1' }
+  let opened = ''
+  c.connectInner = async () => undefined
+  c.openSession = async (id: string) => { opened = id }
+  await c.connect('http://new', { token: 't' })
+  assert.equal(opened, '')
+})
+
 test('connect delegates to connectInner and clears the reconnecting flag', async () => {
   const c = client()
   let seen = false

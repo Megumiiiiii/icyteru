@@ -26,7 +26,8 @@ import {
   orderedParts,
   questionFromControlEvent,
   questionFromRequest,
-  readCreateContract
+  readCreateContract,
+  sourceLabel
 } from './protocol'
 import { HermesClient } from '../electron/hermes'
 
@@ -215,6 +216,11 @@ test('normalizes models, memory, and approval cards', () => {
   const card = questionFromRequest('srq-1', 'approval', { session_id: 's', command: 'rm build', choices: ['once', 'deny'] })
   assert.equal(card?.choices[0], 'once')
   assert.equal(questionFromRequest('srq-2', 'terminal.read', {}) , null)
+})
+
+test('labels local sessions under the Local group', () => {
+  assert.equal(sourceLabel('local'), 'Local')
+  assert.equal(sourceLabel('telegram'), 'Telegram')
 })
 
 test('normalizes browser-vault cards without putting secrets in the card body', () => {

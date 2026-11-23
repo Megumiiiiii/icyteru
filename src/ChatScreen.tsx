@@ -6,7 +6,7 @@ import type { Snapshot } from '../shared/snapshot'
 import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, pickReasoning, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SessionInfo, type SessionRow, type SubagentProgress, type ToolCall } from '../shared/protocol'
 import { GROUP_ORDER_KEY, normalizeGroupOrder, reorderGroups } from '../shared/group-order'
 import { Avatar } from './Avatar'
-import { Markdown } from './Markdown'
+import { Markdown, copyText } from './Markdown'
 import { PinIcon } from './PinIcon'
 import { ago } from './time'
 
@@ -35,6 +35,62 @@ function splitMedia(text: string): { text: string; attachments: IncomingAttachme
 }
 
 const isAndroid = Capacitor.getPlatform() === 'android'
+
+type PreviewTarget = { url: string; label: string; id: string }
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+/** Find the latest desktop_preview open/close in the transcript. */
+function previewTargetFrom(messages: Snapshot['transcript']['messages']): PreviewTarget | null {
+  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const tools = messages[messageIndex].tools
+    for (let toolIndex = tools.length - 1; toolIndex >= 0; toolIndex -= 1) {
+      const tool = tools[toolIndex]
+      if (tool.name !== 'desktop_preview' && tool.name !== 'preview_panel') continue
+      let args: Record<string, unknown> = {}
+      let result: Record<string, unknown> = {}
+      try { args = recordValue(JSON.parse(tool.argsText || '{}')) } catch { /* older rows may not be JSON */ }
+      try { result = recordValue(JSON.parse(tool.resultText || '{}')) } catch { /* result is optional */ }
+      const action = typeof args.action === 'string' ? args.action : ''
+      if (action === 'close') return null
+      const url = typeof args.url === 'string' ? args.url : typeof result.url === 'string' ? result.url : ''
+      if (!/^https?:\/\//i.test(url)) continue
+      const label = typeof args.label === 'string' && args.label.trim()
+        ? args.label.trim()
+        : typeof result.label === 'string' && result.label.trim()
+          ? result.label.trim()
+          : new URL(url).hostname
+      return { url, label, id: tool.id }
+    }
+  }
+  return null
+}
+
+function DesktopPreviewPanel({ target, onClose }: { target: PreviewTarget; onClose: () => void }) {
+  return (
+    <aside className="desktop-preview" aria-label={`Preview ${target.label}`}>
+      <header className="desktop-preview-head">
+        <div>
+          <span className="desktop-preview-kicker">PREVIEW</span>
+          <strong>{target.label}</strong>
+        </div>
+        <div className="desktop-preview-actions">
+          <a href={target.url} target="_blank" rel="noreferrer">Open in browser</a>
+          <button type="button" onClick={onClose} aria-label="Close preview" title="Close preview">×</button>
+        </div>
+      </header>
+      <iframe
+        className="desktop-preview-frame"
+        src={target.url}
+        title={target.label}
+        sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
+        referrerPolicy="no-referrer"
+      />
+    </aside>
+  )
+}
 
 function StatusBar({
   state,
@@ -358,6 +414,9 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
     !['completed', 'failed', 'timed_out', 'timeout', 'cancelled', 'error', 'stopped'].includes(item.status)
   )
   const streaming = snapshot.transcript.streaming || hasLiveSubagent
+  const desktopPreview = useMemo(() => previewTargetFrom(snapshot.transcript.messages), [snapshot.transcript.messages])
+  const [dismissedPreview, setDismissedPreview] = useState('')
+  const showDesktopPreview = Boolean(desktopPreview && dismissedPreview !== desktopPreview.id)
   const toolRunning = useMemo(
     () => snapshot.transcript.messages.some(message => message.tools.some(tool => tool.status === 'running')),
     [snapshot.transcript.messages]
@@ -1013,6 +1072,14 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
             ? <button className="solid" onClick={() => void window.icyteru.interrupt()} type="button">Stop</button>
             : <button className="solid" disabled={snapshot.phase !== 'ready' || sending || (!draft.trim() && files.length === 0)} type="submit">Send</button>}
         </form>
+        {desktopPreview && !showDesktopPreview && (
+          <button className="preview-reopen" type="button" onClick={() => setDismissedPreview('')}>
+            <span aria-hidden="true">▣</span> Preview: {desktopPreview.label}
+          </button>
+        )}
+        {showDesktopPreview && desktopPreview && (
+          <DesktopPreviewPanel target={desktopPreview} onClose={() => setDismissedPreview(desktopPreview.id)} />
+        )}
       </section>
       {panel && <SidePanel snapshot={snapshot} pane={pane} setPane={setPane} query={query} setQuery={setQuery} onNotice={setNotice} />}
     </>
@@ -1805,6 +1872,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
     data?: SessionInfo
     error?: string
   } | null>(null)
+  const [sessionIdCopied, setSessionIdCopied] = useState(false)
 
   useEffect(() => {
     if (!sessionInfo) return
@@ -1825,6 +1893,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
 
   function openSessionInfo(session: SessionRow) {
     setSessionInfo({ session, loading: true })
+    setSessionIdCopied(false)
     void window.icyteru.sessionInfo(session.id)
       .then(data => setSessionInfo(current => current?.session.id === session.id ? { session, loading: false, data } : current))
       .catch(error => setSessionInfo(current => current?.session.id === session.id
@@ -2081,6 +2150,23 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
               <div className="session-info-stats">
                 <p><strong>Messages:</strong> {sessionInfo.data.messages.toLocaleString()}</p>
                 <p><strong>Estimated context:</strong> ~{sessionInfo.data.estimatedTokens.toLocaleString()} tokens</p>
+                <button
+                  className="session-id-copy"
+                  type="button"
+                  title="Tap to copy session ID"
+                  aria-label="Copy session ID"
+                  onClick={() => {
+                    void copyText(sessionInfo.session.id).then(copied => {
+                      if (!copied) return
+                      setSessionIdCopied(true)
+                      setTimeout(() => setSessionIdCopied(false), 1800)
+                    })
+                  }}
+                >
+                  <span className="session-id-label">Session ID</span>
+                  <code>{sessionInfo.session.id}</code>
+                  <span className="session-id-action">{sessionIdCopied ? '✓ Copied' : 'Copy'}</span>
+                </button>
               </div>
             )}
           </section>

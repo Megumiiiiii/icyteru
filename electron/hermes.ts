@@ -72,6 +72,13 @@ interface LiveSession {
   subscriptionId: string
 }
 
+const ACTIVE_SESSION_KEY = 'icyteru.active-session.v1'
+
+interface RememberedSession {
+  url: string
+  id: string
+}
+
 export interface GatewayRef {
   id: string
   url: string
@@ -237,11 +244,54 @@ export class HermesClient {
     }
   }
 
+  private sameGateway(a: string, b: string): boolean {
+    return a.replace(/\/+$/, '') === b.replace(/\/+$/, '')
+  }
+
+  private rememberedSession(): RememberedSession | null {
+    if (typeof localStorage === 'undefined') return null
+    try {
+      const parsed = JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) || '') as Partial<RememberedSession>
+      return typeof parsed.url === 'string' && typeof parsed.id === 'string' && parsed.id
+        ? { url: parsed.url, id: parsed.id }
+        : null
+    } catch {
+      return null
+    }
+  }
+
+  private rememberSession(id: string): void {
+    if (!id || !this.baseUrl || typeof localStorage === 'undefined') return
+    try {
+      localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify({ url: this.baseUrl, id }))
+    } catch {
+      // Private mode/quota: reconnect still works in-memory.
+    }
+  }
+
+  private forgetSession(): void {
+    if (typeof localStorage === 'undefined') return
+    try { localStorage.removeItem(ACTIVE_SESSION_KEY) } catch { /* ignore */ }
+  }
+
   async connect(baseUrl: string, creds: ConnectionCredentials, extras: GatewayInput[] = []): Promise<void> {
+    // A reconnect tears the socket down in connectInner(), so remember the
+    // session the user was reading before that happens. Keep it in
+    // localStorage too: Android can recreate the WebView while the socket is
+    // down, losing the in-memory live id.
+    const remembered = this.rememberedSession()
+    const sessionToRestore = this.live && this.sameGateway(this.baseUrl, baseUrl)
+      ? (this.live.stored || this.live.live)
+      : remembered && this.sameGateway(remembered.url, baseUrl)
+        ? remembered.id
+        : ''
     this.reconnecting = true
-    this.reconnectMerge = Boolean(this.baseUrl && this.baseUrl === baseUrl && this.sessions.length > 0)
+    this.reconnectMerge = Boolean(this.baseUrl && this.sameGateway(this.baseUrl, baseUrl) && this.sessions.length > 0)
     try {
       await this.connectInner(baseUrl, creds, extras)
+      if (sessionToRestore) {
+        await this.openSession(sessionToRestore).catch(() => undefined)
+      }
     } finally {
       this.reconnecting = false
       this.reconnectMerge = false
@@ -675,7 +725,10 @@ export class HermesClient {
         if (next.length || !previous.length) {
           this.sessions = sortSessions(merge ? mergeSessionRows(previous, next) : next)
         }
-        this.sessions = sortSessions(mergeSessionRows(this.sessions, [...liveRows, ...jobs]))
+        const rest = await this.getJson(this.profileApiPath('/api/sessions?limit=200&order=recent')).catch(() => null)
+        if (!current()) return
+        const restRows = rest ? sortSessions(normalizeSessions(rest)) : []
+        this.sessions = sortSessions(mergeSessionRows(this.sessions, [...liveRows, ...jobs, ...this.missingSessionRows(restRows)]))
         if (live.ok) this.sessions = this.clearUnconfirmedRunning(this.sessions, liveRows)
         this.applyActiveSessionModel()
         this.emit()
@@ -720,6 +773,12 @@ export class HermesClient {
     return rows.map(row => !confirmed.has(row.id) && row.running ? { ...row, running: false } : row)
   }
 
+  /** REST-only rows (for example a closed local session the viewer picker omits). */
+  private missingSessionRows(rows: SessionRow[]): SessionRow[] {
+    const known = new Set(this.sessions.map(row => row.id))
+    return rows.filter(row => !known.has(row.id))
+  }
+
   /** Keep the header on the live session's stored model, not the profile default. */
   private applyActiveSessionModel(): void {
     if (!this.live?.live) return
@@ -756,6 +815,7 @@ export class HermesClient {
         this.transcript = historyFromRows(rows)
         this.question = null
         this.subagents = []
+        this.rememberSession(id)
         this.emit()
         return
       }
@@ -799,6 +859,7 @@ export class HermesClient {
     if (epoch !== this.openEpoch) return
     await this.refreshModelOptions().catch(() => undefined)
     if (epoch !== this.openEpoch) return
+    this.rememberSession(stored)
     this.emit()
   }
 
@@ -883,6 +944,7 @@ export class HermesClient {
     this.subagents = []
     this.side.reasoning = ''
     this.resetTokenRate()
+    this.forgetSession()
     this.emit()
     // The chat that just ended is still a stored session. Refresh the list so
     // it appears in History immediately instead of waiting for another event.
