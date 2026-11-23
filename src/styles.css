@@ -560,8 +560,24 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
 }
-.session-group-title:hover { color: var(--ink); }
+.session-group-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.session-group.dragging { opacity: 0.5; }
+.session-group.drop-target { outline: 1px dashed var(--accent); outline-offset: -2px; border-radius: 10px; }
+.group-drag {
+  display: grid; place-items: center;
+  width: 22px; height: 22px; padding: 0;
+  border: 0; background: transparent; color: var(--muted);
+  font-size: 13px; line-height: 1; letter-spacing: -2px;
+  cursor: grab; touch-action: none;
+}
+.group-drag:active { color: var(--ink); cursor: grabbing; }
+.group-drag:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 6px; }
+@media (max-width: 760px), (pointer: coarse) {
+  .group-drag { width: 44px; height: 44px; margin: -11px 0; }
+}
 .session-group-count { margin-left: auto; font-size: 10px; opacity: 0.65; }
 .session-group-title i {
   font-style: normal;

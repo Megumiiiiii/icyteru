@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.74
+
+### Added
+
+- **History groups can be reordered by dragging.** Drag the ⠿ handle beside Telegram, Discord, Schedule, Desktop, Jobs, Local, or any other source group to move it. The order is saved per device and survives restarts; touch dragging works on Android, and the handle has a 44px target.
+
 ## v0.0.73
 
 ### Fixed

@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
 import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, pickReasoning, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SessionInfo, type SessionRow, type SubagentProgress, type ToolCall } from '../shared/protocol'
+import { GROUP_ORDER_KEY, normalizeGroupOrder, reorderGroups } from '../shared/group-order'
 import { Avatar } from './Avatar'
 import { Markdown } from './Markdown'
 import { PinIcon } from './PinIcon'
@@ -1788,6 +1789,16 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
 }) {
   const phone = useContext(PhoneNav)
   const [closedGroups, setClosedGroups] = useState<Set<string>>(() => new Set())
+  const [groupOrder, setGroupOrder] = useState<string[]>(() => {
+    try {
+      return normalizeGroupOrder(JSON.parse(localStorage.getItem(GROUP_ORDER_KEY) || '[]'))
+    } catch {
+      return normalizeGroupOrder([])
+    }
+  })
+  const [draggingGroup, setDraggingGroup] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const groupDragPointer = useRef<number | null>(null)
   const [sessionInfo, setSessionInfo] = useState<{
     session: SessionRow
     loading: boolean
@@ -1832,7 +1843,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
     list.push(session)
     bySource.set(label, list)
   }
-  const order = ['Telegram', 'Discord', 'Slack', 'WhatsApp', 'Signal', 'Schedule', 'Desktop', 'API', 'Editor']
+  const order = groupOrder
   const groups = [...bySource.entries()]
     .map(([label, list]) => [label, [...list].sort((a, b) => Number(b.pinned) - Number(a.pinned) || (b.updatedAt || 0) - (a.updatedAt || 0))] as const)
     .sort(([a], [b]) => {
@@ -1840,6 +1851,56 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
       const ib = order.indexOf(b)
       return (ia < 0 ? order.length : ia) - (ib < 0 ? order.length : ib) || a.localeCompare(b)
     })
+
+  function saveGroupOrder(next: string[]): void {
+    setGroupOrder(next)
+    try {
+      localStorage.setItem(GROUP_ORDER_KEY, JSON.stringify(next))
+    } catch {
+      // A quota/private-mode failure must not break dragging.
+    }
+  }
+
+  function startGroupDrag(event: ReactPointerEvent<HTMLButtonElement>, label: string): void {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      // Some older WebViews do not expose pointer capture; the handlers still work.
+    }
+    groupDragPointer.current = event.pointerId
+    setDraggingGroup(label)
+    setDropTarget(null)
+  }
+
+  function moveGroupDrag(event: ReactPointerEvent<HTMLButtonElement>): void {
+    if (draggingGroup === null || groupDragPointer.current !== event.pointerId) return
+    const hit = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('.session-group')
+    const target = hit?.dataset.group || ''
+    if (!target || target === draggingGroup) {
+      setDropTarget(null)
+      return
+    }
+    const rect = hit!.getBoundingClientRect()
+    const after = event.clientY > rect.top + rect.height / 2
+    setDropTarget(target)
+    const next = reorderGroups(groupOrder, draggingGroup, target, after)
+    if (next !== groupOrder) saveGroupOrder(next)
+  }
+
+  function endGroupDrag(event: ReactPointerEvent<HTMLButtonElement>): void {
+    if (groupDragPointer.current !== event.pointerId) return
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    } catch {
+      // Capture may already be gone.
+    }
+    groupDragPointer.current = null
+    setDraggingGroup(null)
+    setDropTarget(null)
+  }
   const toggleGroup = (label: string) => setClosedGroups(prev => {
     const next = new Set(prev)
     if (next.has(label)) next.delete(label)
@@ -1867,17 +1928,41 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
             {groups.map(([label, group]) => {
               const closed = closedGroups.has(label)
               return (
-                <div className="session-group" key={label}>
-                  <button
+                <div
+                  className={`session-group${draggingGroup === label ? ' dragging' : ''}${dropTarget === label ? ' drop-target' : ''}`}
+                  data-group={label}
+                  key={label}
+                >
+                  <div
                     className={closed ? 'session-group-title closed' : 'session-group-title'}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     aria-expanded={!closed}
                     onClick={() => toggleGroup(label)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        toggleGroup(label)
+                      }
+                    }}
                   >
+                    <button
+                      className="group-drag"
+                      type="button"
+                      aria-label={`Reorder ${label} group`}
+                      title={`Drag to reorder ${label}`}
+                      onClick={event => event.stopPropagation()}
+                      onPointerDown={event => startGroupDrag(event, label)}
+                      onPointerMove={moveGroupDrag}
+                      onPointerUp={endGroupDrag}
+                      onPointerCancel={endGroupDrag}
+                    >
+                      <span aria-hidden="true">⠿</span>
+                    </button>
                     <span>{label}</span>
                     <span className="session-group-count">{group.length}</span>
                     <i aria-hidden="true">›</i>
-                  </button>
+                  </div>
                   {!closed && group.map(session => (
                     <div className={session.id === snapshot.activeSessionId ? 'session-row active' : 'session-row'} key={session.id}>
                       <button
