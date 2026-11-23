@@ -1028,7 +1028,20 @@ html[data-backdrop="kraft"] .sky-dim { opacity: 0; }
   padding: 8px 22px 18px;
   align-items: end;
 }
-.composer-tools { display: flex; align-items: end; gap: 8px; min-width: 0; }
+.composer-tools {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+}
+@media (max-width: 760px), (pointer: coarse) {
+  .composer-tools {
+    gap: 3px;
+  }
+  .composer-tools .tok-pill { padding: 4px 8px; font-size: 11px; }
+}
 .tok-pill {
   display: inline-flex;
   align-items: center;

@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.75
+
+### Changed
+
+- **The Tok/s pill now sits above the upload button** in the composer on both phone and desktop, instead of beside it. It keeps the same Thinking/tool states and a compact mobile size.
+
 ## v0.0.74
 
 ### Added
