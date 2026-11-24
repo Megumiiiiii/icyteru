@@ -893,10 +893,28 @@ html[data-backdrop="kraft"] .sky-dim { opacity: 0; }
 }
 .side-footer .settings-link { margin: 0; }
 .side-footer .hidden-bots-link { flex: none; }
+.hidden-bots-eye {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
 .hidden-count {
-  display: inline-grid; place-items: center; min-width: 16px; height: 16px;
-  padding: 0 4px; border-radius: 999px; background: var(--surface);
-  color: var(--muted); font-size: 10px; font-weight: 700;
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
 }
 .hidden-bots-menu {
   position: absolute; left: 8px; right: 8px; bottom: calc(100% + 4px); z-index: 40;

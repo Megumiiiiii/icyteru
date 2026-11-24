@@ -421,9 +421,11 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
           aria-expanded={hiddenOpen}
           onClick={() => setHiddenOpen(open => !open)}
         >
-          <Eye />
+          <span className="hidden-bots-eye">
+            <Eye />
+            {hiddenProfiles.length > 0 && <span className="hidden-count">{hiddenProfiles.length}</span>}
+          </span>
           <span className="settings-label">Hidden</span>
-          {hiddenProfiles.length > 0 && <span className="hidden-count">{hiddenProfiles.length}</span>}
         </button>
         <button className="settings-link" onClick={() => { phone.setView('chat'); setHiddenOpen(false); void window.icyteru.showScreen('settings') }} type="button" aria-label="Settings">
           <Gear />

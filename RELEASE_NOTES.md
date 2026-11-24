@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.78
+
+### Fixed
+
+- **The hidden-agent counter no longer overlaps Settings.** It now sits directly below the eye icon as a bare number, without a badge or background, so the eye and gear remain separate controls.
+
 ## v0.0.77
 
 ### Added
