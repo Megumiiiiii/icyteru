@@ -425,7 +425,25 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
   const hasAssistantText = snapshot.transcript.messages.some(
     (message, index) => index > lastUserIndex && message.role === 'assistant' && message.text.trim().length > 0
   )
+  const runningTool = useMemo(
+    () => snapshot.transcript.messages
+      .flatMap(message => message.tools)
+      .find(tool => tool.status === 'running') || null,
+    [snapshot.transcript.messages]
+  )
   const thinking = streaming && !toolRunning && !snapshot.tokensPerSecond && !hasAssistantText
+  const showTokensPerSecond = Boolean(
+    streaming && !thinking && !toolRunning && snapshot.tokensPerSecond && snapshot.tokensPerSecond > 0
+  )
+  const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null)
+  useEffect(() => {
+    if (thinking) setThinkingStartedAt(current => current ?? Date.now())
+    else setThinkingStartedAt(null)
+  }, [thinking])
+  const phaseStartedAt = toolRunning ? (runningTool?.startedAt ?? null) : thinkingStartedAt
+  const writingTool = Boolean(runningTool && ['write_file', 'patch'].includes(runningTool.name))
+  const phaseEmoji = toolRunning ? (writingTool ? '✍️' : '⚔️') : '🔮'
+  const phaseLabel = toolRunning ? (writingTool ? 'Writing' : 'Running tools') : 'Thinking'
   const toolCount = useMemo(
     () => snapshot.transcript.messages.reduce((count, message) => count + message.tools.length, 0),
     [snapshot.transcript.messages]
@@ -886,7 +904,11 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
             </Fragment>
           ))}
           <SubagentGroup subagents={snapshot.subagents} />
-          {streaming && <p className="working">{snapshot.profileName} is working…</p>}
+          {streaming && (
+            thinking || toolRunning
+              ? <WorkingPhase startedAt={phaseStartedAt} emoji={phaseEmoji} label={phaseLabel} />
+              : <p className="working">{snapshot.profileName} is working…</p>
+          )}
         </div>
         {!atBottom && (
           <button className="jump-latest" onClick={jumpToLatest} type="button" aria-label="Jump to the latest message">
@@ -1020,23 +1042,10 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
             >
               <Paperclip />
             </button>
-            {streaming && (
-              <span
-                className={thinking ? 'tok-pill thinking' : toolRunning ? 'tok-pill tool' : 'tok-pill'}
-                title={thinking ? 'Thinking' : toolRunning ? 'Tool call in progress' : 'Live output speed'}
-                aria-label={thinking ? 'Thinking' : toolRunning ? 'Tool call in progress' : 'Tokens per second'}
-              >
-                {thinking ? (
-                  <>
-                    <span className="tok-emoji" aria-hidden="true">🔮</span>
-                    <span>Thinking<span className="thinking-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></span>
-                  </>
-                ) : (
-                  <>
-                    <span className="tok-emoji" aria-hidden="true">{toolRunning ? '⚔️' : '⌨️'}</span>
-                    {`${snapshot.tokensPerSecond ?? 0} Tok/s`}
-                  </>
-                )}
+            {showTokensPerSecond && (
+              <span className="tok-pill" title="Live output speed" aria-label="Tokens per second">
+                <span className="tok-emoji" aria-hidden="true">⌨️</span>
+                {`${snapshot.tokensPerSecond} Tok/s`}
               </span>
             )}
           </div>
@@ -1083,6 +1092,27 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
       </section>
       {panel && <SidePanel snapshot={snapshot} pane={pane} setPane={setPane} query={query} setQuery={setQuery} onNotice={setNotice} />}
     </>
+  )
+}
+
+function WorkingPhase({ startedAt, emoji, label }: { startedAt: number | null; emoji: string; label: string }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!startedAt) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [startedAt])
+  const seconds = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0
+  return (
+    <p className="working">
+      <span className="working-emoji" aria-hidden="true">{emoji}</span>
+      <span>
+        {label}
+        <span className="thinking-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span>
+        <span className="tok-elapsed">{seconds}s</span>
+      </span>
+    </p>
   )
 }
 

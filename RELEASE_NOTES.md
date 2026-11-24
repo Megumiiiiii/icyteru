@@ -1,5 +1,15 @@
 # Icyteru release notes
 
+## v0.0.79
+
+### Added
+
+- **The “working” line now shows the real phase and elapsed time.** It reads `✍️ Writing... 12s` for `write_file`/`patch`, `⚔️ Running tools... 12s` for other tools, and `🔮 Thinking... 12s` while waiting for the first output. The three dots animate, and the timer runs in an isolated component so the transcript does not re-render every second.
+
+### Changed
+
+- **The Tok/s pill only appears when there is a real positive rate.** It stays hidden during thinking and tool phases, so there is no duplicate `🔮 Thinking` pill alongside the new working line.
+
 ## v0.0.78
 
 ### Fixed

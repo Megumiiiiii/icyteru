@@ -168,6 +168,18 @@ export function previewSnapshot(shot: string): Snapshot {
     base.transcript.messages[1].tools[0].startedAt = Date.now() - 12_000
     base.transcript.messages[1].tools[0].finishedAt = undefined
   }
+  if (shot === 'tool-writing') {
+    base.transcript.streaming = true
+    base.transcript.messages[1].text = ''
+    base.transcript.messages[1].tools = [{
+      id: 'writing-1',
+      name: 'write_file',
+      argsText: 'DIALECTICA.md',
+      resultText: '',
+      status: 'running',
+      startedAt: Date.now() - 12_000
+    }]
+  }
   if (shot === 'split-fixed') {
     let transcript = emptyTranscript()
     transcript.messages.push({
