@@ -854,8 +854,10 @@ export class HermesClient {
       stored,
       subscriptionId: typeof body.subscription_id === 'string' ? body.subscription_id : ''
     }
-    const messages = Array.isArray(body.display_messages) ? body.display_messages : body.messages
-    this.transcript = historyFromRows(messages)
+    const displayRows = Array.isArray(body.display_messages) ? body.display_messages : null
+    const rawRows = Array.isArray(body.messages) ? body.messages : null
+    const messages = displayRows ?? rawRows
+    this.transcript = historyFromRows(messages, displayRows && rawRows ? rawRows : undefined)
     if (typeof body.running === 'boolean') this.transcript = { ...this.transcript, streaming: body.running }
     if (body.running === false) this.markSessionIdle()
     const info = asRecord(body.info)

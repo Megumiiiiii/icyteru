@@ -151,6 +151,38 @@ test('reads stored history and session rows', () => {
   assert.equal(sessions[0].title, 'Notes')
 })
 
+test('reconstructs tool duration from gateway history timestamps', () => {
+  const history = historyFromRows([
+    {
+      role: 'assistant',
+      content: '',
+      timestamp: 1_700_000_000,
+      tool_calls: [{ id: 'call-1', function: { name: 'terminal', arguments: '{}' } }]
+    },
+    { role: 'tool', name: 'terminal', tool_call_id: 'call-1', content: 'ok', timestamp: 1_700_000_045 },
+    { role: 'assistant', text: 'Done', timestamp: 1_700_000_046 }
+  ])
+  const tool = history.messages.flatMap(message => message.tools)[0]
+  assert.equal(tool.startedAt, 1_700_000_000_000)
+  assert.equal(tool.finishedAt, 1_700_000_045_000)
+})
+
+test('reconstructs tool duration when display rows lack timestamps but raw history has them', () => {
+  const display = [{ role: 'tool', name: 'terminal', tool_call_id: 'call-9', content: 'ok' }]
+  const raw = [
+    {
+      role: 'assistant',
+      content: '',
+      timestamp: 1_700_000_100,
+      tool_calls: [{ id: 'call-9', function: { name: 'terminal', arguments: '{}' } }]
+    },
+    { role: 'tool', name: 'terminal', tool_call_id: 'call-9', content: 'ok', timestamp: 1_700_000_112 }
+  ]
+  const tool = historyFromRows(display, raw).messages.flatMap(message => message.tools)[0]
+  assert.equal(tool.startedAt, 1_700_000_100_000)
+  assert.equal(tool.finishedAt, 1_700_000_112_000)
+})
+
 test('keeps omitted rows when a live fallback is a subset, and preserves the reconnect profile', () => {
   const row = (id: string) => ({ id, title: id, preview: '', source: 'telegram', model: '', updatedAt: null, messageCount: 0, running: false, pinned: false })
   const merged = mergeSessionRows([row('old-a'), row('old-b')], [row('new-c'), row('old-b')])

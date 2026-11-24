@@ -1,5 +1,11 @@
 # Icyteru release notes
 
+## v0.0.80
+
+### Fixed
+
+- **Tool durations survive closing and reopening Icyteru.** History tool cards now reconstruct each tool's `startedAt`/`finishedAt` from the raw `session.resume` history: the assistant `tool_calls` row supplies the start timestamp and the matching tool-result row supplies the finish timestamp. Previously the display projection had no timing, so a reopened session fell back to `1 tool call` / `5 tool calls` instead of `Worked for 1m 25s · 5 tools`.
+
 ## v0.0.79
 
 ### Added

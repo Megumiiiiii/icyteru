@@ -446,12 +446,49 @@ export function applySubagentEvent(subagents: SubagentProgress[], event: Gateway
   return [...subagents.filter(item => item.id !== id), next]
 }
 
-export function historyFromRows(rows: unknown): Transcript {
+function historyTimeMs(value: unknown): number | null {
+  const number = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(number) || number <= 0) return null
+  // The gateway stores Unix seconds; API projections may already use milliseconds.
+  return number < 1_000_000_000_000 ? Math.round(number * 1000) : Math.round(number)
+}
+
+function historyToolStarts(record: Record<string, unknown>): Map<string, number> {
+  const starts = new Map<string, number>()
+  const at = historyTimeMs(record.timestamp)
+  if (!at || !record.tool_calls) return starts
+  let calls: unknown = record.tool_calls
+  if (typeof calls === 'string') {
+    try { calls = JSON.parse(calls) } catch { return starts }
+  }
+  if (!Array.isArray(calls)) return starts
+  for (const call of calls) {
+    if (!call || typeof call !== 'object') continue
+    const item = call as Record<string, unknown>
+    const id = String(item.id || item.call_id || item.tool_call_id || '')
+    if (id) starts.set(id, at)
+  }
+  return starts
+}
+
+export function historyFromRows(rows: unknown, timingRows?: unknown): Transcript {
   const list = Array.isArray(rows) ? rows : []
+  const timing = Array.isArray(timingRows) ? timingRows : list
   const messages: TranscriptMessage[] = []
+  const toolStarts = new Map<string, number>()
+  const toolEnds = new Map<string, number>()
+  for (const row of timing) {
+    if (!row || typeof row !== 'object') continue
+    const record = row as Record<string, unknown>
+    for (const [id, at] of historyToolStarts(record)) toolStarts.set(id, at)
+    const id = String(record.tool_call_id || '')
+    const end = historyTimeMs(record.timestamp)
+    if (id && end) toolEnds.set(id, end)
+  }
   for (const row of list) {
     if (!row || typeof row !== 'object') continue
     const record = row as Record<string, unknown>
+    for (const [id, at] of historyToolStarts(record)) toolStarts.set(id, at)
     if (record.display_kind === 'hidden') continue
     const role = String(record.role || '')
     const text = messageText(record)
@@ -473,7 +510,9 @@ export function historyFromRows(rows: unknown): Transcript {
         name: toolName || 'tool',
         argsText: previewValue(record.args ?? record.arguments),
         resultText: text,
-        status: 'done'
+        status: 'done',
+        ...(toolStarts.has(toolId) ? { startedAt: toolStarts.get(toolId) } : {}),
+        ...((toolEnds.get(toolId) ?? historyTimeMs(record.timestamp)) ? { finishedAt: toolEnds.get(toolId) ?? historyTimeMs(record.timestamp)! } : {})
       })
       continue
     }
