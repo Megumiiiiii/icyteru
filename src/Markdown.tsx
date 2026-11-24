@@ -1,11 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
+type Align = 'left' | 'center' | 'right'
 type Block =
   | { kind: 'code'; lang: string; text: string }
   | { kind: 'heading'; level: number; text: string }
   | { kind: 'list'; ordered: boolean; items: string[] }
   | { kind: 'quote'; lines: string[] }
+  | { kind: 'table'; header: string[]; align: Align[]; rows: string[][] }
   | { kind: 'hr' }
   | { kind: 'para'; lines: string[] }
 
@@ -58,6 +60,23 @@ export function parseBlocks(source: string): Block[] {
       index += 1
       continue
     }
+    if (isTableStart(lines, index)) {
+      const header = splitTableRow(lines[index])
+      const align = splitTableRow(lines[index + 1]).map((cell): Align => {
+        const left = cell.startsWith(':')
+        const right = cell.endsWith(':')
+        return left && right ? 'center' : right ? 'right' : 'left'
+      })
+      index += 2
+      const rows: string[][] = []
+      while (index < lines.length && lines[index].trim() && lines[index].includes('|') && !isTableStart(lines, index)) {
+        const cells = splitTableRow(lines[index])
+        rows.push(header.map((_, cell) => cells[cell] ?? ''))
+        index += 1
+      }
+      blocks.push({ kind: 'table', header, align, rows })
+      continue
+    }
     if (/^\s*>\s?/.test(line)) {
       const body: string[] = []
       while (index < lines.length && /^\s*>\s?/.test(lines[index])) {
@@ -86,7 +105,7 @@ export function parseBlocks(source: string): Block[] {
       continue
     }
     const paragraph: string[] = []
-    while (index < lines.length && lines[index].trim() && !startsBlock(lines[index])) {
+    while (index < lines.length && lines[index].trim() && !startsBlock(lines[index]) && !isTableStart(lines, index)) {
       paragraph.push(lines[index])
       index += 1
     }
@@ -98,6 +117,23 @@ export function parseBlocks(source: string): Block[] {
     blocks.push({ kind: 'para', lines: paragraph })
   }
   return blocks
+}
+
+function splitTableRow(line: string): string[] {
+  return line.trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split(/(?<!\\)\|/)
+    .map(cell => cell.replace(/\\\|/g, '|').trim())
+}
+
+function isTableStart(lines: string[], index: number): boolean {
+  const headerLine = lines[index] || ''
+  if (!headerLine.includes('|')) return false
+  const header = splitTableRow(headerLine)
+  const delimiter = splitTableRow(lines[index + 1] || '')
+  if (header.length < 2 || delimiter.length !== header.length) return false
+  return delimiter.every(cell => /^:?-{3,}:?$/.test(cell))
 }
 
 function startsBlock(line: string): boolean {
@@ -118,6 +154,30 @@ function Block({ block }: { block: Block }) {
       <blockquote>
         {block.lines.map((line, index) => <p key={index}><Inline text={line} /></p>)}
       </blockquote>
+    )
+  }
+  if (block.kind === 'table') {
+    return (
+      <div className="md-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              {block.header.map((cell, index) => (
+                <th key={index} style={{ textAlign: block.align[index] || 'left' }}><Inline text={cell} /></th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {block.rows.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {block.header.map((_, cellIndex) => (
+                  <td key={cellIndex} style={{ textAlign: block.align[cellIndex] || 'left' }}><Inline text={row[cellIndex] || ''} /></td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     )
   }
   if (block.kind === 'list') {

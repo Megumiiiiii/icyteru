@@ -1,5 +1,12 @@
 # Icyteru release notes
 
+## v0.0.81
+
+### Added
+
+- **Real Markdown tables in chat.** Assistant messages with a GFM-style header row and `|---|---|` delimiter now render as an actual table instead of raw pipe text. Cells keep inline formatting, alignment markers work, and the table uses theme-aware borders and header styling.
+- On phones, long table cells wrap and the table fits the bubble width, so criteria text stays readable without clipping or horizontal page scroll.
+
 ## v0.0.80
 
 ### Fixed

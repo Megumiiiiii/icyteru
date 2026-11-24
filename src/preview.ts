@@ -156,6 +156,20 @@ export function previewSnapshot(shot: string): Snapshot {
   if (shot === 'tok-chat') {
     base.transcript.streaming = true
   }
+  if (shot === 'table' || shot === 'dark-table' || shot === 'mobile-table') {
+    base.transcript.messages[0].text = 'cek hasil verifikasi uptime-watch'
+    base.transcript.messages[1].tools = []
+    base.transcript.messages[1].text = [
+      '**Definisi selesai — 4/4 lolos**',
+      '',
+      '| Kriteria | Hasil |',
+      '|---|---|',
+      '| `pm2s list` menunjukkan uptime-watch online | ✅ id 24, online |',
+      '| Log terbaru: poll=60s, ambang=120s, dry=False | ✅ |',
+      '| Satu notifikasi test masuk ke Telegram | ✅ ok=True |',
+      '| Dry-run tidak me-restart apa pun | ✅ zero execution |'
+    ].join('\n')
+  }
   if (shot === 'thinking') {
     base.transcript.streaming = true
     base.tokensPerSecond = null
