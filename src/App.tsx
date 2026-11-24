@@ -146,6 +146,12 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   }, [mode, image, dark, appearance, snapshot.connection.theme])
 
   useEffect(() => {
+    const openFromNotification = () => setPhoneView('chat')
+    window.addEventListener('icyteru:open-session', openFromNotification)
+    return () => window.removeEventListener('icyteru:open-session', openFromNotification)
+  }, [])
+
+  useEffect(() => {
     if (Capacitor.getPlatform() !== 'android') return
     let cancelled = false
     let listener: { remove: () => Promise<void> } | null = null
@@ -259,6 +265,26 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const [error, setError] = useState('')
+  const [hiddenOpen, setHiddenOpen] = useState(false)
+  const footerRef = useRef<HTMLDivElement | null>(null)
+  const visibleProfiles = snapshot.profiles.filter(profile => !profile.hidden)
+  const hiddenProfiles = snapshot.profiles.filter(profile => profile.hidden)
+
+  useEffect(() => {
+    if (!hiddenOpen) return
+    const close = (event: PointerEvent) => {
+      if (!footerRef.current?.contains(event.target as Node)) setHiddenOpen(false)
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setHiddenOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [hiddenOpen])
 
   async function addProfile() {
     setError('')
@@ -268,6 +294,24 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
       setAdding(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hermes did not create that profile.')
+    }
+  }
+
+  async function hideProfile(profile: Snapshot['profiles'][number]): Promise<void> {
+    setError('')
+    try {
+      await window.icyteru.setProfileHidden(profile.gatewayId, profile.name, true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hermes did not hide that agent.')
+    }
+  }
+
+  async function unhideProfile(profile: Snapshot['profiles'][number]): Promise<void> {
+    setError('')
+    try {
+      await window.icyteru.setProfileHidden(profile.gatewayId, profile.name, false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hermes did not unhide that agent.')
     }
   }
 
@@ -305,7 +349,7 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
       )}
       {error && <p className="inline-error side-note">{error}</p>}
       <div className="bot-list">
-        {snapshot.profiles.map(profile => {
+        {visibleProfiles.map(profile => {
           const selected = profile.gatewayId === snapshot.activeGatewayId && profile.name === snapshot.activeProfile
           const online = selected || isRecent(profile.lastActive)
           return (
@@ -328,6 +372,18 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
                 </span>
               </button>
               <button
+                className="bot-hide"
+                type="button"
+                title={`Hide ${profile.label}`}
+                aria-label={`Hide ${profile.label}`}
+                onClick={event => {
+                  event.stopPropagation()
+                  void hideProfile(profile)
+                }}
+              >
+                <EyeOff />
+              </button>
+              <button
                 className={profile.pinned ? 'pin-button on' : 'pin-button'}
                 type="button"
                 title={profile.pinned ? 'Unpin' : 'Pin to top'}
@@ -338,12 +394,42 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
             </div>
           )
         })}
-        {snapshot.profiles.length === 0 && <p className="empty-list">Hermes profiles show up here.</p>}
+        {visibleProfiles.length === 0 && <p className="empty-list">All agents are hidden. Use the eye button beside Settings to unhide one.</p>}
       </div>
-      <button className="settings-link" onClick={() => { phone.setView('chat'); void window.icyteru.showScreen('settings') }} type="button" aria-label="Settings">
-        <Gear />
-        <span className="settings-label">Settings</span>
-      </button>
+      <div className="side-footer" ref={footerRef}>
+        {hiddenOpen && (
+          <div className="hidden-bots-menu" role="dialog" aria-label="Hidden agents">
+            <div className="hidden-bots-head">
+              <span>Hidden agents</span>
+              <button className="hidden-bots-close" type="button" onClick={() => setHiddenOpen(false)} aria-label="Close hidden agents">×</button>
+            </div>
+            {hiddenProfiles.length === 0 && <p className="hidden-bots-empty">No hidden agents.</p>}
+            {hiddenProfiles.map(profile => (
+              <div className="hidden-bot-row" key={`${profile.gatewayId}:${profile.name}`}>
+                <Avatar label={profile.label} initial={profile.initial} src={profile.avatar} size={26} />
+                <span className="hidden-bot-name">{profile.label}</span>
+                <button className="ghost tiny" type="button" onClick={() => void unhideProfile(profile)}>Unhide</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <button
+          className="settings-link hidden-bots-link"
+          type="button"
+          title="Hidden agents"
+          aria-label="Hidden agents"
+          aria-expanded={hiddenOpen}
+          onClick={() => setHiddenOpen(open => !open)}
+        >
+          <Eye />
+          <span className="settings-label">Hidden</span>
+          {hiddenProfiles.length > 0 && <span className="hidden-count">{hiddenProfiles.length}</span>}
+        </button>
+        <button className="settings-link" onClick={() => { phone.setView('chat'); setHiddenOpen(false); void window.icyteru.showScreen('settings') }} type="button" aria-label="Settings">
+          <Gear />
+          <span className="settings-label">Settings</span>
+        </button>
+      </div>
     </aside>
   )
 }
@@ -369,6 +455,24 @@ function Plus() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
+function Eye() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  )
+}
+
+function EyeOff() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 3l18 18M10.6 6.2A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-3 3.7M6.1 6.6C3.9 8.3 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.7-.3 3.8-.8" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   )
 }

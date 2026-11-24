@@ -71,6 +71,9 @@ export function previewSnapshot(shot: string): Snapshot {
     profile({ name: 'aino', label: 'Aino', initial: 'A', preview: '', pinned: false, lastActive: null }),
     profile({ name: 'guide', label: 'Guide', initial: 'G', preview: '', pinned: false, lastActive: null })
   ]
+  const hiddenProfile = profile({ name: 'noustest', label: 'noustest', initial: 'N', preview: '', pinned: false, lastActive: null })
+  hiddenProfile.hidden = true
+  base.profiles.push(hiddenProfile)
   base.sessions = [
     session('s1', 'Say hello in one short sentence.', 'gui', 28),
     session('s2', 'Reply with the word stream.', 'telegram', 29),
@@ -129,7 +132,9 @@ export function previewSnapshot(shot: string): Snapshot {
           name: 'memory',
           argsText: '{ "action": "read" }',
           resultText: 'No extra notes for this chat.',
-          status: 'done'
+          status: 'done',
+          startedAt: Date.now() - 45_000,
+          finishedAt: Date.now()
         }],
         pending: false
       }
@@ -160,6 +165,8 @@ export function previewSnapshot(shot: string): Snapshot {
   if (shot === 'tool') {
     base.transcript.streaming = true
     base.transcript.messages[1].tools[0].status = 'running'
+    base.transcript.messages[1].tools[0].startedAt = Date.now() - 12_000
+    base.transcript.messages[1].tools[0].finishedAt = undefined
   }
   if (shot === 'split-fixed') {
     let transcript = emptyTranscript()
@@ -180,10 +187,15 @@ export function previewSnapshot(shot: string): Snapshot {
         payload: { tool_id: `split-${i}`, name: 'terminal', result: `ok ${i}`, is_error: false }
       })
     }
+    const baseTime = Date.now() - 45_000
+    transcript.messages[0].tools.forEach((tool, i) => {
+      tool.startedAt = baseTime + i * 6_000
+      tool.finishedAt = baseTime + (i + 1) * 6_000
+    })
     transcript = applyGatewayEvent(transcript, {
       type: 'message.complete',
       payload: {
-        text: 'Itu bukan 700 pesan chat baru, sayang. Itu hitungan baris aktif setelah compression, dan mayoritas isinya tool call. Bubble ini harus tetap utuh, lalu blok tool muncul setelah teks.',
+        text: 'Itu bukan 700 pesan chat baru, sayang. Itu hitungan baris aktif setelah compression, dan mayoritas isinya tool call. Blok tool tetap terpisah dari bubble teks, jadi pesan ini tidak ikut tertutup saat tool dilipat.',
         status: 'ok'
       }
     })
@@ -196,14 +208,14 @@ export function previewSnapshot(shot: string): Snapshot {
         id: 'normal-a1',
         role: 'assistant',
         text: 'Aku tulis release notes dulu.',
-        tools: [{ id: 'n1', name: 'write_file', argsText: 'release notes', resultText: 'written', status: 'done' }],
+        tools: [{ id: 'n1', name: 'write_file', argsText: 'release notes', resultText: 'written', status: 'done', startedAt: Date.now() - 30_000, finishedAt: Date.now() - 22_000 }],
         pending: false
       },
       {
         id: 'normal-a2',
         role: 'assistant',
         text: 'Sekarang bump versi dan verifikasi.',
-        tools: [{ id: 'n2', name: 'terminal', argsText: 'npm run version:set', resultText: '0.0.51', status: 'done' }],
+        tools: [{ id: 'n2', name: 'terminal', argsText: 'npm run version:set', resultText: '0.0.51', status: 'done', startedAt: Date.now() - 18_000, finishedAt: Date.now() - 4_000 }],
         pending: false
       },
       {
@@ -466,6 +478,7 @@ export function installPreview(shot: string): void {
     setGlobalReasoning: () => Promise.resolve('Global reasoning set in preview.'),
     selectProfile: () => Promise.resolve(),
     setPinned: () => Promise.resolve(),
+    setProfileHidden: () => Promise.resolve(),
     createProfile: () => Promise.resolve(),
     getAppearance: () => Promise.resolve({ dim: 0.22, blur: 10, light: null, dark: null }),
     setBackground: () => Promise.resolve({ dim: 0.22, blur: 10, light: null, dark: null }),

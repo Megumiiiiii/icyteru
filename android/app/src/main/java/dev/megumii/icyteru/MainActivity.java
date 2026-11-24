@@ -47,5 +47,9 @@ public class MainActivity extends BridgeActivity {
                 .edit()
                 .putString(IcyteruMessagingService.SESSION_KEY, sessionId)
                 .apply();
+        // Warm start: onNewIntent fires while React/the WebView is already
+        // running. The event makes the client switch to this session now;
+        // the SharedPreferences copy still covers a cold start.
+        IcyteruPushPlugin.notifySessionOpened(sessionId);
     }
 }

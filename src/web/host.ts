@@ -18,6 +18,10 @@ interface IcyteruPushBridge {
   deleteToken: () => Promise<void>
   consumeSession: () => Promise<{ session_id: string }>
   setConnectionActive: (options: { active: boolean }) => Promise<void>
+  addListener: (
+    eventName: 'sessionOpened',
+    listener: (data: { session_id: string }) => void
+  ) => Promise<{ remove: () => Promise<void> }>
 }
 
 const IcyteruPush = registerPlugin<IcyteruPushBridge>('IcyteruPush')
@@ -200,15 +204,36 @@ async function ensureConnected(): Promise<void> {
   }
 }
 
+async function openSessionFromNotification(sessionId: string): Promise<void> {
+  if (!sessionId || phase !== 'ready') return
+  screen = 'chat'
+  publish()
+  window.dispatchEvent(new CustomEvent('icyteru:open-session'))
+  try {
+    await client.openSession(sessionId)
+  } catch {
+    // The session may have been deleted; leave the current chat untouched.
+  }
+}
+
+async function consumePendingSession(): Promise<void> {
+  if (phase !== 'ready') return
+  try {
+    const pending = await IcyteruPush.consumeSession()
+    await openSessionFromNotification(pending.session_id)
+  } catch {
+    // A native notification hint must never break chat.
+  }
+}
+
 async function syncPushToken(): Promise<void> {
   if (Capacitor.getPlatform() !== 'android' || !saved.url) return
+  await consumePendingSession()
   try {
     await enableNotifications()
     const { token } = await IcyteruPush.getToken()
     if (!token) return
     await client.registerPush(token, APP_VERSION)
-    const pending = await IcyteruPush.consumeSession()
-    if (pending.session_id && phase === 'ready') await client.openSession(pending.session_id)
   } catch {
     // Push registration is a courtesy; a gateway or FCM hiccup must not block chat.
   }
@@ -412,6 +437,7 @@ export function installWebHost(): void {
     setGlobalReasoning: (value: string) => client.setGlobalReasoning(value),
     selectProfile: (gatewayId: string, name: string) => client.selectProfile(gatewayId, name),
     setPinned: (gatewayId: string, name: string, pinned: boolean) => client.setPinned(gatewayId, name, pinned),
+    setProfileHidden: (gatewayId: string, name: string, hidden: boolean) => client.setProfileHidden(gatewayId, name, hidden),
     createProfile: (label: string) => client.createProfile(label),
     getAppearance: () => appearance(),
     setBackground: async (mode: BackdropMode, image: string) => {
@@ -462,6 +488,11 @@ export function installWebHost(): void {
     }
   }
   window.icyteru = api
+  if (Capacitor.getPlatform() === 'android') {
+    void IcyteruPush.addListener('sessionOpened', () => {
+      void consumePendingSession()
+    }).catch(() => undefined)
+  }
   if (saved.url) void connectSaved()
   else publish()
 }

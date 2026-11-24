@@ -14,6 +14,32 @@ import com.google.firebase.messaging.FirebaseMessaging;
 
 @CapacitorPlugin(name = "IcyteruPush")
 public class IcyteruPushPlugin extends Plugin {
+    private static volatile IcyteruPushPlugin instance;
+
+    @Override
+    public void load() {
+        super.load();
+        instance = this;
+    }
+
+    /**
+     * A notification tap while the app is already alive calls
+     * MainActivity.onNewIntent, which only writes the pending session to
+     * SharedPreferences. Tell the WebView as well so it switches immediately
+     * instead of staying on the session that happened to be open.
+     */
+    static void notifySessionOpened(String sessionId) {
+        IcyteruPushPlugin plugin = instance;
+        if (plugin == null || sessionId == null || sessionId.isEmpty()) return;
+        JSObject data = new JSObject();
+        data.put("session_id", sessionId);
+        if (plugin.getActivity() != null) {
+            plugin.getActivity().runOnUiThread(() -> plugin.notifyListeners("sessionOpened", data));
+        } else {
+            plugin.notifyListeners("sessionOpened", data);
+        }
+    }
+
     @PluginMethod
     public void getToken(PluginCall call) {
         FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {

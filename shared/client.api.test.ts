@@ -310,6 +310,32 @@ test('setPinned and createProfile call the gateway and refresh the roster', asyn
   assert.equal((c.profiles as unknown[]).length, 1)
 })
 
+test('setProfileHidden updates hermes-bots metadata and refuses to hide the last visible agent', async () => {
+  const c = client()
+  c.profiles = [
+    { gatewayId: 'primary', name: 'scout', hidden: false, botMeta: { title: 'Scout' } },
+    { gatewayId: 'primary', name: 'noustest', hidden: false, botMeta: {} }
+  ]
+  c.activeGatewayId = 'primary'
+  c.activeProfile = 'scout'
+  c.socket = { isOpen: true }
+  let configured: unknown
+  c.tryRpc = async (method: string, params: unknown) => {
+    configured = { method, params }
+    return { ok: true }
+  }
+  c.refreshRoster = async () => undefined
+  await c.setProfileHidden('primary', 'noustest', true)
+  assert.equal((configured as any).method, 'profiles.configure')
+  assert.equal((configured as any).params.ui_meta['hermes-bots'].hidden, true)
+  assert.equal((configured as any).params.ui_meta['hermes-bots'].title, undefined)
+  c.profiles = [{ gatewayId: 'primary', name: 'scout', hidden: false, botMeta: { title: 'Scout' } }]
+  await assert.rejects(
+    () => c.setProfileHidden('primary', 'scout', true),
+    /at least one visible agent/
+  )
+})
+
 test('remote prompt cards are listed, answered, and removed', async () => {
   const c = client()
   c.socket = { isOpen: true }

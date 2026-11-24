@@ -1,5 +1,18 @@
 # Icyteru release notes
 
+## v0.0.77
+
+### Added
+
+- **Notification taps open the session that sent them**, even when Icyteru is already open in another chat. Android emits a `sessionOpened` event from `onNewIntent` and the WebView consumes it; desktop notification-feed clicks carry the originating `session_id` into `client.openSession`. Tapping a reply/clarify/approval notification while the app is minimized now lands on the right conversation instead of only raising the app.
+- **Tool activity cards sit above the assistant reply** and use the theme-aware `panel`/`surface` colors. The summary shows `Worked for N secs · N tools`, expands into a tree-connected list with tool icons, argument previews, and per-tool duration. Assistant text stays in its own bubble and is never folded into the tool card.
+- **History source groups start collapsed**, so Telegram/Discord/Desktop/Jobs/Schedule lists stay compact. Searching opens the matching groups; clearing the search returns to the collapsed view.
+- **Agents can be hidden from the left panel.** Hover an agent row and use the eye-off button; the eye button beside Settings lists hidden agents and restores them with Unhide. The last visible agent cannot be hidden.
+
+### Fixed
+
+- **Reconnect to the notification session is immediate** on Android warm starts and desktop when the window is already open; the old handler only focused the app.
+
 ## v0.0.76
 
 ### Added

@@ -851,6 +851,7 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
                 const media = splitMedia(part.text)
                 return (
                   <Fragment key={i}>
+                    {part.tools.length > 0 && <div className="tool-standalone"><ToolGroup tools={part.tools} /></div>}
                     {(media.text.trim() || media.attachments.length > 0) && (
                       <article className={`bubble ${message.role}`}>
                         {media.text.trim() && <Markdown text={media.text} />}
@@ -876,7 +877,6 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
                         )}
                       </article>
                     )}
-                    {part.tools.length > 0 && <div className="tool-standalone"><ToolGroup tools={part.tools} /></div>}
                   </Fragment>
                 )
               })}
@@ -1090,32 +1090,122 @@ function ToolStatus({ running }: { running: boolean }) {
   return <span className={`tool-status ${running ? 'running' : 'done'}`} role="img" aria-label={running ? 'Running' : 'Done'}>{running ? null : '✓'}</span>
 }
 
+function toolDuration(tool: ToolCall, now: number): number {
+  if (!tool.startedAt) return 0
+  const end = tool.finishedAt || (tool.status === 'running' ? now : tool.startedAt)
+  return Math.max(0, Math.round((end - tool.startedAt) / 1000))
+}
+
+function durationLabel(seconds: number): string {
+  if (seconds < 60) return `${seconds} ${seconds === 1 ? 'sec' : 'secs'}`
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}m ${seconds % 60}s`
+}
+
+function toolSummary(tools: ToolCall[], running: boolean, now: number): string {
+  const count = tools.length
+  const started = tools.map(tool => tool.startedAt).filter((value): value is number => typeof value === 'number')
+  const finished = tools.map(tool => tool.finishedAt).filter((value): value is number => typeof value === 'number')
+  if (!started.length) return count === 1 ? '1 tool call' : `${count} tool calls`
+  const elapsed = Math.max(0, Math.round(((running ? now : Math.max(...finished, ...started)) - Math.min(...started)) / 1000))
+  const noun = count === 1 ? 'tool' : 'tools'
+  return `${running ? 'Working' : 'Worked'} for ${durationLabel(elapsed)} · ${count} ${noun}`
+}
+
+function toolLabel(name: string): string {
+  if (['terminal', 'bash', 'shell', 'run_command'].includes(name)) return 'Ran command'
+  if (name === 'clarify') return 'Clarify'
+  if (name === 'patch') return 'Patch'
+  if (name === 'write_file') return 'Write file'
+  if (name === 'read_file') return 'Read file'
+  return name.replace(/[_-]+/g, ' ')
+}
+
+function toolPreviewText(tool: ToolCall): string {
+  const raw = tool.argsText || tool.resultText
+  return raw.replace(/\s+/g, ' ').trim().slice(0, 110)
+}
+
 function ToolGroup({ tools }: { tools: ToolCall[] }) {
   const [open, setOpen] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
   const running = tools.some(tool => tool.status === 'running')
   useEffect(() => {
-    if (!running) setOpen(false)
+    if (!running) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [running])
+  useEffect(() => {
+    if (!running) setNow(Date.now())
   }, [running])
   return (
-    <div className="tools">
-      <button className="tool-toggle" onClick={() => setOpen(value => !value)} type="button">
-        <span>{open ? '▾' : '▸'}</span>
-        <ToolStatus running={running} />
-        {running ? 'Using tools' : `${tools.length} tool ${tools.length === 1 ? 'call' : 'calls'}`}
+    <div className={`tools ${running ? 'running' : 'done'} ${open ? 'expanded' : ''}`}>
+      <button
+        className="tool-toggle"
+        onClick={() => setOpen(value => !value)}
+        type="button"
+        aria-expanded={open}
+      >
+        <span className="tool-summary-icon" aria-hidden="true">
+          {running ? <span className="tool-status running" /> : <span className="tool-check">✓</span>}
+        </span>
+        <span className="tool-summary-text">{toolSummary(tools, running, now)}</span>
+        <span className="tool-caret" aria-hidden="true">{open ? '⌃' : '⌄'}</span>
       </button>
-      {open && tools.map(tool => <ToolRow key={tool.id} tool={tool} />)}
+      {open && (
+        <div className="tool-list">
+          {tools.map(tool => <ToolRow key={tool.id} tool={tool} now={now} />)}
+        </div>
+      )}
     </div>
   )
 }
 
-function ToolRow({ tool }: { tool: ToolCall }) {
-  const [open, setOpen] = useState(false)
+function ToolIcon({ name }: { name: string }) {
+  if (name === 'terminal' || name === 'bash' || name === 'shell' || name === 'run_command') {
+    return (
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M7 9l3 3-3 3M12 15h5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  if (name === 'clarify') {
+    return (
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+        <path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="M8 10h8M8 13h5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  if (name === 'patch' || name === 'write_file') {
+    return (
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+        <path d="M5 4h9l4 4v12H5z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="M14 4v5h5M8 13h7M8 17h5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      </svg>
+    )
+  }
   return (
-    <div className="tool">
-      <button onClick={() => setOpen(value => !value)} type="button">
-        <span>{open ? '▾' : '▸'}</span>
-        <strong>{tool.name}</strong>
-        <ToolStatus running={tool.status === 'running'} />
+    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+      <path d="M14.5 4.5l5 5-9.5 9.5H5v-5z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M12.5 6.5l5 5" fill="none" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  )
+}
+
+function ToolRow({ tool, now }: { tool: ToolCall; now: number }) {
+  const [open, setOpen] = useState(false)
+  const elapsed = toolDuration(tool, now)
+  const preview = toolPreviewText(tool)
+  return (
+    <div className={`tool ${tool.status === 'running' ? 'running' : 'done'}`}>
+      <button onClick={() => setOpen(value => !value)} type="button" aria-expanded={open}>
+        <span className="tool-row-icon" aria-hidden="true"><ToolIcon name={tool.name} /></span>
+        <strong>{toolLabel(tool.name)}</strong>
+        {preview && <span className="tool-row-preview">{preview}</span>}
+        <span className="tool-row-time">{tool.status === 'running' ? <ToolStatus running /> : elapsed > 0 ? durationLabel(elapsed) : null}</span>
+        <span className="tool-row-caret" aria-hidden="true">{open ? '⌃' : '⌄'}</span>
       </button>
       {open && (
         <div className="tool-body">
@@ -1855,7 +1945,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
   onNotice: (text: string) => void
 }) {
   const phone = useContext(PhoneNav)
-  const [closedGroups, setClosedGroups] = useState<Set<string>>(() => new Set())
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
   const [groupOrder, setGroupOrder] = useState<string[]>(() => {
     try {
       return normalizeGroupOrder(JSON.parse(localStorage.getItem(GROUP_ORDER_KEY) || '[]'))
@@ -1921,6 +2011,12 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
       return (ia < 0 ? order.length : ia) - (ib < 0 ? order.length : ib) || a.localeCompare(b)
     })
 
+  useEffect(() => {
+    // Groups start folded. A search should reveal the matching chats without
+    // making the user open each group, and clearing it returns to the compact view.
+    setOpenGroups(needle ? new Set(groups.map(([label]) => label)) : new Set())
+  }, [needle])
+
   function saveGroupOrder(next: string[]): void {
     setGroupOrder(next)
     try {
@@ -1970,7 +2066,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
     setDraggingGroup(null)
     setDropTarget(null)
   }
-  const toggleGroup = (label: string) => setClosedGroups(prev => {
+  const toggleGroup = (label: string) => setOpenGroups(prev => {
     const next = new Set(prev)
     if (next.has(label)) next.delete(label)
     else next.add(label)
@@ -1995,7 +2091,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
           <div className="session-list">
             {sessions.length === 0 && <p className="empty-list">No chats for {snapshot.profileName} yet. Telegram and Discord chats show up here when Hermes has them.</p>}
             {groups.map(([label, group]) => {
-              const closed = closedGroups.has(label)
+              const open = openGroups.has(label)
               return (
                 <div
                   className={`session-group${draggingGroup === label ? ' dragging' : ''}${dropTarget === label ? ' drop-target' : ''}`}
@@ -2003,10 +2099,10 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
                   key={label}
                 >
                   <div
-                    className={closed ? 'session-group-title closed' : 'session-group-title'}
+                    className={open ? 'session-group-title' : 'session-group-title closed'}
                     role="button"
                     tabIndex={0}
-                    aria-expanded={!closed}
+                    aria-expanded={open}
                     onClick={() => toggleGroup(label)}
                     onKeyDown={event => {
                       if (event.key === 'Enter' || event.key === ' ') {
@@ -2032,7 +2128,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
                     <span className="session-group-count">{group.length}</span>
                     <i aria-hidden="true">›</i>
                   </div>
-                  {!closed && group.map(session => (
+                  {open && group.map(session => (
                     <div className={session.id === snapshot.activeSessionId ? 'session-row active' : 'session-row'} key={session.id}>
                       <button
                         className={session.id === snapshot.activeSessionId ? 'session active' : 'session'}

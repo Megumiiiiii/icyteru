@@ -46,6 +46,7 @@ const api = {
   setGlobalReasoning: (value: string): Promise<string> => ipcRenderer.invoke('set-global-reasoning', value),
   selectProfile: (gatewayId: string, name: string): Promise<void> => ipcRenderer.invoke('select-profile', { gatewayId, name }),
   setPinned: (gatewayId: string, name: string, pinned: boolean): Promise<void> => ipcRenderer.invoke('set-pinned', { gatewayId, name, pinned }),
+  setProfileHidden: (gatewayId: string, name: string, hidden: boolean): Promise<void> => ipcRenderer.invoke('set-profile-hidden', { gatewayId, name, hidden }),
   createProfile: (label: string): Promise<void> => ipcRenderer.invoke('create-profile', label),
   getAppearance: (): Promise<Appearance> => ipcRenderer.invoke('get-appearance'),
   setBackground: (mode: 'light' | 'dark', image: string): Promise<Appearance> => ipcRenderer.invoke('set-background', { mode, image }),

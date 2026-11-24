@@ -441,6 +441,27 @@ export class HermesClient {
     await this.refreshRoster()
   }
 
+  async setProfileHidden(gatewayId: string, name: string, hidden: boolean): Promise<void> {
+    const profile = this.profiles.find(item => item.gatewayId === gatewayId && item.name === name)
+    if (!profile) return
+    if (hidden && this.profiles.filter(item => !item.hidden).length <= 1) {
+      throw new Error('Keep at least one visible agent.')
+    }
+    if (this.activeGatewayId !== gatewayId || !this.socket?.isOpen) {
+      const gateway = this.gateways.find(item => item.id === gatewayId)
+      if (!gateway) return
+      await this.activateGateway(gateway)
+    }
+    const meta = { ...profile.botMeta, hidden }
+    const result = await this.tryRpc('profiles.configure', { name, ui_meta: { 'hermes-bots': meta } })
+    if (!result.ok) throw new Error(result.error || 'Hermes did not save the agent visibility.')
+    await this.refreshRoster()
+    if (hidden && this.activeGatewayId === gatewayId && this.activeProfile === name) {
+      const next = this.profiles.find(item => !item.hidden)
+      if (next) await this.selectProfile(next.gatewayId, next.name)
+    }
+  }
+
   async createProfile(label: string): Promise<void> {
     const title = label.trim()
     const name = title.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64)
@@ -1644,9 +1665,7 @@ export class HermesClient {
         profiles.push(...await this.readProfiles(null, gateway))
       }
     }
-    this.profiles = profiles.filter(profile => !profile.hidden).length
-      ? profiles.filter(profile => !profile.hidden)
-      : profiles
+    this.profiles = profiles
     if (!this.profiles.length) {
       this.profiles = [{
         gatewayId: this.activeGatewayId,

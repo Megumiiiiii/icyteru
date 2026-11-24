@@ -48,6 +48,7 @@ declare global {
       setGlobalReasoning: (value: string) => Promise<string>
       selectProfile: (gatewayId: string, name: string) => Promise<void>
       setPinned: (gatewayId: string, name: string, pinned: boolean) => Promise<void>
+      setProfileHidden: (gatewayId: string, name: string, hidden: boolean) => Promise<void>
       createProfile: (label: string) => Promise<void>
       getAppearance: () => Promise<{ dim: number; blur: number; light: string | null; dark: string | null }>
       setBackground: (mode: 'light' | 'dark', image: string) => Promise<{ dim: number; blur: number; light: string | null; dark: string | null }>

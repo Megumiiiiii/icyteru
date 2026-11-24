@@ -136,13 +136,20 @@ function createWindow(): void {
   })
 }
 
-function showDesktopNotification(title: string, body: string): void {
+function showDesktopNotification(title: string, body: string, sessionId = ''): void {
   if (!Notification.isSupported()) return
   const note = new Notification({ title, body })
   note.on('click', () => {
     if (window?.isMinimized()) window.restore()
     window?.show()
     window?.focus()
+    if (sessionId) {
+      // A notification from another session should switch the open chat, not
+      // just raise whichever session happened to be in front.
+      screen = 'chat'
+      publish()
+      void client.openSession(sessionId).catch(() => undefined)
+    }
   })
   note.show()
 }
@@ -163,7 +170,7 @@ function startDesktopNotifications(): void {
       // The open session is already handled by the renderer's local notifier;
       // other sessions (Telegram, Discord, schedule) arrive through this feed.
       if (event.session_id && event.session_id === activeSession) continue
-      showDesktopNotification(event.title, event.body)
+      showDesktopNotification(event.title, event.body, event.session_id)
     }
   }, 4000)
 }
@@ -306,6 +313,9 @@ function registerIpc(): void {
   ))
   ipcMain.handle('set-pinned', (_event, payload: { gatewayId: string; name: string; pinned: boolean }) => (
     client.setPinned(payload.gatewayId, payload.name, payload.pinned)
+  ))
+  ipcMain.handle('set-profile-hidden', (_event, payload: { gatewayId: string; name: string; hidden: boolean }) => (
+    client.setProfileHidden(payload.gatewayId, payload.name, payload.hidden)
   ))
   ipcMain.handle('create-profile', (_event, label: string) => client.createProfile(label))
   ipcMain.handle('get-appearance', () => loadAppearance())

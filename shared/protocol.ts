@@ -109,6 +109,8 @@ export interface ToolCall {
   argsText: string
   resultText: string
   status: 'running' | 'done'
+  startedAt?: number
+  finishedAt?: number
 }
 
 export interface TranscriptAttachment {
@@ -269,7 +271,8 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
         name,
         argsText: '',
         resultText: '',
-        status: 'running'
+        status: 'running',
+        startedAt: Date.now()
       })
     }
     next.streaming = true
@@ -295,8 +298,18 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
     if (existing) {
       if (argsText) existing.argsText = argsText
       existing.status = 'running'
+      if (!existing.startedAt) existing.startedAt = Date.now()
+      existing.finishedAt = undefined
     } else {
-      message.tools.push({ textOffset: message.text.length, id, name, argsText, resultText: '', status: 'running' })
+      message.tools.push({
+        textOffset: message.text.length,
+        id,
+        name,
+        argsText,
+        resultText: '',
+        status: 'running',
+        startedAt: Date.now()
+      })
     }
     next.streaming = true
     return next
@@ -310,12 +323,22 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
       tool = [...message.tools].reverse().find(item => item.name === name && item.status === 'running' && item.id.startsWith('gen:'))
     }
     if (!tool) {
-      tool = { textOffset: message.text.length, id: id || `tool-${message.tools.length}`, name, argsText: '', resultText: '', status: 'running' }
+      tool = {
+        textOffset: message.text.length,
+        id: id || `tool-${message.tools.length}`,
+        name,
+        argsText: '',
+        resultText: '',
+        status: 'running',
+        startedAt: Date.now()
+      }
       message.tools.push(tool)
     }
     if (type === 'tool.complete') {
       tool.status = 'done'
       tool.name = name || tool.name
+      if (!tool.startedAt) tool.startedAt = Date.now()
+      tool.finishedAt = Date.now()
       const result = payload.summary ?? payload.result_text ?? payload.result ?? payload.preview
       tool.resultText = previewValue(result)
       if (payload.args) tool.argsText = previewValue(payload.args)
@@ -354,7 +377,10 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
     assistant.pending = false
     next.streaming = false
     for (const tool of assistant.tools) {
-      if (tool.status === 'running') tool.status = 'done'
+      if (tool.status === 'running') {
+        tool.status = 'done'
+        tool.finishedAt = Date.now()
+      }
     }
     return next
   }
