@@ -1,5 +1,12 @@
 # Icyteru release notes
 
+## v0.0.82
+
+### Fixed
+
+- **Session reasoning stays selected when switching models.** If a chat has an explicit reasoning level such as Medium, Icyteru now preserves and re-applies that session choice after a successful model switch instead of silently repainting the model's/global default such as High.
+- Reasoning is restored before side data refreshes, so the chat header and the next turn stay consistent with the user's per-session selection.
+
 ## v0.0.81
 
 ### Added

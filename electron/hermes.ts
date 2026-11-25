@@ -1452,6 +1452,24 @@ export class HermesClient {
     if (record.status === 'refused' || record.status === 'failed') {
       throw new Error(String(record.detail || record.message || 'Hermes did not change the model.'))
     }
+    // A model pick rebuilds the turn agent from that model's defaults, which can
+    // drop an explicit per-session reasoning choice. Re-apply it before the
+    // refresh reads the effective level back, so it never silently becomes High.
+    const priorReasoning = this.side.reasoning
+    if (priorReasoning && priorReasoning !== 'reset') {
+      try {
+        await this.rpc('config.set', this.scope({
+          session_id: sessionId,
+          key: 'reasoning',
+          value: priorReasoning,
+          scope: 'session'
+        }))
+        this.side.reasoning = priorReasoning
+      } catch {
+        // The model switch already succeeded; keep the displayed level honest if
+        // this gateway refuses the follow-up write.
+      }
+    }
     await this.refreshSideData()
     const appliedModel = typeof record.model === 'string' && record.model ? record.model : model
     const appliedProvider = typeof record.provider === 'string' && record.provider ? record.provider : provider

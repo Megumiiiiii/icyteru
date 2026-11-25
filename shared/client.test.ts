@@ -331,6 +331,32 @@ test('newChat and send clear the previous turn Tok/s before a new reply starts',
   assert.equal((c as unknown as { side: { tokensPerSecond: number | null } }).side.tokensPerSecond, null)
 })
 
+test('changing the model re-applies an explicit session reasoning choice', async () => {
+  const id = '20261119_205710_f5c946e4'
+  const client = clientWithSession(id, 'deepseek/deepseek-v4.1-flash')
+  ;(client as unknown as { side: { reasoning: string } }).side.reasoning = 'medium'
+  const reasoningWrites: Array<Record<string, unknown>> = []
+  ;(client as unknown as { rpc: Rpc }).rpc = async (method, params) => {
+    if (method === 'session.resume') return { revision: 1, execution_generation: 1 }
+    if (method === 'session.mutate') return { status: 'ok', model: 'hy4-flash-free', provider: 'opencode-go' }
+    if (method === 'config.set' && params?.key === 'reasoning') {
+      reasoningWrites.push(params)
+      return { value: params.value }
+    }
+    if (method === 'config.get') return { value: 'medium', explicit: true }
+    return {}
+  }
+  ;(client as unknown as { getJson: GetJson }).getJson = async path => {
+    if (path.includes('/api/model/options')) return modelsPayload('hy4-flash-free', 'opencode-go')
+    return null
+  }
+  await client.setSessionModel('hy4-flash-free', 'opencode-go')
+  assert.equal(client.side.reasoning, 'medium')
+  assert.equal(reasoningWrites.length, 1)
+  assert.equal(reasoningWrites[0].value, 'medium')
+  assert.equal(reasoningWrites[0].scope, 'session')
+})
+
 test('readReasoning treats an inherited effort as no explicit session override', async () => {
   const client = new HermesClient(() => undefined)
   ;(client as unknown as { live: unknown }).live = { live: 's1', stored: 's1', subscriptionId: '' }
