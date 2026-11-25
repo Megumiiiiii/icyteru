@@ -6,6 +6,12 @@ name: Tauri Canary
 
 on:
   workflow_dispatch:
+  push:
+    branches: [tauri-test]
+    paths:
+      - 'src-tauri/**'
+      - 'src/tauri/**'
+      - '.github/workflows/tauri-canary.yml'
 
 concurrency:
   group: tauri-canary
