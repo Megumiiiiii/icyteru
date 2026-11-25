@@ -1,5 +1,18 @@
 # Icyteru release notes
 
+## v0.0.85
+
+### Changed
+
+- **Global model selection now matches the per-chat picker.** Settings uses the same searchable, theme-aware model list with provider tabs, provider labels, selected-provider marker, and a visible check on the selected model instead of the limited native dropdown.
+- The closed global selector shows both the selected model and provider, including on Android.
+- On Android the model search field no longer opens the keyboard by itself when a picker appears; tap the field to type. Desktop and web still focus it immediately.
+
+### Fixed
+
+- Global defaults now resolve duplicate model IDs using the authoritative global provider. If the same model is offered by several providers, Settings no longer silently selects the first inventory entry.
+- The custom picker stays within the viewport: the list scrolls inside the popover and the panel opens upward when there is not enough room below, including at 390 px with no horizontal overflow.
+
 ## v0.0.84
 
 ### Added
@@ -10,7 +23,6 @@
 ### Changed
 
 - The Android build resolves Maven Central through Google's mirror first, avoiding CI throttling.
-
 
 ### Fixed
 

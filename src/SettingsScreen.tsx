@@ -1,8 +1,10 @@
-import { useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import { isSakugaEnabled, setSakugaEnabled } from './sakuga'
 import { APP_VERSION } from './version'
-import type { AuthMode } from '../shared/protocol'
+import { autoFocusSearch, findModelChoiceIndex } from '../shared/model-choice'
+import type { AuthMode, ModelChoice } from '../shared/protocol'
 import type { Snapshot, ThemePreference } from '../shared/snapshot'
 import { THEME_PREFERENCES } from '../shared/snapshot'
 
@@ -31,10 +33,9 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
   const [busy, setBusy] = useState(false)
   const [confirmForget, setConfirmForget] = useState(false)
   const [sakugaOn, setSakugaOn] = useState(isSakugaEnabled)
-  const [globalModelIndex, setGlobalModelIndex] = useState(() => {
-    const found = snapshot.models.findIndex(model => model.id === snapshot.globalModel)
-    return found >= 0 ? found : 0
-  })
+  const [globalModelIndex, setGlobalModelIndex] = useState(() =>
+    findModelChoiceIndex(snapshot.models, snapshot.globalModel, snapshot.globalProvider)
+  )
   const [globalReasoningLevel, setGlobalReasoningLevel] = useState(snapshot.globalReasoning || 'medium')
   const picked = useRef(false)
 
@@ -64,9 +65,8 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
   }, [url])
 
   useEffect(() => {
-    const found = snapshot.models.findIndex(model => model.id === snapshot.globalModel)
-    setGlobalModelIndex(found >= 0 ? found : 0)
-  }, [snapshot.globalModel, snapshot.models])
+    setGlobalModelIndex(findModelChoiceIndex(snapshot.models, snapshot.globalModel, snapshot.globalProvider))
+  }, [snapshot.globalModel, snapshot.globalProvider, snapshot.models])
 
   useEffect(() => {
     setGlobalReasoningLevel(snapshot.globalReasoning || 'medium')
@@ -230,14 +230,10 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
         </section>
         <section>
           <h2>Global defaults</h2>
-          <label>
-            Default model
-            <select value={globalModelIndex} onChange={event => setGlobalModelIndex(Number(event.target.value))}>
-              {snapshot.models.map((model, index) => (
-                <option key={`${model.provider}:${model.id}`} value={index}>{model.label}</option>
-              ))}
-            </select>
-          </label>
+          <div className="settings-model-field">
+            <span className="settings-field-label">Default model</span>
+            <GlobalModelPicker models={snapshot.models} value={globalModelIndex} onChange={setGlobalModelIndex} />
+          </div>
           <label>
             Default reasoning
             <select value={globalReasoningLevel} onChange={event => setGlobalReasoningLevel(event.target.value)}>
@@ -390,6 +386,181 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
         </section>
       </div>
     </section>
+  )
+}
+
+function GlobalModelPicker({ models, value, onChange }: {
+  models: ModelChoice[]
+  value: number
+  onChange: (index: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState('')
+  const [provider, setProvider] = useState('all')
+  const [dropUp, setDropUp] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const dragged = useRef(false)
+  const selected = models[value] ?? models[0]
+  const selectedProvider = selected ? selected.providerId || selected.provider || 'other' : ''
+
+  function openPicker() {
+    const box = root.current?.getBoundingClientRect()
+    const below = box ? window.innerHeight - box.bottom : 0
+    const above = box ? box.top : 0
+    const needed = Math.min(window.innerHeight * 0.7, 420)
+    setDropUp(below < needed && above > below)
+    setOpen(true)
+  }
+
+  function close() {
+    setOpen(false)
+    setFilter('')
+    setProvider('all')
+  }
+
+  function chooseProvider(name: string) {
+    if (dragged.current) {
+      dragged.current = false
+      return
+    }
+    setProvider(name)
+  }
+
+  function startTabDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const node = event.currentTarget
+    if (node.scrollWidth <= node.clientWidth) return
+    event.preventDefault()
+    dragged.current = false
+    const startX = event.clientX
+    const startLeft = node.scrollLeft
+    node.classList.add('dragging')
+    const move = (next: PointerEvent) => {
+      if (Math.abs(next.clientX - startX) > 3) dragged.current = true
+      node.scrollLeft = startLeft - (next.clientX - startX)
+    }
+    const stop = () => {
+      node.classList.remove('dragging')
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', stop)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', stop)
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) close()
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close()
+    }
+    const onBack = (event: Event) => {
+      event.preventDefault()
+      close()
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('icyteru:back', onBack)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('icyteru:back', onBack)
+    }
+  }, [open])
+
+  const providers = useMemo(() => {
+    const labels = new Map<string, string>()
+    for (const model of models) {
+      const id = model.providerId || model.provider || 'other'
+      if (!labels.has(id)) labels.set(id, model.provider || id)
+    }
+    return [...labels].map(([id, label]) => ({ id, label }))
+  }, [models])
+
+  const visible = useMemo(() => {
+    const needle = filter.trim().toLowerCase()
+    return models.map((model, index) => ({ model, index })).filter(({ model }) => {
+      if (provider !== 'all' && (model.providerId || model.provider || 'other') !== provider) return false
+      return `${model.label} ${model.provider} ${model.id}`.toLowerCase().includes(needle)
+    })
+  }, [filter, models, provider])
+
+  if (!selected) return <p className="hint">No models available.</p>
+
+  return (
+    <div className="global-model-picker" ref={root}>
+      <button
+        className="global-model-trigger"
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => open ? close() : openPicker()}
+      >
+        <span className="model-label">
+          <strong>{selected.label}</strong>
+          <em>{selected.provider}</em>
+        </span>
+        <span aria-hidden="true">⌄</span>
+      </button>
+      {open && (
+        <div className={`model-pop global-model-pop${dropUp ? ' drop-up' : ''}`} role="dialog" aria-label="Choose default model">
+          <input
+            autoFocus={autoFocusSearch(Capacitor.getPlatform())}
+            value={filter}
+            onChange={event => setFilter(event.target.value)}
+            placeholder="Search models"
+          />
+          {providers.length > 1 && (
+            <div
+              className="provider-tabs"
+              role="tablist"
+              aria-label="Model providers"
+              onPointerDown={startTabDrag}
+              onWheel={event => {
+                const node = event.currentTarget
+                if (node.scrollWidth > node.clientWidth) node.scrollLeft += event.deltaY
+              }}
+            >
+              <button className={provider === 'all' ? 'active' : ''} onClick={() => chooseProvider('all')} type="button" role="tab" aria-selected={provider === 'all'}>All</button>
+              {providers.map(item => (
+                <button
+                  key={item.id}
+                  className={provider === item.id ? 'active' : ''}
+                  onClick={() => chooseProvider(item.id)}
+                  type="button"
+                  role="tab"
+                  aria-selected={provider === item.id}
+                >
+                  {item.label}
+                  {item.id === selectedProvider && <span className="provider-inuse" aria-label="selected provider">•</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="model-list">
+            {visible.map(({ model, index }) => (
+              <button
+                key={`${model.providerId || model.provider}:${model.id}`}
+                className={index === value ? 'active' : ''}
+                onClick={() => {
+                  onChange(index)
+                  close()
+                }}
+                type="button"
+              >
+                <span className="model-label">
+                  <strong>{model.label}</strong>
+                  <em>{model.provider}</em>
+                </span>
+                {index === value && <span className="model-check" aria-label="Selected model">✓</span>}
+              </button>
+            ))}
+            {visible.length === 0 && <p className="hint">No matching models.</p>}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

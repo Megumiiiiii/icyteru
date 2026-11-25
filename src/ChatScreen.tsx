@@ -6,6 +6,7 @@ import type { Snapshot } from '../shared/snapshot'
 import { orderedParts, approvalLabel, isTerminalSubagentStatus, modelIdsMatch, modelShortName, pickReasoning, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SessionInfo, type SessionRow, type SubagentProgress, type ToolCall } from '../shared/protocol'
 import { GROUP_ORDER_KEY, normalizeGroupOrder, reorderGroups } from '../shared/group-order'
 import { chatActivityState } from '../shared/chat-activity'
+import { autoFocusSearch } from '../shared/model-choice'
 
 import { Avatar } from './Avatar'
 import { Markdown, copyText } from './Markdown'
@@ -1816,7 +1817,7 @@ function ModelMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (text
               </div>
             </div>
           )}
-          <input autoFocus value={filter} onChange={event => setFilter(event.target.value)} placeholder="Search models" />
+          <input autoFocus={autoFocusSearch(Capacitor.getPlatform())} value={filter} onChange={event => setFilter(event.target.value)} placeholder="Search models" />
           {providerRows.length > 1 && (
             <div
               className="provider-tabs"
