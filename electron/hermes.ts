@@ -900,6 +900,33 @@ export class HermesClient {
     await this.refreshSessions()
   }
 
+  async renameSession(id: string, title: string): Promise<void> {
+    const nextTitle = title.trim()
+    if (!nextTitle) throw new Error('Enter a name for this session.')
+    const basePath = this.profileApiPath(`/api/sessions/${encodeURIComponent(id)}`)
+    const profile = (this.activeProfile || '').trim()
+    const body: Record<string, unknown> = {
+      title: nextTitle,
+      ...(profile && profile !== 'default' ? { profile } : {})
+    }
+    try {
+      const snap = asRecord(await this.getJson(`${basePath}/mutation-snapshot`))
+      body.request_id = `icy-rename-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+      body.expected_revision = Number.isFinite(Number(snap.runtime_revision)) ? Number(snap.runtime_revision) : 0
+      if (typeof snap.runtime_generation === 'number' && Number.isFinite(snap.runtime_generation)) {
+        body.expected_generation = snap.runtime_generation
+      }
+    } catch (err) {
+      // Older Hermes gateways predate /mutation-snapshot and accept an unfenced PATCH.
+      const msg = err instanceof Error ? err.message : ''
+      if (!/404|not found|no such api endpoint/i.test(msg)) throw err
+    }
+    await this.patchJson(basePath, body)
+    this.sessions = this.sessions.map(row => row.id === id ? { ...row, title: nextTitle } : row)
+    this.emit()
+    await this.refreshSessions()
+  }
+
   /** Read one row's message count and context estimate without opening it. */
   async sessionInfo(id: string): Promise<SessionInfo> {
     const row = this.sessions.find(item => item.id === id)

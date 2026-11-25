@@ -471,6 +471,7 @@ export function installPreview(shot: string): void {
     refreshSessions: () => Promise.resolve(),
     openSession: () => Promise.resolve(),
     setSessionPinned: () => Promise.resolve(),
+    renameSession: () => Promise.resolve(),
     sessionInfo: () => Promise.resolve({ id: 's1', title: 'Say hello in one short sentence.', messages: 30, estimatedTokens: 24817 }),
     newChat: () => Promise.resolve(),
     sendMessage: () => Promise.resolve(),

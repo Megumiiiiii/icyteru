@@ -604,7 +604,8 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
   flex: none;
   align-self: center;
 }
-.session-info-button {
+.session-info-button,
+.session-rename-button {
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -617,7 +618,30 @@ code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consol
   flex: none;
   align-self: center;
 }
-.session-info-button:hover { background: var(--panel); color: var(--ink); }
+.session-info-button:hover,
+.session-rename-button:hover { background: var(--panel); color: var(--ink); }
+.session-rename-button:disabled { opacity: 0.4; cursor: default; }
+.session-rename-form {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  padding: 5px 0 5px 6px;
+}
+.session-rename-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  outline: none;
+}
+.session-rename-input:focus { border-color: var(--accent, var(--ink)); }
 .pin-icon { display: block; width: 15px; height: 15px; flex: none; }
 .session-pin:hover { background: var(--panel); color: var(--ink); }
 .session-pin.on { color: var(--ink); font-weight: 600; }

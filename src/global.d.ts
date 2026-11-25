@@ -23,6 +23,7 @@ declare global {
       refreshSessions: () => Promise<void>
       openSession: (id: string) => Promise<void>
       setSessionPinned: (id: string, pinned: boolean) => Promise<void>
+      renameSession: (id: string, title: string) => Promise<void>
       sessionInfo: (id: string) => Promise<SessionInfo>
       newChat: () => Promise<void>
       sendMessage: (text: string, attachments?: OutgoingAttachment[]) => Promise<void>

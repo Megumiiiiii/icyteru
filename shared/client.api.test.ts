@@ -689,6 +689,49 @@ test('testApproval and setSessionPinned call the plugin routes', async () => {
   assert.equal(posts[1].path, '/api/plugins/icyteru-push/session-pin')
 })
 
+test('renameSession uses fenced PATCH with mutation-snapshot and updates sessions', async () => {
+  const c = client()
+  const patches: Array<{ path: string; body: Record<string, unknown> }> = []
+  c.activeProfile = 'work'
+  c.sessions = [{ id: 's1', title: 'Old title', pinned: false }]
+  c.getJson = async (path: string) => {
+    assert.equal(path, '/p/work/api/sessions/s1/mutation-snapshot')
+    return { session_id: 's1', exists: true, runtime_revision: 7, runtime_generation: 2 }
+  }
+  c.patchJson = async (path: string, body: unknown) => {
+    patches.push({ path, body: body as Record<string, unknown> })
+    return { ok: true, title: 'New title' }
+  }
+  let refreshed = false
+  c.refreshSessions = async () => { refreshed = true }
+  await c.renameSession('s1', '  New title  ')
+  assert.equal((c.sessions[0] as any).title, 'New title')
+  assert.equal(refreshed, true)
+  assert.equal(patches.length, 1)
+  assert.equal(patches[0].path, '/p/work/api/sessions/s1')
+  assert.equal(patches[0].body.title, 'New title')
+  assert.equal(patches[0].body.profile, 'work')
+  assert.equal(patches[0].body.expected_revision, 7)
+  assert.equal(patches[0].body.expected_generation, 2)
+  assert.match(String(patches[0].body.request_id), /^icy-rename-/)
+  await assert.rejects(() => c.renameSession('s1', '   '), /Enter a name/)
+})
+
+test('renameSession falls back to unfenced PATCH when mutation-snapshot is 404', async () => {
+  const c = client()
+  const patches: Array<{ path: string; body: Record<string, unknown> }> = []
+  c.sessions = [{ id: 's2', title: 'Legacy', pinned: false }]
+  c.getJson = async () => { throw new Error('Hermes returned 404.') }
+  c.patchJson = async (path: string, body: unknown) => {
+    patches.push({ path, body: body as Record<string, unknown> })
+    return { ok: true, title: 'Renamed legacy' }
+  }
+  c.refreshSessions = async () => undefined
+  await c.renameSession('s2', 'Renamed legacy')
+  assert.equal((c.sessions[0] as any).title, 'Renamed legacy')
+  assert.deepEqual(patches, [{ path: '/api/sessions/s2', body: { title: 'Renamed legacy' } }])
+})
+
 test('compress handles pending and rows, and steer handles rejection', async () => {
   const c = client()
   c.live = live()

@@ -408,6 +408,7 @@ export function installWebHost(): void {
     refreshSessions: () => client.refreshSessions(),
     openSession: (id: string) => client.openSession(id),
     setSessionPinned: (id: string, pinned: boolean) => client.setSessionPinned(id, pinned),
+    renameSession: (id: string, title: string) => client.renameSession(id, title),
     sessionInfo: (id: string): Promise<SessionInfo> => client.sessionInfo(id),
     newChat: () => client.newChat(),
     sendMessage: async (text: string, attachments?: OutgoingAttachment[]) => client.send(text, attachments),

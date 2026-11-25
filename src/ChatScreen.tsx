@@ -1993,6 +1993,51 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
     error?: string
   } | null>(null)
   const [sessionIdCopied, setSessionIdCopied] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const [renameBusy, setRenameBusy] = useState(false)
+
+  useEffect(() => {
+    if (!renamingId) return
+    const onBack = (event: Event) => {
+      event.preventDefault()
+      setRenamingId(null)
+      setRenameDraft('')
+    }
+    window.addEventListener('icyteru:back', onBack)
+    return () => window.removeEventListener('icyteru:back', onBack)
+  }, [renamingId])
+
+  function startRename(session: SessionRow) {
+    setRenamingId(session.id)
+    setRenameDraft(session.title)
+  }
+
+  function cancelRename() {
+    setRenamingId(null)
+    setRenameDraft('')
+    setRenameBusy(false)
+  }
+
+  async function submitRename(session: SessionRow) {
+    const next = renameDraft.trim()
+    if (!next) {
+      onNotice('Enter a name for this session.')
+      return
+    }
+    if (next === session.title.trim()) {
+      cancelRename()
+      return
+    }
+    setRenameBusy(true)
+    try {
+      await window.icyteru.renameSession(session.id, next)
+      cancelRename()
+    } catch (error) {
+      setRenameBusy(false)
+      onNotice(error instanceof Error ? error.message : 'Could not rename the session.')
+    }
+  }
 
   useEffect(() => {
     if (!sessionInfo) return
@@ -2160,48 +2205,111 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
                   </div>
                   {open && group.map(session => (
                     <div className={session.id === snapshot.activeSessionId ? 'session-row active' : 'session-row'} key={session.id}>
-                      <button
-                        className={session.id === snapshot.activeSessionId ? 'session active' : 'session'}
-                        type="button"
-                        onClick={() => { phone.setView('chat'); void window.icyteru.openSession(session.id) }}
-                      >
-                        <span className="session-title">
-                          {(session.id === snapshot.activeSessionId ? activeSessionRunning : session.running) && (
-                            <i className="dot" title="Session is running" aria-label="Session is running" />
-                          )}
-                          {session.title}
-                        </span>
-                        <span className="session-meta">
-                          <span>{session.messageCount.toLocaleString()} msgs</span>
-                          {session.updatedAt ? <time>{ago(session.updatedAt)}</time> : null}
-                        </span>
-                      </button>
-                      <button
-                        className="session-info-button"
-                        type="button"
-                        title={`Session info: ${session.title}`}
-                        aria-label={`Session info for ${session.title}`}
-                        onClick={() => openSessionInfo(session)}
-                      >
-                        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-                          <rect x="4" y="13" width="3.2" height="7" rx="1" fill="currentColor" />
-                          <rect x="10.4" y="8" width="3.2" height="12" rx="1" fill="currentColor" />
-                          <rect x="16.8" y="3" width="3.2" height="17" rx="1" fill="currentColor" />
-                        </svg>
-                      </button>
-                      <button
-                        className={session.pinned ? 'session-pin on' : 'session-pin'}
-                        type="button"
-                        title={session.pinned ? 'Unpin session' : 'Pin session'}
-                        aria-label={session.pinned ? 'Unpin session' : 'Pin session'}
-                        onClick={() => {
-                          void window.icyteru.setSessionPinned(session.id, !session.pinned).catch(error => {
-                            onNotice(error instanceof Error ? error.message : 'Could not change the session pin.')
-                          })
-                        }}
-                      >
-                        <PinIcon filled={session.pinned} />
-                      </button>
+                      {renamingId === session.id ? (
+                        <form
+                          className="session-rename-form"
+                          onSubmit={event => {
+                            event.preventDefault()
+                            void submitRename(session)
+                          }}
+                        >
+                          <input
+                            className="session-rename-input"
+                            autoFocus
+                            disabled={renameBusy}
+                            value={renameDraft}
+                            aria-label={`Rename ${session.title}`}
+                            onFocus={event => event.currentTarget.select()}
+                            onChange={event => setRenameDraft(event.target.value)}
+                            onKeyDown={event => {
+                              if (event.key === 'Escape') {
+                                event.preventDefault()
+                                cancelRename()
+                              }
+                            }}
+                          />
+                          <button
+                            className="session-rename-button"
+                            type="submit"
+                            disabled={renameBusy || !renameDraft.trim()}
+                            title="Save name"
+                            aria-label="Save name"
+                          >
+                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="m5 12 4.5 4.5L19 6.5" />
+                            </svg>
+                          </button>
+                          <button
+                            className="session-rename-button"
+                            type="button"
+                            disabled={renameBusy}
+                            title="Cancel rename"
+                            aria-label="Cancel rename"
+                            onClick={cancelRename}
+                          >
+                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M6 6l12 12M18 6 6 18" />
+                            </svg>
+                          </button>
+                        </form>
+                      ) : (
+                        <>
+                          <button
+                            className={session.id === snapshot.activeSessionId ? 'session active' : 'session'}
+                            type="button"
+                            onClick={() => { phone.setView('chat'); void window.icyteru.openSession(session.id) }}
+                          >
+                            <span className="session-title">
+                              {(session.id === snapshot.activeSessionId ? activeSessionRunning : session.running) && (
+                                <i className="dot" title="Session is running" aria-label="Session is running" />
+                              )}
+                              {session.title}
+                            </span>
+                            <span className="session-meta">
+                              <span>{session.messageCount.toLocaleString()} msgs</span>
+                              {session.updatedAt ? <time>{ago(session.updatedAt)}</time> : null}
+                            </span>
+                          </button>
+                          <button
+                            className="session-rename-button"
+                            type="button"
+                            title={`Rename session: ${session.title}`}
+                            aria-label={`Rename ${session.title}`}
+                            onClick={() => startRename(session)}
+                          >
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
+                          </button>
+                          <button
+                            className="session-info-button"
+                            type="button"
+                            title={`Session info: ${session.title}`}
+                            aria-label={`Session info for ${session.title}`}
+                            onClick={() => openSessionInfo(session)}
+                          >
+                            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                              <rect x="4" y="13" width="3.2" height="7" rx="1" fill="currentColor" />
+                              <rect x="10.4" y="8" width="3.2" height="12" rx="1" fill="currentColor" />
+                              <rect x="16.8" y="3" width="3.2" height="17" rx="1" fill="currentColor" />
+                            </svg>
+                          </button>
+                          <button
+                            className={session.pinned ? 'session-pin on' : 'session-pin'}
+                            type="button"
+                            title={session.pinned ? 'Unpin session' : 'Pin session'}
+                            aria-label={session.pinned ? 'Unpin session' : 'Pin session'}
+                            onClick={() => {
+                              void window.icyteru.setSessionPinned(session.id, !session.pinned).catch(error => {
+                                onNotice(error instanceof Error ? error.message : 'Could not change the session pin.')
+                              })
+                            }}
+                          >
+                            <PinIcon filled={session.pinned} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
