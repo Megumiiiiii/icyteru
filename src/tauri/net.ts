@@ -25,10 +25,24 @@ function decodeBase64(value: string): ArrayBuffer {
   return bytes.buffer
 }
 
+function isInternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url, location.href)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return true
+    if (parsed.origin === location.origin) return true
+    const host = parsed.hostname.toLowerCase()
+    return host === 'ipc.localhost' || host.endsWith('.ipc.localhost')
+      || host === 'tauri.localhost' || host.endsWith('.tauri.localhost')
+      || host === 'asset.localhost' || host.endsWith('.asset.localhost')
+  } catch {
+    return true
+  }
+}
+
 export function installNativeFetch(): void {
   globalThis.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-    if (!/^https?:/i.test(url) || url.startsWith(location.origin)) return webFetch(input, init)
+    if (isInternalUrl(url)) return webFetch(input, init)
     const source = input instanceof Request ? input : null
     const headers: Record<string, string> = {}
     new Headers(init.headers ?? source?.headers).forEach((value, name) => { headers[name] = value })
@@ -42,7 +56,8 @@ export function installNativeFetch(): void {
     const outgoing = new Headers()
     for (const [name, value] of response.headers) outgoing.append(name, value)
     for (const cookie of response.setCookie || []) outgoing.append('x-icyteru-set-cookie', cookie)
-    const payload = response.bodyB64 ? decodeBase64(response.bodyB64) : response.body
+    const nullBody = response.status === 204 || response.status === 205 || response.status === 304
+    const payload = nullBody ? null : response.bodyB64 ? decodeBase64(response.bodyB64) : response.body
     return new Response(payload, { status: response.status, headers: outgoing })
   }
 }

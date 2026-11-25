@@ -4,7 +4,7 @@ type SocketEvent = { data?: unknown; code?: number; reason?: string }
 type Listener = (event: SocketEvent) => void
 
 type WsFrame =
-  | { kind: 'open' }
+  | { kind: 'open'; id?: number }
   | { kind: 'text'; data: string }
   | { kind: 'close'; code: number; reason: string }
   | { kind: 'error'; message: string }
@@ -67,7 +67,11 @@ class TauriWebSocket {
   private handle(frame: WsFrame): void {
     if (this.terminal) return
     if (frame.kind === 'open') {
-      if (this.readyState === TauriWebSocket.CLOSING) return
+      if (this.id == null && typeof frame.id === 'number') this.id = frame.id
+      if (this.readyState === TauriWebSocket.CLOSING) {
+        if (this.id != null) void invoke('ws_close', { id: this.id })
+        return
+      }
       this.readyState = TauriWebSocket.OPEN
       this.emit('open', {})
       return

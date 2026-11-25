@@ -346,7 +346,9 @@ function installContextMenu(): void {
     const image = target?.closest?.('img') as HTMLImageElement | null
     const href = anchor?.getAttribute('href') || ''
     const selected = String(window.getSelection() ?? '')
-    if (!selected && !href) return
+    const imageSrc = image?.currentSrc || image?.src || ''
+    const hasLink = Boolean(href && /^https?:/i.test(href))
+    if (!selected && !hasLink && !imageSrc) return
     event.preventDefault()
     close()
 
@@ -363,13 +365,21 @@ function installContextMenu(): void {
       menu?.appendChild(button)
     }
 
-    if (selected) add('Copy', () => void copy(selected))
-    if (selected) add('Select all', () => window.getSelection()?.selectAllChildren(document.body))
-    if (href && /^https?:/i.test(href)) {
-      if (!selected) menu.appendChild(document.createElement('hr'))
+    let hasItems = false
+    if (selected) {
+      add('Copy', () => void copy(selected))
+      add('Select all', () => window.getSelection()?.selectAllChildren(document.body))
+      hasItems = true
+    }
+    if (hasLink) {
+      if (hasItems) menu.appendChild(document.createElement('hr'))
       add('Open link in browser', () => void invoke('open_external', { url: href }).catch(() => undefined))
       add('Copy link', () => void copy(href))
-      if (image) add('Copy image address', () => void copy(image.currentSrc || image.src))
+      hasItems = true
+    }
+    if (imageSrc) {
+      if (hasItems) menu.appendChild(document.createElement('hr'))
+      add('Copy image address', () => void copy(imageSrc))
     }
     document.body.appendChild(menu)
     const box = menu.getBoundingClientRect()

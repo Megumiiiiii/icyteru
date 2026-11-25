@@ -90,6 +90,9 @@ pub fn vault_load(app: tauri::AppHandle) -> Result<Option<String>, String> {
             let nonce = STANDARD
                 .decode(nonce)
                 .map_err(|_| "The saved credential nonce is invalid.".to_string())?;
+            if nonce.len() != 12 {
+                return Err("The saved credential nonce has the wrong size.".to_string());
+            }
             let ciphertext = STANDARD
                 .decode(ciphertext)
                 .map_err(|_| "The saved credentials are invalid.".to_string())?;

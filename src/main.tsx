@@ -46,5 +46,14 @@ function Root() {
   return <App snapshot={snapshot} />
 }
 
-void boot()
+void boot().catch((err: unknown) => {
+  const root = document.getElementById('root')
+  if (!root) return
+  const message = err instanceof Error ? err.message : String(err)
+  root.textContent = ''
+  const box = document.createElement('div')
+  box.className = 'boot'
+  box.textContent = `Could not start Icyteru: ${message}`
+  root.appendChild(box)
+})
 

@@ -1,7 +1,14 @@
 //! Window chrome preferences: what the X button does, plus the tray icon that
 //! keeps a hidden window reachable.
 
-use std::{fs, path::PathBuf, sync::Mutex};
+use std::{
+    fs,
+    path::PathBuf,
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use serde::{Deserialize, Serialize};
 use tauri::{
@@ -16,6 +23,7 @@ pub const TRAY: &str = "tray";
 #[derive(Default)]
 pub struct WindowPrefs {
     behavior: Mutex<Option<String>>,
+    quitting: AtomicBool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -101,7 +109,7 @@ pub fn show_main(app: &AppHandle) {
 pub fn intercept_close(window: &tauri::Window) -> bool {
     let app = window.app_handle();
     let state = app.state::<WindowPrefs>();
-    if state.behavior(app) != TRAY {
+    if state.quitting.load(Ordering::Relaxed) || state.behavior(app) != TRAY {
         return false;
     }
     let _ = window.hide();
@@ -124,7 +132,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             "show" => show_main(app),
             "quit" => {
                 if let Some(state) = app.try_state::<WindowPrefs>() {
-                    let _ = state.set(app, QUIT);
+                    state.quitting.store(true, Ordering::Relaxed);
                 }
                 app.exit(0);
             }

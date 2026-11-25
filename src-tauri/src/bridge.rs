@@ -49,7 +49,7 @@ pub struct GatewayResponse {
 #[derive(Serialize, Clone)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum WsFrame {
-    Open,
+    Open { id: u64 },
     Text { data: String },
     Close { code: u16, reason: String },
     Error { message: String },
@@ -173,7 +173,7 @@ pub async fn ws_open(
     let bridge = state.inner().clone();
     tauri::async_runtime::spawn(async move {
         let (mut writer, mut reader) = socket.split();
-        let _ = on_frame.send(WsFrame::Open);
+        let _ = on_frame.send(WsFrame::Open { id });
         let terminal = loop {
             tokio::select! {
                 command = commands_rx.recv() => match command {
