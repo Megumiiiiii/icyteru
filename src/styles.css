@@ -868,7 +868,7 @@ html[data-backdrop="kraft"] .sky-dim { opacity: 0; }
 .bubble .incoming-image { max-width: min(340px, 100%); }
 .who { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 .chat-title { display: flex; align-items: center; gap: 10px; }
-.avatar { border-radius: 10px; object-fit: cover; display: block; background: var(--line); }
+.avatar { border-radius: 10px; object-fit: cover; display: block; background: transparent; }
 
 .bots-head {
   display: flex; align-items: center; justify-content: space-between;
