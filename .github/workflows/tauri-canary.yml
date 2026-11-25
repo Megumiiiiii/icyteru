@@ -1,0 +1,64 @@
+name: Tauri Canary
+
+# Manual only: builds the Tauri desktop shell as a downloadable artifact.
+# This is not a release job — the public release line stays on Electron until
+# the canary has been installed and tested.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: tauri-canary
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check versions agree
+        run: npm run version:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build the Tauri installer
+        run: npm run tauri:build -- --bundles nsis
+
+      - name: Record checksum
+        run: |
+          cd src-tauri/target/release/bundle/nsis
+          ls -l
+          sha256sum *.exe | tee ../../../../canary-sha256.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IcyteruCanary-windows-${{ github.run_number }}
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/canary-sha256.txt
+          retention-days: 3
+          if-no-files-found: error
