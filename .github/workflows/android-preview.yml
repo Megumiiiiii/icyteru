@@ -4,8 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - fix/audit-and-electron-upgrade
-
+      - beta
 permissions:
   contents: read
 
