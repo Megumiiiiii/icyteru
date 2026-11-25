@@ -5,18 +5,16 @@
 ### Added
 
 - **Sakuga VFX, off by default.** An optional anime/manga effects layer adds impact bursts, smoke puffs, and SFX lettering on buttons, tabs, pins, and sliders, follows the active theme, and turns itself off when the system asks for reduced motion. It ships as a lazy-loaded module, so the base bundle is unchanged. Thanks to Justin Finkelman for Sakuga VFX (MIT).
-- **Progress cards for image and video generation.** A dedicated card above the composer shows `Generating image…` or `Generating video…` with elapsed time and a bar that fills toward completion, then a short `Image ready` confirmation. With Sakuga VFX on, the bar uses the Sakuga progress component and the same palette as the active theme.
 - Subagent cards and the compress bar use the Sakuga progress component when the effects layer is enabled.
 
 ### Changed
 
 - The Android build resolves Maven Central through Google's mirror first, avoiding CI throttling.
-- Sakuga progress uses a real time scale: image generation fills over roughly half a minute, video generation over about a minute, so the bar no longer jumps to its cap in the first second.
+
 
 ### Fixed
 
-- **The "Image ready" card no longer sticks.** The confirmation used to rely on a timer that any later transcript update cancelled, so a normal follow-up message left the card on screen until the next generation. The card is now derived from the tool's own finish time, so it always disappears after about three seconds even while the reply keeps streaming.
-- A generation that ends without a finish timestamp still shows the card once and then hides it on the same deadline.
+- **Image and video generation use the normal tool-call UI again.** The extra standalone progress card duplicated the existing tool state and got in the way of the conversation.
 - The progress overlay canvas aligns to its bounding rect on Android edge-to-edge layouts and while the keyboard is open.
 
 ## v0.0.83

@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.electron.json && vite build",
     "typecheck": "tsc -p tsconfig.electron.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
-    "test": "tsc -p tsconfig.electron.json && node --test dist/shared/protocol.test.js dist/shared/client.test.js dist/shared/client.api.test.js dist/shared/socket.test.js dist/shared/store.test.js dist/shared/group-order.test.js dist/shared/markdown-inline.test.js dist/shared/chat-activity.test.js dist/shared/media-gen.test.js",
+    "test": "tsc -p tsconfig.electron.json && node --test dist/shared/protocol.test.js dist/shared/client.test.js dist/shared/client.api.test.js dist/shared/socket.test.js dist/shared/store.test.js dist/shared/group-order.test.js dist/shared/markdown-inline.test.js dist/shared/chat-activity.test.js",
     "version:check": "node scripts/version.mjs check",
     "version:sync": "node scripts/version.mjs sync",
     "version:set": "node scripts/version.mjs set",
