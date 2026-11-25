@@ -158,7 +158,7 @@ function createWindow(): void {
       if (params.selectionText.trim()) {
         items.push({ role: 'copy' })
       }
-      if (params.linkURL && /^https?:\/\//i.test(params.linkURL)) {
+      if (params.linkURL && /^https:\/\//i.test(params.linkURL)) {
         if (items.length) items.push({ type: 'separator' })
         items.push(
           { label: 'Open Link in Browser', click: () => { void shell.openExternal(params.linkURL) } },
@@ -204,7 +204,6 @@ function showDesktopNotification(title: string, body: string, sessionId = ''): v
 function stopDesktopNotifications(): void {
   if (notifyTimer) clearInterval(notifyTimer)
   notifyTimer = null
-  notifyPolling = false
 }
 
 function startDesktopNotifications(): void {
@@ -377,6 +376,8 @@ function registerIpc(): void {
   ipcMain.handle('set-background', (_event, payload: { mode?: BackdropMode; image?: string }) => {
     if (payload.mode !== 'light' && payload.mode !== 'dark') throw new Error('Choose light or dark.')
     if (!payload.image) throw new Error('That file was empty.')
+    if (!/^data:image\/(png|jpeg|webp);base64,/i.test(payload.image)) throw new Error('Use a PNG, JPEG, or WebP image.')
+    if (payload.image.length > Math.ceil(8 * 1024 * 1024 * 4 / 3) + 64) throw new Error('That image is larger than 8 MB.')
     return saveBackground(payload.mode, payload.image)
   })
   ipcMain.handle('clear-background', (_event, mode: BackdropMode) => {

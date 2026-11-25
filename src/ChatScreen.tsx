@@ -1996,44 +1996,60 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
   const [renameBusy, setRenameBusy] = useState(false)
+  const renameAttempt = useRef(0)
+  const renameSubmitting = useRef(false)
 
   useEffect(() => {
     if (!renamingId) return
     const onBack = (event: Event) => {
       event.preventDefault()
-      setRenamingId(null)
-      setRenameDraft('')
+      cancelRename()
     }
     window.addEventListener('icyteru:back', onBack)
     return () => window.removeEventListener('icyteru:back', onBack)
   }, [renamingId])
 
   function startRename(session: SessionRow) {
+    renameAttempt.current += 1
+    renameSubmitting.current = false
+    setRenameBusy(false)
     setRenamingId(session.id)
     setRenameDraft(session.title)
   }
 
   function cancelRename() {
+    renameAttempt.current += 1
+    renameSubmitting.current = false
     setRenamingId(null)
     setRenameDraft('')
     setRenameBusy(false)
   }
 
   async function submitRename(session: SessionRow) {
+    if (renameSubmitting.current) return
     const next = renameDraft.trim()
     if (!next) {
       onNotice('Enter a name for this session.')
+      return
+    }
+    if (next.length > 200) {
+      onNotice('Session names can be at most 200 characters.')
       return
     }
     if (next === session.title.trim()) {
       cancelRename()
       return
     }
+    const attempt = ++renameAttempt.current
+    renameSubmitting.current = true
     setRenameBusy(true)
     try {
       await window.icyteru.renameSession(session.id, next)
+      if (attempt !== renameAttempt.current) return
       cancelRename()
     } catch (error) {
+      if (attempt !== renameAttempt.current) return
+      renameSubmitting.current = false
       setRenameBusy(false)
       onNotice(error instanceof Error ? error.message : 'Could not rename the session.')
     }
@@ -2218,6 +2234,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
                             autoFocus
                             disabled={renameBusy}
                             value={renameDraft}
+                            maxLength={200}
                             aria-label={`Rename ${session.title}`}
                             onFocus={event => event.currentTarget.select()}
                             onChange={event => setRenameDraft(event.target.value)}

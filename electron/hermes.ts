@@ -53,6 +53,13 @@ export interface ProbeResult {
   mode?: AuthMode
 }
 
+class GatewayHttpError extends Error {
+  constructor(readonly status: number, detail?: unknown) {
+    super(typeof detail === 'string' && detail ? detail : `Hermes returned ${status}.`)
+    this.name = 'GatewayHttpError'
+  }
+}
+
 /** Credentials the user can bring to a gateway. Any field may be empty. */
 export interface ConnectionCredentials {
   token: string
@@ -903,28 +910,58 @@ export class HermesClient {
   async renameSession(id: string, title: string): Promise<void> {
     const nextTitle = title.trim()
     if (!nextTitle) throw new Error('Enter a name for this session.')
+    if (nextTitle.length > 200) throw new Error('Session names can be at most 200 characters.')
     const basePath = this.profileApiPath(`/api/sessions/${encodeURIComponent(id)}`)
     const profile = (this.activeProfile || '').trim()
-    const body: Record<string, unknown> = {
-      title: nextTitle,
-      ...(profile && profile !== 'default' ? { profile } : {})
-    }
-    try {
-      const snap = asRecord(await this.getJson(`${basePath}/mutation-snapshot`))
-      body.request_id = `icy-rename-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-      body.expected_revision = Number.isFinite(Number(snap.runtime_revision)) ? Number(snap.runtime_revision) : 0
-      if (typeof snap.runtime_generation === 'number' && Number.isFinite(snap.runtime_generation)) {
-        body.expected_generation = snap.runtime_generation
+
+    const mutationBody = async (): Promise<Record<string, unknown>> => {
+      const body: Record<string, unknown> = {
+        title: nextTitle,
+        ...(profile && profile !== 'default' ? { profile } : {})
       }
-    } catch (err) {
-      // Older Hermes gateways predate /mutation-snapshot and accept an unfenced PATCH.
-      const msg = err instanceof Error ? err.message : ''
-      if (!/404|not found|no such api endpoint/i.test(msg)) throw err
+      try {
+        const snap = asRecord(await this.getJson(`${basePath}/mutation-snapshot`))
+        if (snap.exists === false) throw new Error('That session no longer exists.')
+        const revision = snap.runtime_revision
+        if (typeof revision !== 'number' || !Number.isInteger(revision) || revision < 0) {
+          throw new Error('Could not read the current session state. Refresh and try again.')
+        }
+        body.request_id = `icy-rename-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        body.expected_revision = revision
+        const generation = snap.runtime_generation
+        if (typeof generation !== 'number' || !Number.isSafeInteger(generation) || generation < 0) {
+          throw new Error('Could not read the current session generation. Refresh and try again.')
+        }
+        body.expected_generation = generation
+      } catch (err) {
+        // Older Hermes gateways predate /mutation-snapshot and return this exact endpoint error.
+        if (!(err instanceof GatewayHttpError && err.status === 404 && /no such api endpoint/i.test(err.message))) throw err
+      }
+      return body
     }
-    await this.patchJson(basePath, body)
-    this.sessions = this.sessions.map(row => row.id === id ? { ...row, title: nextTitle } : row)
-    this.emit()
-    await this.refreshSessions()
+
+    const body = await mutationBody()
+    try {
+      await this.patchJson(basePath, body)
+      this.sessions = this.sessions.map(row => row.id === id ? { ...row, title: nextTitle } : row)
+      this.emit()
+      await this.refreshSessions()
+    } catch (err) {
+      if (err instanceof GatewayHttpError) {
+        if (err.status === 404) throw new Error('That session no longer exists.')
+        if (err.status === 409 && /session_busy/i.test(err.message)) {
+          throw new Error('That session is busy. Wait for the current task to finish, then try again.')
+        }
+        if (err.status === 409 && /revision_conflict|stale_revision|stale_generation/i.test(err.message)) {
+          throw new Error('The session changed while it was being renamed. Refresh and try again.')
+        }
+        if (err.status === 409 && /mutation_identity_required/i.test(err.message)) {
+          throw new Error('Could not establish a safe session state. Refresh and try again.')
+        }
+        if (err.status === 409) throw new Error('The session could not be renamed right now. Refresh and try again.')
+      }
+      throw err
+    }
   }
 
   /** Read one row's message count and context estimate without opening it. */
@@ -2105,8 +2142,17 @@ export class HermesClient {
   private async getJson(path: string): Promise<unknown> {
     let response = await this.httpGet(path)
     if (response.status === 401 && await this.renewSession()) response = await this.httpGet(path)
-    if (!response.ok) throw new Error(`${path} returned ${response.status}`)
-    return response.json()
+    const text = await response.text()
+    let parsed: unknown = {}
+    if (text) {
+      try {
+        parsed = JSON.parse(text) as unknown
+      } catch {
+        parsed = {}
+      }
+    }
+    if (!response.ok) throw new GatewayHttpError(response.status, asRecord(parsed).detail)
+    return parsed
   }
 
   private async postJson(path: string, body: unknown): Promise<unknown> {
@@ -2130,7 +2176,7 @@ export class HermesClient {
     const parsed = text ? JSON.parse(text) as unknown : {}
     if (!response.ok) {
       const detail = asRecord(parsed).detail
-      throw new Error(typeof detail === 'string' ? detail : `Hermes returned ${response.status}.`)
+      throw new GatewayHttpError(response.status, detail)
     }
     return parsed
   }

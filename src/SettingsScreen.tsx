@@ -26,6 +26,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
   const [notifyNote, setNotifyNote] = useState('')
   const [approvalNote, setApprovalNote] = useState('')
   const [globalNote, setGlobalNote] = useState('')
+  const [appearanceNote, setAppearanceNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirmForget, setConfirmForget] = useState(false)
   const [globalModelIndex, setGlobalModelIndex] = useState(() => {
@@ -275,15 +276,36 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
           <BackgroundCard
             title="GitHub Light background"
             image={appearance?.light ?? null}
-            onPick={file => void pick('light', file, onAppearance)}
-            onReset={() => void window.icyteru.clearBackground('light').then(onAppearance)}
+            onPick={file => {
+              setAppearanceNote('')
+              void pick('light', file, onAppearance).catch((error: unknown) => {
+                setAppearanceNote(error instanceof Error ? error.message : 'Could not set that background.')
+              })
+            }}
+            onReset={() => {
+              setAppearanceNote('')
+              void window.icyteru.clearBackground('light').then(onAppearance).catch((error: unknown) => {
+                setAppearanceNote(error instanceof Error ? error.message : 'Could not clear that background.')
+              })
+            }}
           />
           <BackgroundCard
             title="GitHub Dark background"
             image={appearance?.dark ?? null}
-            onPick={file => void pick('dark', file, onAppearance)}
-            onReset={() => void window.icyteru.clearBackground('dark').then(onAppearance)}
+            onPick={file => {
+              setAppearanceNote('')
+              void pick('dark', file, onAppearance).catch((error: unknown) => {
+                setAppearanceNote(error instanceof Error ? error.message : 'Could not set that background.')
+              })
+            }}
+            onReset={() => {
+              setAppearanceNote('')
+              void window.icyteru.clearBackground('dark').then(onAppearance).catch((error: unknown) => {
+                setAppearanceNote(error instanceof Error ? error.message : 'Could not clear that background.')
+              })
+            }}
           />
+          {appearanceNote && <p className="hint">{appearanceNote}</p>}
           <label>
             Dim the picture ({Math.round((appearance?.dim ?? 0.4) * 100)}%)
             <input
@@ -404,6 +426,8 @@ function themeLabel(theme: ThemePreference): string {
 }
 
 async function pick(mode: 'light' | 'dark', file: File, onAppearance: (appearance: Appearance) => void) {
+  if (file.type && !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type)) throw new Error('Use a PNG, JPEG, or WebP image.')
+  if (file.size > 8 * 1024 * 1024) throw new Error('That image is larger than 8 MB.')
   const image = await readFile(file)
   onAppearance(await window.icyteru.setBackground(mode, image))
 }

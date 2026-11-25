@@ -717,19 +717,67 @@ test('renameSession uses fenced PATCH with mutation-snapshot and updates session
   await assert.rejects(() => c.renameSession('s1', '   '), /Enter a name/)
 })
 
-test('renameSession falls back to unfenced PATCH when mutation-snapshot is 404', async () => {
+test('renameSession falls back only for the legacy missing endpoint response', async () => {
   const c = client()
-  const patches: Array<{ path: string; body: Record<string, unknown> }> = []
+  c.baseUrl = 'http://gw'
   c.sessions = [{ id: 's2', title: 'Legacy', pinned: false }]
-  c.getJson = async () => { throw new Error('Hermes returned 404.') }
-  c.patchJson = async (path: string, body: unknown) => {
-    patches.push({ path, body: body as Record<string, unknown> })
-    return { ok: true, title: 'Renamed legacy' }
-  }
   c.refreshSessions = async () => undefined
+  const patches: Record<string, unknown>[] = []
+  c.authFetch = async (_url: string, init?: RequestInit) => {
+    if ((init?.method || 'GET') === 'GET') return response({ detail: 'No such API endpoint' }, 404)
+    const body = JSON.parse(String(init?.body || '{}')) as Record<string, unknown>
+    patches.push(body)
+    return response({ ok: true, title: 'Renamed legacy' })
+  }
   await c.renameSession('s2', 'Renamed legacy')
   assert.equal((c.sessions[0] as any).title, 'Renamed legacy')
-  assert.deepEqual(patches, [{ path: '/api/sessions/s2', body: { title: 'Renamed legacy' } }])
+  assert.deepEqual(patches, [{ title: 'Renamed legacy' }])
+})
+
+test('renameSession does not downgrade unrelated snapshot errors to an unfenced write', async () => {
+  const c = client()
+  c.baseUrl = 'http://gw'
+  c.sessions = [{ id: 's404', title: 'Before', pinned: false }]
+  let patches = 0
+  c.authFetch = async (_url: string, init?: RequestInit) => {
+    if ((init?.method || 'GET') !== 'GET') patches += 1
+    return response({ detail: 'session_not_found' }, 404)
+  }
+  await assert.rejects(() => c.renameSession('s404', 'After'), /session_not_found/)
+  assert.equal(patches, 0)
+})
+
+test('renameSession reports a real revision conflict without overwriting it', async () => {
+  const c = client()
+  c.baseUrl = 'http://gw'
+  c.sessions = [{ id: 's3', title: 'Before', pinned: false }]
+  let snapshots = 0
+  let patches = 0
+  c.authFetch = async (_url: string, init?: RequestInit) => {
+    if ((init?.method || 'GET') === 'GET') {
+      snapshots += 1
+      return response({ exists: true, runtime_revision: 7, runtime_generation: 2 })
+    }
+    patches += 1
+    return response({ detail: 'revision_conflict' }, 409)
+  }
+  await assert.rejects(() => c.renameSession('s3', 'After'), /session changed/)
+  assert.equal(snapshots, 1)
+  assert.equal(patches, 1)
+  assert.equal((c.sessions[0] as any).title, 'Before')
+})
+
+test('renameSession rejects missing snapshot identity and overlong names cleanly', async () => {
+  const c = client()
+  c.sessions = [{ id: 'gone', title: 'Gone', pinned: false }]
+  c.getJson = async () => ({ exists: false, runtime_revision: null })
+  await assert.rejects(() => c.renameSession('gone', 'New title'), /no longer exists/)
+  await assert.rejects(() => c.renameSession('gone', 'x'.repeat(201)), /at most 200/)
+
+  c.getJson = async () => ({ exists: true, runtime_revision: null, runtime_generation: 1 })
+  await assert.rejects(() => c.renameSession('gone', 'New title'), /current session state/)
+  c.getJson = async () => ({ exists: true, runtime_revision: 1, runtime_generation: null })
+  await assert.rejects(() => c.renameSession('gone', 'New title'), /current session generation/)
 })
 
 test('compress handles pending and rows, and steer handles rejection', async () => {
