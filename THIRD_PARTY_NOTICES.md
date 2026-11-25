@@ -50,3 +50,13 @@ https://github.com/rsms/inter
 
 The layout is inspired by Akeru Bot (https://github.com/opencoredev/akeru-bot),
 which is MIT licensed. Icyteru does not copy Akeru source code or assets.
+
+## Sakuga VFX
+
+Copyright (c) 2026 Justin Finkelman
+
+`src/sakuga-core.js` is adapted from Sakuga VFX (`core.js`), which provides the
+optional canvas-based anime/manga UI visual effects layer. Sakuga VFX is MIT
+licensed.
+
+Source: https://github.com/finktheartist/sakuga-vfx

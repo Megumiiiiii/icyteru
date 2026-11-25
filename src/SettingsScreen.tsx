@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef, useState } from 'react'
 import { PhoneNav } from './phone'
+import { isSakugaEnabled, setSakugaEnabled } from './sakuga'
 import { APP_VERSION } from './version'
 import type { AuthMode } from '../shared/protocol'
 import type { Snapshot, ThemePreference } from '../shared/snapshot'
@@ -29,6 +30,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
   const [appearanceNote, setAppearanceNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirmForget, setConfirmForget] = useState(false)
+  const [sakugaOn, setSakugaOn] = useState(isSakugaEnabled)
   const [globalModelIndex, setGlobalModelIndex] = useState(() => {
     const found = snapshot.models.findIndex(model => model.id === snapshot.globalModel)
     return found >= 0 ? found : 0
@@ -322,6 +324,22 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
               onChange={event => void window.icyteru.setBackdrop(appearance?.dim ?? 0.4, Number(event.target.value)).then(onAppearance)}
             />
           </label>
+          <div className="row sakuga-toggle-row">
+            <button
+              className={sakugaOn ? 'solid' : 'ghost'}
+              type="button"
+              role="switch"
+              aria-checked={sakugaOn}
+              onClick={event => {
+                const next = !sakugaOn
+                setSakugaOn(next)
+                void setSakugaEnabled(next, event.currentTarget)
+              }}
+            >
+              Sakuga VFX: {sakugaOn ? 'On' : 'Off'}
+            </button>
+          </div>
+          <p className="hint">Optional anime/manga impact bursts, smoke puffs, and SFX lettering on buttons, tabs, pins, and sliders. Follows your active theme and automatically disables when reduced motion is on.</p>
         </section>
         <section>
           <h2>Notifications</h2>

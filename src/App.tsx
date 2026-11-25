@@ -12,6 +12,7 @@ import { PinIcon } from './PinIcon'
 import { SakuraPetals } from './SakuraPetals'
 import { Starfield } from './Starfield'
 import { Snowflakes } from './Snowflakes'
+import { initSakuga, syncSakugaPalette } from './sakuga'
 import { isRecent } from './time'
 
 type Appearance = { dim: number; blur: number; light: string | null; dark: string | null }
@@ -59,6 +60,12 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   useEffect(() => {
     void window.icyteru.getAppearance().then(setAppearance).catch(() => undefined)
   }, [])
+  useEffect(() => {
+    initSakuga(mode)
+  }, [])
+  useEffect(() => {
+    syncSakugaPalette(mode)
+  }, [mode])
   useEffect(() => {
     sizeRef.current = { left: leftWidth, right: rightWidth }
   }, [leftWidth, rightWidth])
