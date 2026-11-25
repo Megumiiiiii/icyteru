@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState, type CSSProperties, type Point
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
 import type { Snapshot, ThemePreference } from '../shared/snapshot'
+import { isTerminalSubagentStatus } from '../shared/protocol'
 import { Avatar } from './Avatar'
 import { ChatScreen } from './ChatScreen'
 import { ConnectScreen } from './ConnectScreen'
@@ -91,9 +92,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
     const runningTool = snapshot.transcript.messages.some(message =>
       message.tools.some(tool => tool.status === 'running')
     )
-    const liveSubagent = snapshot.subagents.some(item =>
-      !['completed', 'failed', 'timed_out', 'stopped'].includes(item.status)
-    )
+    const liveSubagent = snapshot.subagents.some(item => !isTerminalSubagentStatus(item.status))
     // Android receives every turn through FCM. A second local notification would
     // duplicate it, so only desktop/web notify from the renderer.
     const canNotify = Capacitor.getPlatform() !== 'android'

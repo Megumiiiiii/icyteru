@@ -13,6 +13,7 @@ import {
   detectAuthMode,
   emptyTranscript,
   historyFromRows,
+  isTerminalSubagentStatus,
   modelIdsMatch,
   modelOptionsPath,
   pickReasoning,
@@ -125,6 +126,15 @@ test('folds subagent lifecycle events into one live row', () => {
   })
   assert.equal(subagents[0].status, 'completed')
   assert.equal(subagents[0].summary, 'done')
+})
+
+test('recognizes every supported terminal subagent status consistently', () => {
+  for (const status of ['completed', 'failed', 'timed_out', 'timeout', 'cancelled', 'canceled', 'error', 'stopped', 'interrupted']) {
+    assert.equal(isTerminalSubagentStatus(status), true, status)
+  }
+  for (const status of ['queued', 'running', 'thinking', 'tool']) {
+    assert.equal(isTerminalSubagentStatus(status), false, status)
+  }
 })
 
 test('drops interim commentary when the final answer arrives', () => {

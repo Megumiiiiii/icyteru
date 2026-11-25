@@ -412,6 +412,37 @@ export function previewSnapshot(shot: string): Snapshot {
       }
     ]
   }
+  if (shot === 'subagent-background') {
+    base.transcript.streaming = false
+    // Keep a stale positive rate in the fixture to prove background work does
+    // not resurrect the foreground Tok/s pill.
+    base.tokensPerSecond = 45
+    const now = Date.now()
+    base.subagents = [{
+      id: 'sa-background',
+      goal: 'Review the release candidate without blocking the parent chat',
+      status: 'running',
+      taskIndex: 0,
+      taskCount: 1,
+      parentId: '',
+      childSessionId: 'child-background',
+      delegationId: 'deleg_background',
+      depth: 0,
+      model: 'deepseek-v4.1-flash',
+      toolCount: 3,
+      toolsets: ['terminal'],
+      lastText: 'Checking the final diff',
+      toolName: 'terminal',
+      activity: 'thinking',
+      startedAt: now - 45_000,
+      updatedAt: now,
+      durationSeconds: 0,
+      summary: '',
+      inputTokens: 2400,
+      outputTokens: 320,
+      apiCalls: 2
+    }]
+  }
   if (shot === 'media') {
     base.transcript.streaming = false
     base.transcript.messages = [

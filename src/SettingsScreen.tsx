@@ -428,7 +428,7 @@ function themeLabel(theme: ThemePreference): string {
 async function pick(mode: 'light' | 'dark', file: File, onAppearance: (appearance: Appearance) => void) {
   if (file.type && !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type)) throw new Error('Use a PNG, JPEG, or WebP image.')
   if (file.size > 8 * 1024 * 1024) throw new Error('That image is larger than 8 MB.')
-  const image = await readFile(file)
+  const image = (await readFile(file)).replace(/^data:image\/jpg;/i, 'data:image/jpeg;')
   onAppearance(await window.icyteru.setBackground(mode, image))
 }
 

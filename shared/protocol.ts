@@ -394,6 +394,24 @@ export function applyGatewayEvent(transcript: Transcript, event: GatewayEventFra
   return next
 }
 
+export const TERMINAL_SUBAGENT_STATUSES = [
+  'completed',
+  'failed',
+  'timed_out',
+  'timeout',
+  'cancelled',
+  'canceled',
+  'error',
+  'stopped',
+  'interrupted'
+] as const
+
+const terminalSubagentStatuses = new Set<string>(TERMINAL_SUBAGENT_STATUSES)
+
+export function isTerminalSubagentStatus(status: string): boolean {
+  return terminalSubagentStatuses.has(status.trim().toLowerCase())
+}
+
 export function applySubagentEvent(subagents: SubagentProgress[], event: GatewayEventFrame): SubagentProgress[] {
   if (!event.type.startsWith('subagent.')) return subagents
   const payload = asRecord(event.payload)

@@ -5,6 +5,7 @@ import {
   cookieHeaderFromSetCookie,
   detectAuthMode,
   historyFromRows,
+  isTerminalSubagentStatus,
   normalizeMemory,
   normalizeModels,
   modelIdsMatch,
@@ -124,6 +125,7 @@ export class HermesClient {
   private clarifyPolling = false
   private subagentPoll: ReturnType<typeof setInterval> | null = null
   private subagentPolling = false
+  private subagentEmptyPolls = 0
   private remoteClarifies: RemoteClarify[] = []
   private remoteApprovals: RemoteApproval[] = []
   private subagents: SubagentProgress[] = []
@@ -512,6 +514,7 @@ export class HermesClient {
 
   private startSubagentPolling(): void {
     if (this.subagentPoll || !this.live) return
+    this.subagentEmptyPolls = 0
     void this.refreshSubagents()
     this.subagentPoll = setInterval(() => {
       void this.refreshSubagents()
@@ -521,6 +524,7 @@ export class HermesClient {
   private stopSubagentPolling(): void {
     if (this.subagentPoll) clearInterval(this.subagentPoll)
     this.subagentPoll = null
+    this.subagentEmptyPolls = 0
   }
 
   /**
@@ -543,14 +547,28 @@ export class HermesClient {
         if (!id) return []
         return [this.subagentFromList(id, row)]
       })
-      if (!mapped.length) return
-      const byId = new Map(this.subagents.map(item => [item.id, item]))
+      if (!mapped.length) {
+        // The list endpoint contains live children only. Allow one empty poll
+        // for the spawn/list registration race; a second consecutive miss is
+        // the authoritative completion signal and must remove stale rows.
+        this.subagentEmptyPolls += 1
+        if (this.subagentEmptyPolls < 2) return
+        const changed = this.subagents.length > 0
+        this.subagents = []
+        this.stopSubagentPolling()
+        if (changed) this.emit()
+        return
+      }
+      this.subagentEmptyPolls = 0
+      const previousById = new Map(this.subagents.map(item => [item.id, item]))
+      const byId = new Map<string, SubagentProgress>()
       for (const item of mapped) {
-        const previous = byId.get(item.id)
+        const previous = previousById.get(item.id)
         byId.set(item.id, previous
           ? {
             ...previous,
             ...item,
+            status: isTerminalSubagentStatus(previous.status) ? previous.status : item.status,
             goal: item.goal || previous.goal,
             taskCount: previous.taskCount || item.taskCount,
             taskIndex: previous.taskIndex || item.taskIndex,
@@ -561,7 +579,7 @@ export class HermesClient {
       }
       this.subagents = [...byId.values()]
       this.emit()
-      if (mapped.every(item => ['completed', 'failed', 'timed_out', 'timeout', 'cancelled', 'error', 'stopped'].includes(item.status))) {
+      if (mapped.every(item => isTerminalSubagentStatus(item.status))) {
         this.stopSubagentPolling()
       }
     } catch {
@@ -584,8 +602,8 @@ export class HermesClient {
       id,
       goal: typeof row.goal === 'string' ? row.goal : '',
       status,
-      taskIndex: 0,
-      taskCount: 1,
+      taskIndex: Math.max(0, Number(row.task_index) || 0),
+      taskCount: Math.max(1, Number(row.task_count) || 1),
       parentId: typeof row.parent_id === 'string' ? row.parent_id : '',
       childSessionId: typeof row.child_session_id === 'string' ? row.child_session_id : '',
       delegationId: typeof row.delegation_id === 'string' ? row.delegation_id : '',

@@ -234,6 +234,45 @@ test('subagent.list fills the card when the turn route sends no subagent events'
   assert.equal(c.subagents[0].lastText, 'write_file')
 })
 
+test('refreshSubagents clears a vanished live child after a confirmation poll', async () => {
+  const c = client()
+  c.live = live('s1')
+  c.socket = { isOpen: true }
+  c.subagents = [{ id: 'sa-gone', status: 'running' }]
+  c.subagentPoll = setInterval(() => undefined, 60_000)
+  c.rpc = async (method: string) => {
+    assert.equal(method, 'subagent.list')
+    return { subagents: [] }
+  }
+  try {
+    await c.refreshSubagents()
+    assert.equal(c.subagents.length, 1, 'first empty poll tolerates spawn/list registration races')
+    assert.notEqual(c.subagentPoll, null)
+    await c.refreshSubagents()
+    assert.equal(c.subagents.length, 0, 'second empty poll is authoritative completion')
+    assert.equal(c.subagentPoll, null)
+  } finally {
+    if (c.subagentPoll) clearInterval(c.subagentPoll)
+  }
+})
+
+test('refreshSubagents drops live rows absent from a non-empty authoritative list', async () => {
+  const c = client()
+  c.live = live('s1')
+  c.socket = { isOpen: true }
+  c.subagents = [
+    { id: 'sa-live', status: 'running', goal: 'live old' },
+    { id: 'sa-stale', status: 'running', goal: 'stale child' }
+  ]
+  c.rpc = async () => ({
+    subagents: [{ subagent_id: 'sa-live', status: 'running', goal: 'live current', tool_count: 4 }]
+  })
+  await c.refreshSubagents()
+  assert.deepEqual(c.subagents.map((item: { id: string }) => item.id), ['sa-live'])
+  assert.equal(c.subagents[0].goal, 'live current')
+  assert.equal(c.subagents[0].toolCount, 4)
+})
+
 test('a delegate_task event starts subagent polling and fills the card state', async () => {
   const c = client()
   c.live = live('s1')

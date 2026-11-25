@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom'
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
-import { orderedParts, approvalLabel, modelIdsMatch, modelShortName, pickReasoning, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SessionInfo, type SessionRow, type SubagentProgress, type ToolCall } from '../shared/protocol'
+import { orderedParts, approvalLabel, isTerminalSubagentStatus, modelIdsMatch, modelShortName, pickReasoning, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SessionInfo, type SessionRow, type SubagentProgress, type ToolCall } from '../shared/protocol'
 import { GROUP_ORDER_KEY, normalizeGroupOrder, reorderGroups } from '../shared/group-order'
+import { chatActivityState } from '../shared/chat-activity'
 import { Avatar } from './Avatar'
 import { Markdown, copyText } from './Markdown'
 import { PinIcon } from './PinIcon'
@@ -407,13 +408,11 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const active = snapshot.sessions.find(session => session.id === snapshot.activeSessionId)
   const profile = snapshot.profiles.find(item => item.gatewayId === snapshot.activeGatewayId && item.name === snapshot.activeProfile)
-  // The stored row can still say `running` after an intermediate
-  // `message.complete`; keep the working/Stop UI alive until the gateway says
-  // the turn is idle. A live delegated child is also a running turn.
-  const hasLiveSubagent = snapshot.subagents.some(item =>
-    !['completed', 'failed', 'timed_out', 'timeout', 'cancelled', 'error', 'stopped'].includes(item.status)
-  )
-  const streaming = snapshot.transcript.streaming || hasLiveSubagent
+  // A delegated child can keep running after the parent has already finished
+  // its turn. Keep that progress visible without locking the composer: only
+  // the authoritative transcript state controls Stop/steer/queue behavior.
+  const hasLiveSubagent = snapshot.subagents.some(item => !isTerminalSubagentStatus(item.status))
+  const { turnRunning: streaming } = chatActivityState(snapshot.transcript.streaming, hasLiveSubagent)
   const desktopPreview = useMemo(() => previewTargetFrom(snapshot.transcript.messages), [snapshot.transcript.messages])
   const [dismissedPreview, setDismissedPreview] = useState('')
   const showDesktopPreview = Boolean(desktopPreview && dismissedPreview !== desktopPreview.id)
@@ -1247,15 +1246,11 @@ function ToolRow({ tool, now }: { tool: ToolCall; now: number }) {
   )
 }
 
-function subagentDone(status: string): boolean {
-  return ['completed', 'failed', 'timeout', 'cancelled', 'error', 'stopped'].includes(status)
-}
-
 function subagentStatusText(subagent: SubagentProgress): string {
   if (subagent.status === 'completed') return 'Completed'
   if (subagent.status === 'failed' || subagent.status === 'error') return 'Failed'
-  if (subagent.status === 'timeout') return 'Timed out'
-  if (subagent.status === 'cancelled' || subagent.status === 'stopped') return 'Stopped'
+  if (subagent.status === 'timeout' || subagent.status === 'timed_out') return 'Timed out'
+  if (['cancelled', 'canceled', 'stopped', 'interrupted'].includes(subagent.status)) return 'Stopped'
   if (subagent.status === 'queued') return 'Queued'
   if (subagent.activity === 'thinking') return 'Thinking'
   if (subagent.activity === 'tool') return subagent.toolName ? `Using ${subagent.toolName}` : 'Using tools'
@@ -1265,7 +1260,7 @@ function subagentStatusText(subagent: SubagentProgress): string {
 
 function SubagentGroup({ subagents }: { subagents: SubagentProgress[] }) {
   const [open, setOpen] = useState(false)
-  const live = subagents.filter(item => !subagentDone(item.status))
+  const live = subagents.filter(item => !isTerminalSubagentStatus(item.status))
   if (live.length === 0) return null
   const active = [...live].sort((a, b) => b.updatedAt - a.updatedAt)[0]
   const batchTotal = Math.max(1, ...subagents.map(item => item.taskCount || 1), subagents.length)
@@ -1301,7 +1296,7 @@ function SubagentGroup({ subagents }: { subagents: SubagentProgress[] }) {
           {subagents.map(item => (
             <div className="tool subagent-row" key={item.id}>
               <div className="subagent-row-head">
-                <ToolStatus running={!subagentDone(item.status)} />
+                <ToolStatus running={!isTerminalSubagentStatus(item.status)} />
                 <strong>{item.goal}</strong>
                 <span className="subagent-row-status">{subagentStatusText(item)}</span>
               </div>
@@ -2084,7 +2079,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
   const needle = query.trim().toLowerCase()
   const activeSessionRunning = snapshot.transcript.streaming
     || snapshot.transcript.messages.some(message => message.tools.some(tool => tool.status === 'running'))
-    || snapshot.subagents.some(item => !['completed', 'failed', 'timed_out', 'timeout', 'cancelled', 'error', 'stopped'].includes(item.status))
+    || snapshot.subagents.some(item => !isTerminalSubagentStatus(item.status))
   const sessions = snapshot.sessions.filter(session => `${session.title} ${session.preview} ${session.source}`.toLowerCase().includes(needle))
   const bySource = new Map<string, typeof sessions>()
   for (const session of sessions) {

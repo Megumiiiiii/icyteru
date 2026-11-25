@@ -1,5 +1,28 @@
 # Icyteru release notes
 
+## v0.0.83
+
+### Added
+
+- **Rename sessions directly from History.** Session rows now have an inline Rename action with Save/Cancel controls, a 200-character limit, Android Back support, and conflict-safe writes that never overwrite a newer session state.
+- **Native desktop context menus.** Electron now provides the expected text editing actions and opens external links only when they use HTTPS.
+- **Return to the active chat from the phone Agents panel.** A dedicated mobile action makes it easy to leave the roster without changing agents.
+- **Manual Android preview builds.** The beta workflow can produce a short-lived, production-signed APK only when explicitly dispatched; it validates the version, SDK, signing inputs, signer identity, and artifact before upload.
+
+### Changed
+
+- **Desktop runtime upgraded to Electron 45.5.0 and electron-builder 26.18.0.** Node typings now match Electron's Node 24 runtime, and production dependencies remain free of known npm vulnerabilities.
+- Transparent PNG/WebP avatars keep their transparent background; a failed avatar image falls back to the agent initial instead of leaving a blank space.
+- Desktop custom backgrounds accept only PNG, JPEG, or WebP images up to 8 MB and now surface validation errors in Settings.
+
+### Fixed
+
+- **Background subagents no longer lock the composer.** After the parent response finishes, delegated children remain visible while the primary action returns to Send; stale Tok/s and foreground working/steer controls stay hidden until a real foreground turn starts.
+- **Underscores in identifiers stay visible and copyable.** Plain text such as `pesan_kalo_pake_ini`, `CONTOH_PESAN`, `snake_case`, and `__init__` is no longer paired across words and converted into accidental emphasis. Explicit `_italic_` and `**bold**` formatting still works; `__double_underscore__` text is now intentionally literal.
+- Session rename handles stale revisions, missing sessions, double-submit, and Android Back/save races without closing the wrong editor or exposing raw gateway error codes.
+- Notification reconnects no longer start overlapping desktop polling requests, and malformed avatar/background images fail safely.
+- Markdown accepts both backtick and tilde fenced code blocks without freezing on malformed fences.
+
 ## v0.0.82
 
 ### Fixed
