@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom'
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import type { Snapshot } from '../shared/snapshot'
-import { orderedParts, approvalLabel, isTerminalSubagentStatus, modelIdsMatch, modelShortName, pickReasoning, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SessionInfo, type SessionRow, type SubagentProgress, type ToolCall } from '../shared/protocol'
+import { orderedParts, approvalLabel, isTerminalSubagentStatus, modelIdsMatch, modelShortName, pickReasoning, sourceLabel, type OutgoingAttachment, type RemoteApproval, type RemoteClarify, type SessionInfo, type SessionRow, type SubagentProgress, type ToolCall, type TranscriptMessage } from '../shared/protocol'
 import { GROUP_ORDER_KEY, normalizeGroupOrder, reorderGroups } from '../shared/group-order'
 import { chatActivityState } from '../shared/chat-activity'
+import { findMediaGen, mediaGenCard, type MediaGenCard } from '../shared/media-gen'
 import { Avatar } from './Avatar'
 import { Markdown, copyText } from './Markdown'
 import { PinIcon } from './PinIcon'
@@ -396,39 +397,7 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
   const [compress, setCompress] = useState<{ status: 'running' | 'done' | 'error'; started: number; message: string } | null>(null)
   const [compressElapsed, setCompressElapsed] = useState(0)
   const sakugaOn = useSakugaEnabled()
-  const runningMediaGen = useMemo(() => {
-    for (let i = snapshot.transcript.messages.length - 1; i >= 0; i--) {
-      const tools = snapshot.transcript.messages[i].tools
-      for (let j = tools.length - 1; j >= 0; j--) {
-        const tool = tools[j]
-        if (tool.status === 'running' && mediaGenKind(tool.name) !== null) return tool
-      }
-    }
-    return null
-  }, [snapshot.transcript.messages])
-  const lastMediaGenRef = useRef<{ id: string; kind: 'image' | 'video' } | null>(null)
-  const [finishedMediaGen, setFinishedMediaGen] = useState<{ id: string; kind: 'image' | 'video' } | null>(null)
-  const [mediaGenNow, setMediaGenNow] = useState(() => Date.now())
-
-  useEffect(() => {
-    if (runningMediaGen) {
-      const kind = mediaGenKind(runningMediaGen.name)!
-      lastMediaGenRef.current = { id: runningMediaGen.id, kind }
-      setFinishedMediaGen(null)
-      setMediaGenNow(Date.now())
-      const timer = window.setInterval(() => setMediaGenNow(Date.now()), 1000)
-      return () => window.clearInterval(timer)
-    }
-    const prev = lastMediaGenRef.current
-    if (!prev) return
-    const done = snapshot.transcript.messages.some(m => m.tools.some(t => t.id === prev.id && t.status === 'done'))
-    if (done) {
-      lastMediaGenRef.current = null
-      setFinishedMediaGen(prev)
-      const timer = window.setTimeout(() => setFinishedMediaGen(null), 3200)
-      return () => window.clearTimeout(timer)
-    }
-  }, [runningMediaGen, snapshot.transcript.messages])
+  const mediaGen = useMediaGenCard(snapshot.transcript.messages)
   const [steerPending, setSteerPending] = useState<{ toolCount: number } | null>(null)
   const [steerNote, setSteerNote] = useState<{ text: string; age: number } | null>(null)
   const [queueOpen, setQueueOpen] = useState(false)
@@ -994,13 +963,13 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
             {compress.status !== 'running' && <p className="compress-message">{compress.message}</p>}
           </div>
         )}
-        {(runningMediaGen || finishedMediaGen) && (() => {
-          const kind = runningMediaGen ? mediaGenKind(runningMediaGen.name)! : finishedMediaGen!.kind
-          const isRunning = Boolean(runningMediaGen)
-          const elapsed = runningMediaGen ? toolDuration(runningMediaGen, mediaGenNow) : 0
-          const progress = isRunning
-            ? Math.min(0.94, 0.12 + (1 - Math.exp(-Math.max(0, elapsed) / (kind === 'video' ? 75 : 28))) * 0.82)
-            : 1
+        {mediaGen.card && (() => {
+          const card = mediaGen.card!
+          const kind = card.kind
+          const isRunning = card.running
+          const startedAt = mediaGen.runningStartedAt
+          const elapsed = isRunning && startedAt !== null ? Math.max(0, Math.round((mediaGen.now - startedAt) / 1000)) : 0
+          const progress = card.progress
           return (
             <div className={`compress-bar media-gen-bar ${isRunning ? 'running' : 'done'}`} role="status" aria-live="polite">
               <div className="compress-head">
@@ -1194,6 +1163,46 @@ function ToolStatus({ running }: { running: boolean }) {
   return <span className={`tool-status ${running ? 'running' : 'done'}`} role="img" aria-label={running ? 'Running' : 'Done'}>{running ? null : '✓'}</span>
 }
 
+/**
+ * The card is derived from the transcript plus the clock, so a later message
+ * update cannot extend the "ready" window: hiding is a deadline, not a timer
+ * that a re-render can cancel.
+ */
+function useMediaGenCard(messages: readonly TranscriptMessage[]): {
+  card: MediaGenCard | null
+  now: number
+  runningStartedAt: number | null
+} {
+  const state = useMemo(() => findMediaGen(messages), [messages])
+  const [now, setNow] = useState(() => Date.now())
+  const seenRef = useRef<{ id: string; at: number } | null>(null)
+  const finishedId = state.finished?.id ?? null
+  const finishedAt = state.finished?.finishedAt ?? null
+
+  useEffect(() => {
+    if (!finishedId || finishedAt !== null) {
+      seenRef.current = null
+      return
+    }
+    if (!seenRef.current || seenRef.current.id !== finishedId) {
+      seenRef.current = { id: finishedId, at: Date.now() }
+      setNow(seenRef.current.at)
+    }
+  }, [finishedId, finishedAt])
+
+  const card = mediaGenCard(state, now, seenRef.current)
+  const visible = card !== null
+  const runningId = state.running?.id ?? null
+
+  useEffect(() => {
+    if (!visible) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [visible, runningId])
+
+  return { card, now, runningStartedAt: state.running?.startedAt ?? null }
+}
+
 function toolDuration(tool: ToolCall, now: number): number {
   if (!tool.startedAt) return 0
   const end = tool.finishedAt || (tool.status === 'running' ? now : tool.startedAt)
@@ -1228,13 +1237,6 @@ function toolLabel(name: string): string {
 function toolPreviewText(tool: ToolCall): string {
   const raw = tool.argsText || tool.resultText
   return raw.replace(/\s+/g, ' ').trim().slice(0, 110)
-}
-
-function mediaGenKind(name: string): 'image' | 'video' | null {
-  const n = name.toLowerCase()
-  if (/(?:^|[_\-.\s/])(video[_\-\s]?gen|gen(?:erate)?[_\-\s]?video|text[_\-\s]?to[_\-\s]?video|t2v|i2v|img2vid)/.test(n)) return 'video'
-  if (/(?:^|[_\-.\s/])(image[_\-\s]?gen|gen(?:erate)?[_\-\s]?image|text[_\-\s]?to[_\-\s]?image|t2i|txt2img|img2img|muse[_\-\s]?image)/.test(n)) return 'image'
-  return null
 }
 
 function ToolGroup({ tools }: { tools: ToolCall[] }) {
