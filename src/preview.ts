@@ -170,6 +170,24 @@ export function previewSnapshot(shot: string): Snapshot {
       '| Dry-run tidak me-restart apa pun | ✅ zero execution |'
     ].join('\n')
   }
+  if (shot === 'markdown-identifiers') {
+    base.transcript.messages = [
+      {
+        id: 'u-identifiers',
+        role: 'user',
+        text: 'Salin pesan_kalo_pake_ini lalu CONTOH_PESAN; kedua underscore harus tetap ada.',
+        tools: [],
+        pending: false
+      },
+      {
+        id: 'a-identifiers',
+        role: 'assistant',
+        text: 'Identifier snake_case tetap literal, sedangkan _italic yang disengaja_ masih miring.',
+        tools: [],
+        pending: false
+      }
+    ]
+  }
   if (shot === 'thinking') {
     base.transcript.streaming = true
     base.tokensPerSecond = null

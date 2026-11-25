@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { tokenizeMarkdownInline, type InlineToken } from '../shared/markdown-inline'
 
 type Align = 'left' | 'center' | 'right'
 type Block =
@@ -323,33 +324,30 @@ function CodeBlock({ lang, text }: { lang: string; text: string }) {
   )
 }
 
-const INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_|\[[^\]]+\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s<>`]+)/g
-
 function Inline({ text }: { text: string }): ReactNode {
-  const parts = text.split(INLINE)
+  return <InlineTokens tokens={tokenizeMarkdownInline(text)} />
+}
+
+function InlineTokens({ tokens }: { tokens: InlineToken[] }): ReactNode {
   return (
     <>
-      {parts.map((part, index) => {
-        if (!part) return null
-        if (part.startsWith('`') && part.endsWith('`')) return <code key={index}>{part.slice(1, -1)}</code>
-        if (part.startsWith('**') && part.endsWith('**')) return <strong key={index}><Inline text={part.slice(2, -2)} /></strong>
-        if (part.startsWith('__') && part.endsWith('__')) return <strong key={index}><Inline text={part.slice(2, -2)} /></strong>
-        if (part.startsWith('~~') && part.endsWith('~~')) return <del key={index}><Inline text={part.slice(2, -2)} /></del>
-        if (part.startsWith('*') && part.endsWith('*')) return <em key={index}><Inline text={part.slice(1, -1)} /></em>
-        if (part.startsWith('_') && part.endsWith('_')) return <em key={index}><Inline text={part.slice(1, -1)} /></em>
-        const link = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/)
-        if (link) return <a key={index} href={link[2]} target="_blank" rel="noreferrer">{link[1]}</a>
-        if (/^https?:\/\//.test(part)) {
-          const url = part.replace(/[.,;:!?*]+$/, '')
-          const tail = part.slice(url.length)
-          return (
-            <span key={index}>
-              <a href={url} target="_blank" rel="noreferrer">{url}</a>
-              {tail}
-            </span>
-          )
+      {tokens.map((token, index) => {
+        switch (token.kind) {
+          case 'code':
+            return <code key={index}>{token.text}</code>
+          case 'strong':
+            return <strong key={index}><Inline text={token.text} /></strong>
+          case 'em':
+            return <em key={index}><Inline text={token.text} /></em>
+          case 'del':
+            return <del key={index}><Inline text={token.text} /></del>
+          case 'link':
+            return <a key={index} href={token.href} target="_blank" rel="noreferrer">{token.text}</a>
+          case 'url':
+            return <a key={index} href={token.text} target="_blank" rel="noreferrer">{token.text}</a>
+          case 'text':
+            return <span key={index}>{token.text}</span>
         }
-        return <span key={index}>{part}</span>
       })}
     </>
   )
