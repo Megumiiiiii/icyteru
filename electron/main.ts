@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Notification, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, clipboard, Menu, Notification, ipcMain, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron'
 import { installNodeWebSocket } from './node-websocket'
 
 installNodeWebSocket()
@@ -128,6 +128,52 @@ function createWindow(): void {
     const dev = process.env.VITE_DEV_SERVER_URL
     if (dev && url.startsWith(dev)) return
     event.preventDefault()
+  })
+  window.webContents.on('context-menu', (_event, params) => {
+    const target = window
+    if (!target) return
+    const items: MenuItemConstructorOptions[] = []
+    if (params.isEditable) {
+      if (params.dictionarySuggestions.length > 0) {
+        for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
+          items.push({
+            label: suggestion,
+            click: () => target.webContents.replaceMisspelling(suggestion)
+          })
+        }
+        items.push({ type: 'separator' })
+      }
+      items.push(
+        { role: 'undo', enabled: params.editFlags.canUndo },
+        { role: 'redo', enabled: params.editFlags.canRedo },
+        { type: 'separator' },
+        { role: 'cut', enabled: params.editFlags.canCut },
+        { role: 'copy', enabled: params.editFlags.canCopy },
+        { role: 'paste', enabled: params.editFlags.canPaste },
+        { role: 'pasteAndMatchStyle', enabled: params.editFlags.canPaste },
+        { type: 'separator' },
+        { role: 'selectAll', enabled: params.editFlags.canSelectAll }
+      )
+    } else {
+      if (params.selectionText.trim()) {
+        items.push({ role: 'copy' })
+      }
+      if (params.linkURL && /^https?:\/\//i.test(params.linkURL)) {
+        if (items.length) items.push({ type: 'separator' })
+        items.push(
+          { label: 'Open Link in Browser', click: () => { void shell.openExternal(params.linkURL) } },
+          { label: 'Copy Link', click: () => clipboard.writeText(params.linkURL) }
+        )
+      }
+      if (params.mediaType === 'image') {
+        if (items.length) items.push({ type: 'separator' })
+        items.push({ label: 'Copy Image', click: () => target.webContents.copyImageAt(params.x, params.y) })
+      }
+      if (!items.length) {
+        items.push({ role: 'selectAll' })
+      }
+    }
+    Menu.buildFromTemplate(items).popup({ window: target })
   })
   const devUrl = process.env.VITE_DEV_SERVER_URL
   if (devUrl) void window.loadURL(devUrl)
