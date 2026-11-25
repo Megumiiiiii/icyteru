@@ -55,7 +55,7 @@ declare global {
       clearBackground: (mode: 'light' | 'dark') => Promise<{ dim: number; blur: number; light: string | null; dark: string | null }>
       setBackdrop: (dim: number, blur: number) => Promise<{ dim: number; blur: number; light: string | null; dark: string | null }>
       addGateway: (input: ConnectionInput) => Promise<Snapshot>
-      removeGateway: (id: string) => Promise<void>
+      removeGateway: (id: string) => Promise<Snapshot>
       onSnapshot: (listener: (snapshot: Snapshot) => void) => () => void
     }
   }

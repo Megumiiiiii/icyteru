@@ -511,7 +511,7 @@ export function installPreview(shot: string): void {
     clearBackground: () => Promise.resolve({ dim: 0.22, blur: 10, light: null, dark: null }),
     setBackdrop: () => Promise.resolve({ dim: 0.22, blur: 10, light: null, dark: null }),
     addGateway: () => Promise.resolve(snapshot),
-    removeGateway: () => Promise.resolve(),
+    removeGateway: () => Promise.resolve(snapshot),
     onSnapshot: (listener: (next: Snapshot) => void) => {
       listener(snapshot)
       return () => undefined

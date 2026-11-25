@@ -137,7 +137,7 @@ function isTableStart(lines: string[], index: number): boolean {
 }
 
 function startsBlock(line: string): boolean {
-  return /^\s*(```|#{1,6}\s|>\s?|[-*+]\s+|\d+[.)]\s+)/.test(line)
+  return /^\s*(`{3,}|~{3,}|#{1,6}\s|>\s?|[-*+]\s+|\d+[.)]\s+)/.test(line)
     || /^\s*([-*_])\1{2,}\s*$/.test(line)
 }
 

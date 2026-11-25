@@ -14,7 +14,7 @@ The look is meant to stay quiet: a sidebar of chats, a plain conversation, and a
 hermes serve
 ```
 
-`hermes dashboard` serves the same gateway and also opens the browser UI. The default address is `http://127.0.0.9:9119`.
+`hermes dashboard` serves the same gateway and also opens the browser UI. The default address is `http://127.0.0.1:9119`.
 
 ## Connect
 

@@ -43,7 +43,6 @@ import {
 } from '../shared/protocol'
 import { HermesSocket } from '../shared/gateway-socket'
 import type { QueuedMessage } from '../shared/snapshot'
-import { Buffer } from 'buffer'
 
 export interface ProbeResult {
   ok: boolean
@@ -714,9 +713,17 @@ export class HermesClient {
     if (!response.ok) throw new Error(`Hermes did not send that file (${response.status}).`)
     const blob = await response.blob()
     const bytes = new Uint8Array(await blob.arrayBuffer())
-    let binary = ''
-    for (const byte of bytes) binary += String.fromCharCode(byte)
-    const base64 = typeof btoa === 'function' ? btoa(binary) : Buffer.from(bytes).toString('base64')
+    const NodeBuffer = (globalThis as { Buffer?: { from(data: Uint8Array): { toString(encoding: string): string } } }).Buffer
+    let base64: string
+    if (NodeBuffer) {
+      base64 = NodeBuffer.from(bytes).toString('base64')
+    } else {
+      const chunks: string[] = []
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        chunks.push(String.fromCharCode(...bytes.subarray(i, i + 0x8000)))
+      }
+      base64 = btoa(chunks.join(''))
+    }
     return `data:${blob.type || 'application/octet-stream'};base64,${base64}`
   }
 

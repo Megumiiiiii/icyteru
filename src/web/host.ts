@@ -443,6 +443,8 @@ export function installWebHost(): void {
     setBackground: async (mode: BackdropMode, image: string) => {
       if (mode !== 'light' && mode !== 'dark') throw new Error('Choose light or dark.')
       if (!image) throw new Error('That file was empty.')
+      if (!/^data:image\/(png|jpeg|webp);base64,/i.test(image)) throw new Error('Use a PNG, JPEG, or WebP image.')
+      if (image.length > Math.ceil(8 * 1024 * 1024 * 4 / 3) + 64) throw new Error('That image is larger than 8 MB.')
       await writeImage(mode, image)
       return appearance()
     },
@@ -481,6 +483,7 @@ export function installWebHost(): void {
       persist()
       await client.setExtraGateways(saved.gateways)
       publish()
+      return snapshot()
     },
     onSnapshot: (listener: (snapshot: Snapshot) => void) => {
       listeners.add(listener)

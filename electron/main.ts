@@ -20,6 +20,7 @@ let error = ''
 let status = ''
 let publishTimer: NodeJS.Timeout | null = null
 let notifyTimer: NodeJS.Timeout | null = null
+let notifyPolling = false
 let notifyCursor = 0
 
 const client = new HermesClient(() => {
@@ -157,20 +158,27 @@ function showDesktopNotification(title: string, body: string, sessionId = ''): v
 function stopDesktopNotifications(): void {
   if (notifyTimer) clearInterval(notifyTimer)
   notifyTimer = null
+  notifyPolling = false
 }
 
 function startDesktopNotifications(): void {
   stopDesktopNotifications()
   notifyCursor = Math.floor(Date.now() / 1000)
   notifyTimer = setInterval(async () => {
-    const events = await client.notificationFeed(notifyCursor)
-    const activeSession = client.state.activeSessionId
-    for (const event of events) {
-      notifyCursor = Math.max(notifyCursor, event.at)
-      // The open session is already handled by the renderer's local notifier;
-      // other sessions (Telegram, Discord, schedule) arrive through this feed.
-      if (event.session_id && event.session_id === activeSession) continue
-      showDesktopNotification(event.title, event.body, event.session_id)
+    if (notifyPolling) return
+    notifyPolling = true
+    try {
+      const events = await client.notificationFeed(notifyCursor)
+      const activeSession = client.state.activeSessionId
+      for (const event of events) {
+        notifyCursor = Math.max(notifyCursor, event.at)
+        // The open session is already handled by the renderer's local notifier;
+        // other sessions (Telegram, Discord, schedule) arrive through this feed.
+        if (event.session_id && event.session_id === activeSession) continue
+        showDesktopNotification(event.title, event.body, event.session_id)
+      }
+    } finally {
+      notifyPolling = false
     }
   }, 4000)
 }

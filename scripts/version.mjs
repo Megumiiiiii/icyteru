@@ -89,7 +89,7 @@ function check() {
     problems.push(`android/app/build.gradle versionName must be "${version}"`)
   }
 
-  const generated = fs.readFileSync(versionPath, 'utf8').trim()
+  const generated = fs.readFileSync(versionPath, 'utf8').replace(/\r\n/g, '\n').trim()
   if (generated !== versionTs(version).trim()) {
     problems.push(`src/version.ts must contain APP_VERSION = '${version}'`)
   }
