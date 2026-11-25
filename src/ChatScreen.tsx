@@ -9,6 +9,7 @@ import { chatActivityState } from '../shared/chat-activity'
 import { Avatar } from './Avatar'
 import { Markdown, copyText } from './Markdown'
 import { PinIcon } from './PinIcon'
+import { SakugaProgressBar, useSakugaEnabled } from './SakugaProgressBar'
 import { ago } from './time'
 
 type IncomingAttachment = {
@@ -394,6 +395,7 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
   const [notice, setNotice] = useState('')
   const [compress, setCompress] = useState<{ status: 'running' | 'done' | 'error'; started: number; message: string } | null>(null)
   const [compressElapsed, setCompressElapsed] = useState(0)
+  const sakugaOn = useSakugaEnabled()
   const [steerPending, setSteerPending] = useState<{ toolCount: number } | null>(null)
   const [steerNote, setSteerNote] = useState<{ text: string; age: number } | null>(null)
   const [queueOpen, setQueueOpen] = useState(false)
@@ -947,7 +949,15 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
               </span>
               {compress.status === 'running' && <span className="compress-time">{compressElapsed}s</span>}
             </div>
-            {compress.status === 'running' && <div className="compress-track"><span /></div>}
+            {sakugaOn && compress.status !== 'error' ? (
+              <SakugaProgressBar
+                value={compress.status === 'done' ? 1 : Math.min(0.92, 0.14 + (1 - Math.exp(-compressElapsed / 7)) * 0.78)}
+                label="Compressing conversation"
+                doneLabel="Compressed ✓"
+              />
+            ) : (
+              compress.status === 'running' && <div className="compress-track"><span /></div>
+            )}
             {compress.status !== 'running' && <p className="compress-message">{compress.message}</p>}
           </div>
         )}
@@ -1260,12 +1270,17 @@ function subagentStatusText(subagent: SubagentProgress): string {
 
 function SubagentGroup({ subagents }: { subagents: SubagentProgress[] }) {
   const [open, setOpen] = useState(false)
+  const sakugaOn = useSakugaEnabled()
   const live = subagents.filter(item => !isTerminalSubagentStatus(item.status))
   if (live.length === 0) return null
   const active = [...live].sort((a, b) => b.updatedAt - a.updatedAt)[0]
   const batchTotal = Math.max(1, ...subagents.map(item => item.taskCount || 1), subagents.length)
   const batchIndex = Math.min(batchTotal, Math.max(1, ...subagents.map(item => (item.taskIndex || 0) + 1)))
   const percent = Math.round((batchIndex / batchTotal) * 100)
+  const completedCount = subagents.filter(item => isTerminalSubagentStatus(item.status)).length
+  const sakugaValue = batchTotal > 1
+    ? Math.min(0.95, Math.max(0.18, (completedCount + 0.5) / batchTotal))
+    : Math.min(0.92, 0.22 + (1 - Math.exp(-(active.toolCount || 0) / 5)) * 0.7)
 
   return (
     <div className="tools subagent-group">
@@ -1283,9 +1298,17 @@ function SubagentGroup({ subagents }: { subagents: SubagentProgress[] }) {
         {active.activity === 'tool' && active.lastText && (
           <p className="subagent-line">{active.lastText}</p>
         )}
-        <div className="subagent-progress" aria-label={`${batchIndex} of ${batchTotal} subagent tasks`}>
-          <span style={{ width: `${percent}%` }} />
-        </div>
+        {sakugaOn ? (
+          <SakugaProgressBar
+            value={sakugaValue}
+            label={`${batchIndex} of ${batchTotal} subagent tasks`}
+            doneLabel="Done ✓"
+          />
+        ) : (
+          <div className="subagent-progress" aria-label={`${batchIndex} of ${batchTotal} subagent tasks`}>
+            <span style={{ width: `${percent}%` }} />
+          </div>
+        )}
         <div className="subagent-foot">
           <span>{batchIndex}/{batchTotal}</span>
           <span>Running {live.length} subagent{live.length === 1 ? '' : 's'}</span>

@@ -107,7 +107,10 @@ const PALETTES: Record<string, SakugaPalette> = {
 let activeTheme = 'github-light'
 let installed = false
 let loading: Promise<SakugaFxApi | null> | null = null
+let progressLoading: Promise<boolean> | null = null
 let lastSliderPuff = 0
+
+export const SAKUGA_CHANGE_EVENT = 'icyteru:sakuga-change'
 
 export function isSakugaEnabled(): boolean {
   try {
@@ -130,6 +133,21 @@ async function ensureCore(): Promise<SakugaFxApi | null> {
   return fx
 }
 
+export async function ensureSakugaProgress(): Promise<boolean> {
+  const fx = await ensureCore()
+  if (!fx) return false
+  if (typeof customElements !== 'undefined' && customElements.get('sakuga-progress')) return true
+  if (!progressLoading) {
+    progressLoading = import('./sakuga-progress.js')
+      .then(mod => {
+        mod.registerSakugaProgress()
+        return Boolean(customElements.get('sakuga-progress'))
+      })
+      .catch(() => false)
+  }
+  return progressLoading
+}
+
 function applyPalette(fx: SakugaFxApi, mode: string): void {
   const palette = PALETTES[mode] || PALETTES['github-light']
   fx.P.fill = palette.fill
@@ -138,6 +156,14 @@ function applyPalette(fx: SakugaFxApi, mode: string): void {
   fx.P.accent = palette.accent
   fx.P.ink = palette.ink
   fx.P.sfx = [...palette.sfx] as [string, string]
+  if (typeof document !== 'undefined') {
+    const root = document.documentElement.style
+    root.setProperty('--sk-card', palette.fill)
+    root.setProperty('--sk-ink', palette.ink)
+    root.setProperty('--sk-soft', palette.shade)
+    root.setProperty('--sk-acc', palette.accent)
+    root.setProperty('--sk-fill', palette.accent)
+  }
 }
 
 export function syncSakugaPalette(mode: string): void {
@@ -272,6 +298,9 @@ export async function setSakugaEnabled(enabled: boolean, anchorEl?: HTMLElement 
   }
   if (typeof document !== 'undefined') {
     document.documentElement.dataset.sakuga = enabled ? '1' : '0'
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SAKUGA_CHANGE_EVENT, { detail: enabled }))
   }
   if (!enabled) {
     detachListeners()
