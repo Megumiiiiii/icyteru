@@ -1834,6 +1834,7 @@ button:disabled { opacity: 0.45; cursor: default; }
   .shell, .shell:has(.details) { grid-template-columns: 1fr; }
   .resize-handle { display: none; }
   .phone-only { display: inline-flex; }
+  .icon-button.phone-only { display: grid; }
   .desktop-only { display: none; }
   .shell[data-phone="roster"] .chat,
   .shell[data-phone="roster"] .settings,

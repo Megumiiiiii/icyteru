@@ -339,6 +339,18 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
           <button className="icon-button" type="button" title="New profile" onClick={() => setAdding(open => !open)}>
             <Plus />
           </button>
+          <button
+            className="icon-button phone-only"
+            type="button"
+            title="Back to active chat"
+            aria-label="Back to active chat"
+            onClick={() => {
+              phone.setView('chat')
+              if (snapshot.screen === 'settings') void window.icyteru.showScreen('chat')
+            }}
+          >
+            <ChevronRight />
+          </button>
         </span>
       </div>
       {adding && (
@@ -457,6 +469,14 @@ function Plus() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
+function ChevronRight() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
