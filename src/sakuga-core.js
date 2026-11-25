@@ -22,7 +22,7 @@ const P = { fill: '#ffffff', shade: '#b8b3ff', line: '#5a4fd8', accent: '#ff5fa8
 const VARS = '--sk-card:#fff;--sk-ink:#1d1a4a;--sk-dim:#8580b0;--sk-soft:#b8b3ff;--sk-pri:#8f8df7;--sk-pri-ink:#1d1a4a;--sk-acc:#ff5fa8;--sk-track:#c9cbe0;--sk-r:15px;--sk-bw:3.2px;--sk-sh:6px 7px 0 var(--sk-soft);--sk-btn-sh:var(--sk-sh);--sk-btn-line:var(--sk-ink);--sk-alt-sh:var(--sk-sh);--sk-alt-line:var(--sk-ink);--sk-tick:var(--sk-ink);--sk-fill:var(--sk-acc);--sk-on-pri:#fff;';
 // :where() keeps these at no specificity, so a page's own :root { --sk-acc: ... } wins.
 const pageCss = `:where(:root){${VARS}}
-canvas.sakuga-fx{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483000}`;
+canvas.sakuga-fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2147483000}`;
 document.head.append(Object.assign(document.createElement('style'), { textContent: pageCss }));
 
 const reduce = matchMedia('(prefers-reduced-motion: reduce)');
@@ -38,21 +38,27 @@ function ensureFront() {
   front.c = Object.assign(document.createElement('canvas'), { className: 'sakuga-fx' }); front.c.setAttribute('aria-hidden', 'true');
   document.body.append(front.c); front.g = front.c.getContext('2d'); size();
 }
-function size() { dpr = Math.min(2.5, devicePixelRatio || 1); if (front.c) { front.c.width = innerWidth * dpr; front.c.height = innerHeight * dpr; } }
+function size() {
+  dpr = Math.min(2.5, devicePixelRatio || 1);
+  if (front.c) {
+    const r = front.c.getBoundingClientRect();
+    front.c.width = Math.max(1, Math.round((r.width || innerWidth) * dpr));
+    front.c.height = Math.max(1, Math.round((r.height || innerHeight) * dpr));
+  }
+}
 addEventListener('resize', size);
 function backLayer(canvas) { const L = { c: canvas, g: canvas.getContext('2d'), live: [], dirty: false }; layers.push(L); return L; }
 const add = (life, draw, L) => { const p = { t: 0, life, draw }; if (!calm) { L = L || front; if (L === front) ensureFront(); L.live.push(p); start(); } return p; };
 // an effect with no end: it draws every frame until its handle is marked dead. layer puts it on a component's back layer.
 const persist = (draw, layer) => add(Infinity, draw, layer);
 function tick(dt) {
+  dpr = Math.min(2.5, devicePixelRatio || 1);
   for (const L of layers) {
     if (!L.c || (!L.live.length && !L.dirty)) continue;
+    if (!L.c.isConnected) { L.live = []; L.dirty = false; continue; }
     let ox = scrollX, oy = scrollY;
-    if (L !== front) {   // a back layer: keep its pixels matched to where it sits
-      if (!L.c.isConnected) { L.live = []; L.dirty = false; continue; }
-      const r = L.c.getBoundingClientRect(), w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
-      if (L.c.width !== w) L.c.width = w; if (L.c.height !== h) L.c.height = h; ox += r.left; oy += r.top;
-    }
+    const r = L.c.getBoundingClientRect(), w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+    if (L.c.width !== w) L.c.width = w; if (L.c.height !== h) L.c.height = h; ox += r.left; oy += r.top;
     g = L.g; g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, L.c.width / dpr, L.c.height / dpr);
     g.translate(-ox, -oy); g.lineJoin = g.lineCap = 'round';
     L.live = L.live.filter((p) => !p.dead && (p.t += dt) < p.life);
