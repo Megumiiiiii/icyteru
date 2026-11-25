@@ -20,8 +20,20 @@ if (Capacitor.isNativePlatform()) {
 }
 
 const shot = new URLSearchParams(location.search).get('shot')
-if (shot) installPreview(shot)
-else if (!window.icyteru) installWebHost()
+
+async function boot(): Promise<void> {
+  if (shot) installPreview(shot)
+  else if ('__TAURI_INTERNALS__' in window) {
+    const { installTauriHost } = await import('./tauri/host')
+    await installTauriHost()
+  } else if (!window.icyteru) installWebHost()
+
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <Root />
+    </StrictMode>
+  )
+}
 
 function Root() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
@@ -34,8 +46,5 @@ function Root() {
   return <App snapshot={snapshot} />
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <Root />
-  </StrictMode>
-)
+void boot()
+

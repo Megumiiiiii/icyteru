@@ -145,7 +145,7 @@ export class HermesClient {
   private cookie = ''
   private authMode: AuthMode = 'none'
   private loginProvider = 'basic'
-  private readonly browser = typeof window !== 'undefined'
+  private readonly browser = typeof window !== 'undefined' && !('__ICYTERU_NATIVE_TRANSPORT__' in globalThis)
   private listStyle: 'picker' | 'plain' = 'picker'
   private reconnecting = false
   private reconnectMerge = false
@@ -174,6 +174,11 @@ export class HermesClient {
       activeSessionId: this.live?.stored || '',
       side: this.side
     }
+  }
+
+  /** Credentials for host-side work (notification polling); never rendered. */
+  get authSnapshot(): { baseUrl: string; token: string; cookie: string } {
+    return { baseUrl: this.baseUrl, token: this.token, cookie: this.cookie }
   }
 
   /** WebViews keep the cookie jar themselves; Electron main needs explicit headers. */
@@ -387,7 +392,14 @@ export class HermesClient {
       throw new Error(`Hermes rejected the login (${response.status}).`)
     }
     const header = response.headers as Headers & { getSetCookie?: () => string[] }
-    const values = typeof header.getSetCookie === 'function' ? header.getSetCookie() : [header.get('set-cookie') || '']
+    // Set-Cookie is a forbidden response header, so a Response built by the Tauri
+    // transport shim carries the cookies under x-icyteru-set-cookie instead.
+    // Chromium and WebKit still expose getSetCookie(), which answers an empty list
+    // here, so an empty result must fall through to the alternate header.
+    const nativeCookies = typeof header.getSetCookie === 'function' ? header.getSetCookie() : []
+    const values = nativeCookies.length
+      ? nativeCookies
+      : (header.get('x-icyteru-set-cookie') || header.get('set-cookie') || '').split(/,(?=[^;]+=)/)
     this.cookie = cookieHeaderFromSetCookie(values)
     if (!this.cookie && this.browser) {
       // Browsers and WebViews forbid JS from reading Set-Cookie. The platform

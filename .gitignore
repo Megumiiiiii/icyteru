@@ -26,3 +26,7 @@ android/app/google-services.json
 
 # Local working notes
 STATUS.md
+
+# Tauri build output (Rust target dir and generated schemas)
+src-tauri/target/
+src-tauri/gen/

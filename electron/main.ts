@@ -1,4 +1,5 @@
-import { app, BrowserWindow, clipboard, Menu, Notification, ipcMain, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron'
+import { app, BrowserWindow, clipboard, Menu, Notification, Tray, nativeImage, ipcMain, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { installNodeWebSocket } from './node-websocket'
 
 installNodeWebSocket()
@@ -103,6 +104,67 @@ function windowIcon(): string {
   return app.isPackaged ? path.join(process.resourcesPath, 'icon.png') : dev
 }
 
+/** Whether the window's X quits the app or parks it in the tray. */
+let closeBehavior: 'quit' | 'tray' = 'quit'
+let tray: Tray | null = null
+let quitting = false
+
+function windowPrefsPath(): string {
+  return path.join(app.getPath('userData'), 'window.json')
+}
+
+function loadWindowPrefs(): void {
+  try {
+    const parsed = JSON.parse(readFileSync(windowPrefsPath(), 'utf8')) as { behavior?: string }
+    closeBehavior = parsed.behavior === 'tray' ? 'tray' : 'quit'
+  } catch {
+    closeBehavior = 'quit'
+  }
+}
+
+function saveWindowPrefs(): void {
+  try {
+    writeFileSync(windowPrefsPath(), JSON.stringify({ behavior: closeBehavior }, null, 2), { mode: 0o600 })
+  } catch {
+    // A failed preference write must never block closing or showing the window.
+  }
+}
+
+function showWindow(): void {
+  if (!window) {
+    createWindow()
+    return
+  }
+  if (window.isMinimized()) window.restore()
+  window.show()
+  window.focus()
+}
+
+function ensureTray(): void {
+  if (tray) return
+  try {
+    const image = nativeImage.createFromPath(windowIcon())
+    tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image.resize({ width: 16, height: 16 }))
+    tray.setToolTip('Icyteru')
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: 'Show Icyteru', click: () => showWindow() },
+      {
+        label: 'Quit Icyteru',
+        click: () => {
+          quitting = true
+          closeBehavior = 'quit'
+          saveWindowPrefs()
+          app.quit()
+        }
+      }
+    ]))
+    tray.on('click', () => showWindow())
+  } catch {
+    // No system tray host (some Linux sessions, remote X): keep the window closable.
+    tray = null
+  }
+}
+
 function createWindow(): void {
   window = new BrowserWindow({
     width: 1180,
@@ -123,6 +185,14 @@ function createWindow(): void {
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) void shell.openExternal(url)
     return { action: 'deny' }
+  })
+  window.on('close', event => {
+    if (quitting || closeBehavior !== 'tray') return
+    ensureTray()
+    // Without a tray icon there is no way back to a hidden window, so close for real.
+    if (!tray) return
+    event.preventDefault()
+    window?.hide()
   })
   window.webContents.on('will-navigate', (event, url) => {
     const dev = process.env.VITE_DEV_SERVER_URL
@@ -414,15 +484,24 @@ function registerIpc(): void {
     publish()
     return snapshot()
   })
+  ipcMain.handle('get-close-behavior', () => closeBehavior)
+  ipcMain.handle('set-close-behavior', (_event, value: string) => {
+    closeBehavior = value === 'tray' ? 'tray' : 'quit'
+    saveWindowPrefs()
+    if (closeBehavior === 'tray') ensureTray()
+    return closeBehavior
+  })
 }
 
 if (process.platform === 'win32') app.setAppUserModelId('dev.megumii.icyteru')
 
 app.whenReady().then(() => {
   saved = loadConnection()
+  loadWindowPrefs()
   screen = saved.url ? 'chat' : 'connect'
   registerIpc()
   createWindow()
+  if (closeBehavior === 'tray') ensureTray()
   if (saved.url) void connectSaved()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -434,6 +513,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  quitting = true
   stopDesktopNotifications()
   client.disconnect()
 })

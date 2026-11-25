@@ -256,6 +256,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
           </label>
           <p className="hint">Drag the divider between panels to resize them. Widths and this title are remembered on this device.</p>
         </section>
+        <WindowCloseCard />
         <section>
           <h2>Appearance</h2>
           <div className="theme-choices theme-grid">
@@ -385,6 +386,56 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
           </p>
         </section>
       </div>
+    </section>
+  )
+}
+
+function WindowCloseCard() {
+  const api = typeof window.icyteru.getCloseBehavior === 'function' ? window.icyteru : null
+  const [behavior, setBehavior] = useState<'quit' | 'tray' | null>(null)
+  const [note, setNote] = useState('')
+
+  useEffect(() => {
+    if (!api?.getCloseBehavior) return
+    let cancelled = false
+    void api.getCloseBehavior()
+      .then(value => {
+        if (!cancelled) setBehavior(value)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (!api) return null
+
+  const choose = (value: 'quit' | 'tray') => {
+    setNote('')
+    void api.setCloseBehavior?.(value)
+      .then(next => setBehavior(next))
+      .catch((error: unknown) => {
+        setNote(error instanceof Error ? error.message : 'Could not save that choice.')
+      })
+  }
+
+  return (
+    <section>
+      <h2>Window</h2>
+      <span className="settings-field-label">When I close the window</span>
+      <div className="theme-choices">
+        <button className={behavior === 'quit' ? 'solid' : 'ghost'} onClick={() => choose('quit')} type="button">
+          Quit Icyteru
+        </button>
+        <button className={behavior === 'tray' ? 'solid' : 'ghost'} onClick={() => choose('tray')} type="button">
+          Keep running in the tray
+        </button>
+      </div>
+      <p className="hint">
+        Keeping Icyteru in the tray leaves the chat connection and notifications alive after you press X. Reopen it from the
+        tray icon, or choose Quit from that menu to close it for real.
+      </p>
+      {note && <p className="hint">{note}</p>}
     </section>
   )
 }

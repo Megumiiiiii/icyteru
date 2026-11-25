@@ -557,6 +557,8 @@ export function installPreview(shot: string): void {
     setProfileHidden: () => Promise.resolve(),
     createProfile: () => Promise.resolve(),
     getAppearance: () => Promise.resolve({ dim: 0.22, blur: 10, light: null, dark: null }),
+    getCloseBehavior: () => Promise.resolve('tray' as const),
+    setCloseBehavior: (value: 'quit' | 'tray') => Promise.resolve(value),
     setBackground: () => Promise.resolve({ dim: 0.22, blur: 10, light: null, dark: null }),
     clearBackground: () => Promise.resolve({ dim: 0.22, blur: 10, light: null, dark: null }),
     setBackdrop: () => Promise.resolve({ dim: 0.22, blur: 10, light: null, dark: null }),

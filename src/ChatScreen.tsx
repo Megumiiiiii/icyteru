@@ -39,6 +39,7 @@ function splitMedia(text: string): { text: string; attachments: IncomingAttachme
 }
 
 const isAndroid = Capacitor.getPlatform() === 'android'
+const isTauri = '__TAURI_INTERNALS__' in window
 
 type PreviewTarget = { url: string; label: string; id: string }
 
@@ -268,9 +269,8 @@ function MediaAttachment({ path, name, image, src }: IncomingAttachment & { src?
   const [saveNote, setSaveNote] = useState('')
 
   async function download(event: ReactMouseEvent<HTMLAnchorElement>) {
-    // WebView ignores the HTML download attribute for data: URLs. Use the
-    // native MediaStore bridge on Android; desktop/browser keeps the anchor.
-    if (!isAndroid) return
+    // Native Android and Tauri hosts need an explicit save bridge for data: URLs.
+    if (!isAndroid && !isTauri) return
     event.preventDefault()
     try {
       const saved = await window.icyteru.saveDownload(name, dataUrl)
