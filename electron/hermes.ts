@@ -8,6 +8,7 @@ import {
   isTerminalSubagentStatus,
   normalizeMemory,
   normalizeModels,
+  normalizeFallbackModels,
   modelIdsMatch,
   modelOptionsPath,
   pickSessionModel,
@@ -31,6 +32,7 @@ import {
   type AuthDiscovery,
   type AuthMode,
   type CreateContract,
+  type FallbackModelEntry,
   type GatewayEventFrame,
   type MemoryView,
   type OutgoingAttachment,
@@ -1652,6 +1654,32 @@ export class HermesClient {
     return 'Model saved on Hermes. New messages use it.'
   }
 
+  /** Save the ordered fallback model chain on the active profile's config. */
+  async setFallbackModels(entries: FallbackModelEntry[]): Promise<string> {
+    const cleaned: FallbackModelEntry[] = []
+    for (const entry of Array.isArray(entries) ? entries : []) {
+      if (!entry || typeof entry !== 'object') continue
+      const provider = typeof entry.provider === 'string' ? entry.provider.trim() : ''
+      const model = typeof entry.model === 'string' ? entry.model.trim() : ''
+      if (!provider || !model) continue
+      cleaned.push({ ...entry, provider, model })
+    }
+    const response = await this.putJson('/api/config', {
+      config: { fallback_providers: cleaned },
+      profile: this.activeProfile || undefined
+    })
+    const body = asRecord(response)
+    if (body.ok === false) {
+      throw new Error(String(body.detail || 'Hermes did not save the fallback models.'))
+    }
+    this.side = { ...this.side, fallbackModels: cleaned }
+    this.profileSideCache.set(this.profileCacheKey(), { ...this.side })
+    this.emit()
+    return cleaned.length
+      ? 'Fallback models saved on Hermes.'
+      : 'Fallback models cleared on Hermes.'
+  }
+
   /** Read the live session's current reasoning effort from the gateway. */
   private async readReasoning(): Promise<void> {
     if (!this.live?.live || !this.socket?.isOpen) return
@@ -1865,12 +1893,13 @@ export class HermesClient {
   private async refreshSideData(): Promise<void> {
     const profileEpoch = this.profileEpoch
     const soulPath = `/api/profiles/${encodeURIComponent(this.activeProfile || 'default')}/soul`
-    const [models, globalModels, skills, memory, soul] = await Promise.all([
+    const [models, globalModels, skills, memory, soul, config] = await Promise.all([
       this.getJson(modelOptionsPath(this.live?.live)).catch(() => null),
       this.getJson('/api/model/options').catch(() => null),
       this.getJson('/api/skills').catch(() => null),
       this.getJson('/api/memory').catch(() => null),
-      this.getJson(soulPath).catch(() => null)
+      this.getJson(soulPath).catch(() => null),
+      this.getJson('/api/config').catch(() => null)
     ])
     // A profile switch while these requests were in flight must not repaint
     // the new profile with the previous profile's side data.
@@ -1900,6 +1929,7 @@ export class HermesClient {
       models: nextModels,
       globalModel: nextGlobal ? nextGlobal.currentModel : this.side.globalModel,
       globalProvider: nextGlobal ? nextGlobal.currentProvider : this.side.globalProvider,
+      fallbackModels: config ? normalizeFallbackModels(config) : this.side.fallbackModels,
       reasoning,
       globalReasoning,
       tokensPerSecond,
@@ -1922,6 +1952,7 @@ export class HermesClient {
     models: ReturnType<typeof normalizeModels>
     globalModel: string
     globalProvider: string
+    fallbackModels: FallbackModelEntry[]
     reasoning: string
     globalReasoning: string
     tokensPerSecond: number | null
@@ -1933,6 +1964,7 @@ export class HermesClient {
     models: { currentModel: '', currentProvider: '', models: [] },
     globalModel: '',
     globalProvider: '',
+    fallbackModels: [],
     reasoning: '',
     globalReasoning: '',
     tokensPerSecond: null,
@@ -2402,6 +2434,19 @@ export class HermesClient {
     return parsed
   }
 
+  private async putJson(path: string, body: unknown): Promise<unknown> {
+    const send = () => this.httpPut(path, body)
+    let response = await send()
+    if (response.status === 401 && await this.renewSession()) response = await send()
+    const text = await response.text()
+    const parsed = text ? JSON.parse(text) as unknown : {}
+    if (!response.ok) {
+      const detail = asRecord(parsed).detail
+      throw new GatewayHttpError(response.status, detail)
+    }
+    return parsed
+  }
+
   private httpGet(path: string): Promise<Response> {
     return this.authFetch(buildGatewayHttpUrl(this.baseUrl, this.withProfile(path)), { headers: this.headers() })
   }
@@ -2417,6 +2462,14 @@ export class HermesClient {
   private httpPatch(path: string, body: unknown): Promise<Response> {
     return this.authFetch(buildGatewayHttpUrl(this.baseUrl, this.withProfile(path)), {
       method: 'PATCH',
+      headers: { ...this.headers(), 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+  }
+
+  private httpPut(path: string, body: unknown): Promise<Response> {
+    return this.authFetch(buildGatewayHttpUrl(this.baseUrl, this.withProfile(path)), {
+      method: 'PUT',
       headers: { ...this.headers(), 'content-type': 'application/json' },
       body: JSON.stringify(body)
     })

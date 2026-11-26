@@ -1121,3 +1121,52 @@ test('selectProfile restores cached sessions immediately when switching back to 
   assert.equal(c.sessions.length, 1)
   assert.equal(c.sessions[0].id, 'rin-1')
 })
+
+test('refreshSideData reads fallback_providers and setFallbackModels persists cleaned entries via PUT /api/config', async () => {
+  const c = client()
+  c.activeProfile = 'rin'
+  c.activeGatewayId = 'primary'
+  c.getJson = async (path: string) => {
+    if (path === '/api/config') {
+      return {
+        fallback_providers: [
+          { provider: 'openrouter', model: 'anthropic/claude-sonnet-4.5', base_url: 'https://custom.local/v1' },
+          'openai/gpt-5-mini'
+        ]
+      }
+    }
+    return null
+  }
+  c.readReasoning = async () => undefined
+  c.readGlobalReasoning = async () => undefined
+  await c.refreshSideData()
+  assert.equal(c.side.fallbackModels.length, 2)
+  assert.equal(c.side.fallbackModels[0].provider, 'openrouter')
+  assert.equal(c.side.fallbackModels[0].base_url, 'https://custom.local/v1')
+  assert.equal(c.side.fallbackModels[1].provider, 'openai')
+  assert.equal(c.side.fallbackModels[1].model, 'gpt-5-mini')
+
+  let savedPath = ''
+  let savedBody: any = null
+  c.putJson = async (path: string, body: unknown) => {
+    savedPath = path
+    savedBody = body
+    return { ok: true }
+  }
+  const note = await c.setFallbackModels([
+    { provider: 'openrouter', model: 'anthropic/claude-sonnet-4.5', base_url: 'https://custom.local/v1' },
+    { provider: '', model: 'ignored-incomplete' }
+  ])
+  assert.equal(savedPath, '/api/config')
+  assert.equal(savedBody.profile, 'rin')
+  assert.deepEqual(savedBody.config.fallback_providers, [
+    { provider: 'openrouter', model: 'anthropic/claude-sonnet-4.5', base_url: 'https://custom.local/v1' }
+  ])
+  assert.equal(c.side.fallbackModels.length, 1)
+  assert.match(note, /saved/i)
+
+  const cleared = await c.setFallbackModels([])
+  assert.deepEqual(savedBody.config.fallback_providers, [])
+  assert.equal(c.side.fallbackModels.length, 0)
+  assert.match(cleared, /cleared/i)
+})

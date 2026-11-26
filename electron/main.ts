@@ -8,7 +8,7 @@ import { clearBackground, loadAppearance, saveBackdrop, saveBackground, type Bac
 import { HermesClient, type ConnectionCredentials } from './hermes'
 import { clearConnection, loadConnection, saveConnection, type SavedConnection } from './store'
 import { emptySnapshot, isThemePreference, type AppScreen, type Snapshot, type ThemePreference } from '../shared/snapshot'
-import type { AuthMode, NotificationPayload, OutgoingAttachment } from '../shared/protocol'
+import type { AuthMode, FallbackModelEntry, NotificationPayload, OutgoingAttachment } from '../shared/protocol'
 
 type ConnectionInput = { url?: string; token?: string; username?: string; password?: string; method?: 'password' | 'token' }
 
@@ -76,6 +76,7 @@ function snapshot(): Snapshot {
   base.currentProvider = state.side.models.currentProvider
   base.globalModel = state.side.globalModel
   base.globalProvider = state.side.globalProvider
+  base.fallbackModels = state.side.fallbackModels
   base.currentReasoning = state.side.reasoning
   base.globalReasoning = state.side.globalReasoning
   base.tokensPerSecond = state.side.tokensPerSecond
@@ -433,6 +434,9 @@ function registerIpc(): void {
   ))
   ipcMain.handle('set-model', (_event, payload: { model: string; provider: string; confirm?: boolean }) => (
     client.setModel(payload.model, payload.provider, Boolean(payload.confirm))
+  ))
+  ipcMain.handle('set-fallback-models', (_event, entries: FallbackModelEntry[]) => (
+    client.setFallbackModels(entries)
   ))
   ipcMain.handle('set-reasoning', (_event, value: string) => client.setReasoning(value))
   ipcMain.handle('set-global-reasoning', (_event, value: string) => client.setGlobalReasoning(value))

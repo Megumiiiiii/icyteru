@@ -548,6 +548,7 @@ export function installPreview(shot: string): void {
     answerRemoteClarify: () => Promise.resolve(),
     answerRemoteApproval: () => Promise.resolve(),
     setModel: () => Promise.resolve(''),
+    setFallbackModels: () => Promise.resolve('Fallback models saved in preview.'),
     setSessionModel: (_model: string, _provider: string, _confirm = false) => Promise.resolve('Session model set in preview.'),
     cancelSessionModel: () => undefined,
     setReasoning: () => Promise.resolve('Reasoning set in preview.'),

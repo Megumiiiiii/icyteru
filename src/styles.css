@@ -1723,6 +1723,34 @@ button:disabled { opacity: 0.45; cursor: default; }
 .model-list em { color: var(--muted); font-style: normal; font-size: 12px; }
 .settings-model-field { display: grid; gap: 6px; margin: 12px 0; }
 .settings-field-label { font-size: 13px; font-weight: 560; }
+.fallback-models-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fallback-empty { margin: 2px 0 0; font-size: 12px; }
+.fallback-list { display: grid; gap: 8px; }
+.fallback-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.fallback-row > .global-model-picker { flex: 1 1 auto; min-width: 0; }
+.fallback-rank {
+  width: 22px;
+  flex: none;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.fallback-reorder { display: flex; gap: 4px; flex: none; }
+.fallback-icon {
+  min-width: 32px;
+  height: 36px;
+  padding: 0 6px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.fallback-icon:disabled { opacity: 0.35; cursor: default; }
 .global-model-picker { position: relative; min-width: 0; }
 .global-model-trigger {
   width: 100%; min-height: 44px; padding: 7px 11px; text-align: left;

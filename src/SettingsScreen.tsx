@@ -4,7 +4,7 @@ import { PhoneNav } from './phone'
 import { isSakugaEnabled, setSakugaEnabled } from './sakuga'
 import { APP_VERSION } from './version'
 import { autoFocusSearch, findModelChoiceIndex } from '../shared/model-choice'
-import type { AuthMode, ModelChoice } from '../shared/protocol'
+import type { AuthMode, FallbackModelEntry, ModelChoice } from '../shared/protocol'
 import type { Snapshot, ThemePreference } from '../shared/snapshot'
 import { THEME_PREFERENCES } from '../shared/snapshot'
 
@@ -37,6 +37,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
     findModelChoiceIndex(snapshot.models, snapshot.globalModel, snapshot.globalProvider)
   )
   const [globalReasoningLevel, setGlobalReasoningLevel] = useState(snapshot.globalReasoning || 'medium')
+  const [fallbackRows, setFallbackRows] = useState<FallbackModelEntry[]>(() => snapshot.fallbackModels)
   const picked = useRef(false)
 
   useEffect(() => {
@@ -71,6 +72,10 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
   useEffect(() => {
     setGlobalReasoningLevel(snapshot.globalReasoning || 'medium')
   }, [snapshot.globalReasoning])
+
+  useEffect(() => {
+    setFallbackRows(snapshot.fallbackModels)
+  }, [snapshot.fallbackModels, snapshot.activeProfile, snapshot.activeGatewayId])
 
   function choose(next: Method) {
     picked.current = true
@@ -118,6 +123,10 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
         await window.icyteru.setModel(model.id, model.providerId || model.provider)
       }
       await window.icyteru.setGlobalReasoning(globalReasoningLevel)
+      const cleanedFallbacks = fallbackRows.filter(entry => entry.provider.trim() && entry.model.trim())
+      if (JSON.stringify(cleanedFallbacks) !== JSON.stringify(snapshot.fallbackModels)) {
+        await window.icyteru.setFallbackModels(cleanedFallbacks)
+      }
       setGlobalNote('Global defaults saved. New chats use them.')
     } catch (error) {
       setGlobalNote(error instanceof Error ? error.message : 'Could not save the global defaults.')
@@ -242,7 +251,13 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
               ))}
             </select>
           </label>
-          <p className="hint">New chats use these defaults. You can still switch model or reasoning per chat.</p>
+          <FallbackModelsField
+            models={snapshot.models}
+            primaryIndex={globalModelIndex}
+            rows={fallbackRows}
+            onChange={setFallbackRows}
+          />
+          <p className="hint">New chats use these defaults, and fallback models are tried in order if the primary model fails. You can still switch model or reasoning per chat.</p>
           <div className="row">
             <button className="solid" disabled={busy} onClick={() => void saveGlobalDefaults()} type="button">Save global defaults</button>
           </div>
@@ -440,10 +455,133 @@ function WindowCloseCard() {
   )
 }
 
-function GlobalModelPicker({ models, value, onChange }: {
+function FallbackModelsField({ models, primaryIndex, rows, onChange }: {
+  models: ModelChoice[]
+  primaryIndex: number
+  rows: FallbackModelEntry[]
+  onChange: (next: FallbackModelEntry[]) => void
+}) {
+  function pickNextDefault(): FallbackModelEntry {
+    const primary = models[primaryIndex]
+    const used = new Set(rows.map(item => `${item.provider.toLowerCase()}:${item.model.toLowerCase()}`))
+    if (primary) used.add(`${(primary.providerId || primary.provider).toLowerCase()}:${primary.id.toLowerCase()}`)
+    const candidate = models.find(item => !used.has(`${(item.providerId || item.provider).toLowerCase()}:${item.id.toLowerCase()}`))
+      ?? models[0]
+    if (!candidate) return { provider: '', model: '' }
+    return { provider: candidate.providerId || candidate.provider, model: candidate.id }
+  }
+
+  function addRow() {
+    onChange([...rows, pickNextDefault()])
+  }
+
+  function updateRow(index: number, modelIndex: number) {
+    const choice = models[modelIndex]
+    if (!choice) return
+    const nextProvider = choice.providerId || choice.provider
+    onChange(rows.map((entry, at) => {
+      if (at !== index) return entry
+      const sameProvider = entry.provider.toLowerCase() === nextProvider.toLowerCase()
+      return sameProvider
+        ? { ...entry, provider: nextProvider, model: choice.id }
+        : { provider: nextProvider, model: choice.id }
+    }))
+  }
+
+  function moveRow(index: number, delta: -1 | 1) {
+    const target = index + delta
+    if (target < 0 || target >= rows.length) return
+    const next = [...rows]
+    const [moved] = next.splice(index, 1)
+    next.splice(target, 0, moved)
+    onChange(next)
+  }
+
+  function removeRow(index: number) {
+    onChange(rows.filter((_, at) => at !== index))
+  }
+
+  return (
+    <div className="settings-model-field fallback-models-field">
+      <div className="fallback-models-head">
+        <span className="settings-field-label">Fallback models</span>
+        <button
+          className="ghost tiny"
+          type="button"
+          disabled={models.length === 0}
+          onClick={addRow}
+        >
+          + Add fallback
+        </button>
+      </div>
+      {rows.length === 0 ? (
+        <p className="hint fallback-empty">No fallback models yet. Add one to fail over automatically when the primary model is unavailable.</p>
+      ) : (
+        <div className="fallback-list">
+          {rows.map((entry, index) => {
+            const matched = models.findIndex(choice => {
+              const choiceProvider = (choice.providerId || choice.provider).toLowerCase()
+              const entryProvider = entry.provider.toLowerCase()
+              const sameModel = choice.id.toLowerCase() === entry.model.toLowerCase()
+              if (!sameModel) return false
+              return !entryProvider || choiceProvider === entryProvider || choice.provider.toLowerCase() === entryProvider
+            })
+            return (
+              <div className="fallback-row" key={`${index}:${entry.provider}:${entry.model}`}>
+                <span className="fallback-rank" aria-label={`Fallback ${index + 1}`}>{index + 1}</span>
+                <GlobalModelPicker
+                  models={models}
+                  value={matched}
+                  fallbackLabel={entry.model ? { label: entry.model, provider: entry.provider || 'custom' } : undefined}
+                  onChange={nextIndex => updateRow(index, nextIndex)}
+                />
+                {rows.length > 1 && (
+                  <div className="fallback-reorder">
+                    <button
+                      className="ghost tiny fallback-icon"
+                      type="button"
+                      disabled={index === 0}
+                      title="Move up"
+                      aria-label={`Move fallback ${index + 1} up`}
+                      onClick={() => moveRow(index, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      className="ghost tiny fallback-icon"
+                      type="button"
+                      disabled={index === rows.length - 1}
+                      title="Move down"
+                      aria-label={`Move fallback ${index + 1} down`}
+                      onClick={() => moveRow(index, 1)}
+                    >
+                      ↓
+                    </button>
+                  </div>
+                )}
+                <button
+                  className="ghost tiny fallback-icon"
+                  type="button"
+                  title="Remove fallback"
+                  aria-label={`Remove fallback ${index + 1}`}
+                  onClick={() => removeRow(index)}
+                >
+                  ×
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GlobalModelPicker({ models, value, onChange, fallbackLabel }: {
   models: ModelChoice[]
   value: number
   onChange: (index: number) => void
+  fallbackLabel?: { label: string; provider: string }
 }) {
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
@@ -451,7 +589,10 @@ function GlobalModelPicker({ models, value, onChange }: {
   const [dropUp, setDropUp] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const dragged = useRef(false)
-  const selected = models[value] ?? models[0]
+  const matched = value >= 0 ? models[value] : undefined
+  const selected = matched ?? (fallbackLabel
+    ? { id: fallbackLabel.label, label: fallbackLabel.label, provider: fallbackLabel.provider, providerId: fallbackLabel.provider }
+    : models[0])
   const selectedProvider = selected ? selected.providerId || selected.provider || 'other' : ''
 
   function openPicker() {

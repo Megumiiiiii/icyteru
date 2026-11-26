@@ -638,6 +638,44 @@ export interface ModelChoice {
   label: string
 }
 
+export interface FallbackModelEntry {
+  provider: string
+  model: string
+  [key: string]: unknown
+}
+
+export function normalizeFallbackModels(payload: unknown): FallbackModelEntry[] {
+  const body = asRecord(payload)
+  const raw = Array.isArray(payload)
+    ? payload
+    : Array.isArray(body.fallback_providers) && body.fallback_providers.length > 0
+      ? body.fallback_providers
+      : Array.isArray(body.fallback_model)
+        ? body.fallback_model
+        : body.fallback_model && typeof body.fallback_model === 'object'
+          ? [body.fallback_model]
+          : Array.isArray(body.fallback_providers)
+            ? body.fallback_providers
+            : []
+  const rows: FallbackModelEntry[] = []
+  for (const item of raw) {
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      const record = item as Record<string, unknown>
+      const provider = typeof record.provider === 'string' ? record.provider.trim() : ''
+      const model = typeof record.model === 'string' ? record.model.trim() : ''
+      if (!provider && !model) continue
+      rows.push({ ...record, provider, model })
+    } else if (typeof item === 'string' && item.trim()) {
+      const trimmed = item.trim()
+      const slash = trimmed.indexOf('/')
+      rows.push(slash > 0
+        ? { provider: trimmed.slice(0, slash), model: trimmed.slice(slash + 1) }
+        : { provider: '', model: trimmed })
+    }
+  }
+  return rows
+}
+
 /** A native notification the renderer asks the host to show. */
 export interface NotificationPayload {
   title: string

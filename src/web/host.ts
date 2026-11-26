@@ -6,7 +6,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { HermesClient } from '../../electron/hermes'
 import { emptySnapshot, isThemePreference, type AppScreen, type Snapshot, type ThemePreference } from '../../shared/snapshot'
-import type { AuthDiscovery, NotificationPayload, OutgoingAttachment, SessionInfo } from '../../shared/protocol'
+import type { AuthDiscovery, FallbackModelEntry, NotificationPayload, OutgoingAttachment, SessionInfo } from '../../shared/protocol'
 import { enableNotifications, sendNotification } from '../notifications'
 import { APP_VERSION } from '../version'
 import type { ConnectionInput } from '../global'
@@ -153,6 +153,7 @@ function snapshot(): Snapshot {
   base.currentProvider = state.side.models.currentProvider
   base.globalModel = state.side.globalModel
   base.globalProvider = state.side.globalProvider
+  base.fallbackModels = state.side.fallbackModels
   base.currentReasoning = state.side.reasoning
   base.globalReasoning = state.side.globalReasoning
   base.tokensPerSecond = state.side.tokensPerSecond
@@ -440,6 +441,7 @@ export function installWebHost(): void {
     answerRemoteClarify: (clarifyId: string, answer: string) => client.answerRemoteClarify(clarifyId, answer),
     answerRemoteApproval: (sessionKey: string, requestId: string, choice: string, reason = '', commandDigest = '') => client.answerRemoteApproval(sessionKey, requestId, choice, reason, commandDigest),
     setModel: (model: string, provider: string, confirm = false) => client.setModel(model, provider, confirm),
+    setFallbackModels: (entries: FallbackModelEntry[]) => client.setFallbackModels(entries),
     setSessionModel: (model: string, provider: string, confirm = false) => client.setSessionModel(model, provider, confirm),
     cancelSessionModel: () => client.cancelSessionModel(),
     setReasoning: (value: string) => client.setReasoning(value),

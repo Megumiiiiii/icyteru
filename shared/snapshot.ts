@@ -1,4 +1,4 @@
-import type { AgentProfile, AuthMode, MemoryView, ModelChoice, PendingQuestion, RemoteApproval, RemoteClarify, SessionRow, SkillRow, SubagentProgress, Transcript } from './protocol'
+import type { AgentProfile, AuthMode, FallbackModelEntry, MemoryView, ModelChoice, PendingQuestion, RemoteApproval, RemoteClarify, SessionRow, SkillRow, SubagentProgress, Transcript } from './protocol'
 
 export type ThemePreference =
   | 'light'
@@ -75,6 +75,7 @@ export interface Snapshot {
   currentProvider: string
   globalModel: string
   globalProvider: string
+  fallbackModels: FallbackModelEntry[]
   currentReasoning: string
   globalReasoning: string
   tokensPerSecond: number | null
@@ -110,6 +111,7 @@ export function emptySnapshot(connection: ConnectionInfo): Snapshot {
     currentProvider: '',
     globalModel: '',
     globalProvider: '',
+    fallbackModels: [],
     currentReasoning: '',
     globalReasoning: '',
     tokensPerSecond: null,

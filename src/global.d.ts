@@ -1,4 +1,4 @@
-import type { AuthDiscovery, NotificationPayload, OutgoingAttachment, SessionInfo } from '../shared/protocol'
+import type { AuthDiscovery, FallbackModelEntry, NotificationPayload, OutgoingAttachment, SessionInfo } from '../shared/protocol'
 import type { AppScreen, Snapshot, TestResult, ThemePreference } from '../shared/snapshot'
 
 export interface ConnectionInput {
@@ -43,6 +43,7 @@ declare global {
       answerRemoteClarify: (clarifyId: string, answer: string) => Promise<void>
       answerRemoteApproval: (sessionKey: string, requestId: string, choice: string, reason?: string, commandDigest?: string) => Promise<void>
       setModel: (model: string, provider: string, confirm?: boolean) => Promise<string>
+      setFallbackModels: (entries: FallbackModelEntry[]) => Promise<string>
       setSessionModel: (model: string, provider: string, confirm?: boolean) => Promise<string | { confirmationRequired: true; message: string; model: string; provider: string }>
       cancelSessionModel: () => void
       setReasoning: (value: string) => Promise<string>
