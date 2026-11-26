@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tauri::Manager;
 use zeroize::Zeroize;
 
-const SERVICE: &str = "dev.megumii.icyteru.canary";
+const SERVICE: &str = "dev.megumii.icyteru";
 const ACCOUNT: &str = "master-key";
 
 #[derive(Serialize, Deserialize)]

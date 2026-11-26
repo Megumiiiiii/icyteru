@@ -30,7 +30,7 @@ import {
   readCreateContract,
   sourceLabel
 } from './protocol'
-import { HermesClient } from '../electron/hermes'
+import { HermesClient } from './hermes'
 
 test('builds the desktop websocket url', () => {
   assert.equal(
@@ -390,7 +390,7 @@ test('updates the reasoning header optimistically without a new turn', async () 
 })
 
 test('refreshes the model header from the live session, never the profile default', () => {
-  const source = readFileSync('electron/hermes.ts', 'utf8')
+  const source = readFileSync('shared/hermes.ts', 'utf8')
   const start = source.indexOf('private async refreshSideData')
   const body = source.slice(start, source.indexOf('side: {', start))
   assert.match(body, /modelOptionsPath\(this\.live\?\.live\)/)

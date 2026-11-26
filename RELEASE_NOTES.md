@@ -1,3 +1,25 @@
+## v0.0.86
+
+### Changed
+
+- The desktop app now runs on **Tauri 2** instead of Electron: a Rust host owns
+  the gateway connection, the encrypted credential vault, file handling, and
+  notifications, and the window uses the system WebView. The installer drops
+  from about 124 MB to about 5 MB, and startup no longer spawns the Electron
+  helper processes.
+- Settings gained a **Window** card: the X button can quit the app or keep it
+  running in the tray, with a tray menu to bring it back.
+- On first launch the app offers what it can read from an older Icyteru install:
+  the gateway URL, theme, and extra gateways. The saved token stays encrypted by
+  the previous app's keychain entry, so you paste it once.
+
+### Fixed
+
+- Forgetting a gateway used to open the sign-in card with a stale connection
+  error and its fields scrolled out of view.
+- The Gateway URL field in Settings was stuck at 230px, and Enter on the
+  composer skipped the send effect when Sakuga mode was on.
+
 # Icyteru release notes
 
 ## v0.0.85

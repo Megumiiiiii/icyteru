@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Icyteru Canary",
-  "mainBinaryName": "icyteru-desktop",
-  "version": "0.0.85",
-  "identifier": "dev.megumii.icyteru.canary",
+  "productName": "Icyteru",
+  "mainBinaryName": "icyteru",
+  "version": "0.0.86",
+  "identifier": "dev.megumii.icyteru",
   "build": {
     "beforeDevCommand": "npm run dev:web",
     "devUrl": "http://127.0.0.1:5173",
@@ -15,7 +15,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Icyteru Canary",
+        "title": "Icyteru",
         "width": 1180,
         "height": 780,
         "minWidth": 880,
@@ -32,7 +32,9 @@
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost http://asset.localhost https://asset.localhost; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'",
-      "capabilities": ["desktop"],
+      "capabilities": [
+        "desktop"
+      ],
       "freezePrototype": false
     }
   },
@@ -57,7 +59,9 @@
       "signingIdentity": null
     },
     "windows": {
-      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
       "nsis": {
         "installMode": "currentUser",
         "displayLanguageSelector": false

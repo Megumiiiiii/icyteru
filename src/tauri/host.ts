@@ -10,7 +10,7 @@ import {
   requestPermission,
   sendNotification as sendDesktopNotification
 } from '@tauri-apps/plugin-notification'
-import { HermesClient } from '../../electron/hermes'
+import { HermesClient } from '../../shared/hermes'
 import { emptySnapshot, isThemePreference, type AppScreen, type Snapshot, type ThemePreference } from '../../shared/snapshot'
 import type { AuthDiscovery, FallbackModelEntry, NotificationPayload, OutgoingAttachment, SessionInfo } from '../../shared/protocol'
 import type { ConnectionInput } from '../global'

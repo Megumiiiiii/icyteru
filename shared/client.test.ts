@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { HermesClient } from '../electron/hermes'
+import { HermesClient } from './hermes'
 import type { SessionRow } from './protocol'
 
 type Rpc = (method: string, params?: Record<string, unknown>) => Promise<unknown>

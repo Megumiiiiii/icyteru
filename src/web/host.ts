@@ -4,7 +4,7 @@
  * which runs the same Hermes client inside the WebView.
  */
 import { Capacitor, registerPlugin } from '@capacitor/core'
-import { HermesClient } from '../../electron/hermes'
+import { HermesClient } from '../../shared/hermes'
 import { emptySnapshot, isThemePreference, type AppScreen, type Snapshot, type ThemePreference } from '../../shared/snapshot'
 import type { AuthDiscovery, FallbackModelEntry, NotificationPayload, OutgoingAttachment, SessionInfo } from '../../shared/protocol'
 import { enableNotifications, sendNotification } from '../notifications'

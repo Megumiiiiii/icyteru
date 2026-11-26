@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { HermesClient } from '../electron/hermes'
+import { HermesClient } from './hermes'
 
 type AnyClient = Record<string, any>
 

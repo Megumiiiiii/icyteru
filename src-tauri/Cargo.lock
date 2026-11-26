@@ -2015,7 +2015,7 @@ dependencies = [
 
 [[package]]
 name = "icyteru-desktop"
-version = "0.0.85"
+version = "0.0.86"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
