@@ -152,6 +152,9 @@ export class HermesClient {
   private listStyle: 'picker' | 'plain' = 'picker'
   private reconnecting = false
   private reconnectMerge = false
+  private readonly transcriptCache = new Map<string, { transcript: Transcript; live: string; stored: string; executionGeneration: number; revision: number }>()
+  private readonly profileSessionsCache = new Map<string, SessionRow[]>()
+  private readonly profileSideCache = new Map<string, typeof HermesClient.prototype.side>()
   lastError = ''
 
   constructor(private readonly emit: () => void) {}
@@ -454,18 +457,27 @@ export class HermesClient {
     if (this.activeGatewayId === gateway.id && this.activeProfile === profile.name && this.socket?.isOpen) {
       return
     }
+    this.cacheActiveProfileState()
     if (this.activeGatewayId !== gateway.id || !this.socket?.isOpen) {
       await this.activateGateway(gateway)
     }
+    const targetKey = this.profileCacheKey(gateway.id, profile.name)
+    const cachedSessions = this.profileSessionsCache.get(targetKey)
+    const cachedSide = this.profileSideCache.get(targetKey)
     // Never show the previous profile's rows while the new profile's list is
     // loading, and never let a late response from that previous profile win.
-    this.sessions = []
     this.listStyle = 'picker'
     this.applyProfile(profile)
+    this.sessions = cachedSessions ? [...cachedSessions] : []
+    if (cachedSide) {
+      this.side = { ...cachedSide, reasoning: '', tokensPerSecond: null }
+    }
     this.emit()
-    await this.newChat()
-    await this.refreshSideData()
-    await this.refreshSessions()
+    await this.newChat(false)
+    await Promise.all([
+      this.refreshSessions(),
+      this.refreshSideData()
+    ])
   }
 
   async setPinned(gatewayId: string, name: string, pinned: boolean): Promise<void> {
@@ -537,6 +549,9 @@ export class HermesClient {
     this.live = null
     this.question = null
     this.transcript = emptyTranscript()
+    this.transcriptCache.clear()
+    this.profileSessionsCache.clear()
+    this.profileSideCache.clear()
     this.resetTokenRate()
   }
 
@@ -577,6 +592,7 @@ export class HermesClient {
       const next = this.clearUnconfirmedRunning(merged, liveRows)
       if (!sessionsActivityEqual(this.sessions, next)) {
         this.sessions = next
+        this.profileSessionsCache.set(this.profileCacheKey(), [...next])
         this.emit()
       }
     } catch {
@@ -834,36 +850,42 @@ export class HermesClient {
     const current = () => this.activeProfile === profile && this.activeGatewayId === gatewayId && this.profileEpoch === epoch
     const previous = this.sessions
     // One-shot jobs (`hermes -z`) are deliberately hidden by the gateway's
-    // human session picker, so fetch them explicitly for the profile's history.
-    const jobs = await this.listJobSessions().catch(() => [])
-    if (!current()) return
+    // human session picker, so fetch them in parallel with the picker read.
+    const jobsPromise = this.listJobSessions().catch(() => [])
     if (this.listStyle === 'picker') {
       const listed = await this.listSessions({ scope: 'stored', limit: 200, picker: true })
       if (!current()) return
       if (listed.ok) {
         const next = sortSessions(normalizeSessions(listed.value))
-        // The stored picker only lists legacy/closed rows. A live local session
-        // created by this client is in the live feed, not that picker, so merge
-        // the live page as well; otherwise the chat vanishes from History.
-        const live = await this.listSessions({ limit: 200, picker: true })
-        if (!current()) return
-        const liveRows = live.ok ? sortSessions(normalizeSessions(live.value)) : []
-        // A picker that briefly returns an empty page must not wipe a working history.
+        // Paint the first stored page immediately when History was empty so
+        // switching profiles feels instant while live/jobs/REST merge in.
         if (next.length || !previous.length) {
           this.sessions = sortSessions(merge ? mergeSessionRows(previous, next) : next)
+          if (!previous.length && next.length) {
+            this.profileSessionsCache.set(this.profileCacheKey(gatewayId, profile), [...this.sessions])
+            this.emit()
+          }
         }
-        const rest = await this.getJson(this.profileApiPath('/api/sessions?limit=200&order=recent')).catch(() => null)
+        // The stored picker only lists legacy/closed rows. Fetch the live feed,
+        // REST fallback, and one-shot jobs together instead of serially.
+        const [jobs, live, rest] = await Promise.all([
+          jobsPromise,
+          this.listSessions({ limit: 200, picker: true }),
+          this.getJson(this.profileApiPath('/api/sessions?limit=200&order=recent')).catch(() => null)
+        ])
         if (!current()) return
+        const liveRows = live.ok ? sortSessions(normalizeSessions(live.value)) : []
         const restRows = rest ? sortSessions(normalizeSessions(rest)) : []
         this.sessions = sortSessions(mergeSessionRows(this.sessions, [...jobs, ...this.missingSessionRows(restRows), ...liveRows]))
         if (live.ok) this.sessions = this.clearUnconfirmedRunning(this.sessions, liveRows, jobs)
+        this.profileSessionsCache.set(this.profileCacheKey(gatewayId, profile), [...this.sessions])
         this.applyActiveSessionModel()
         this.emit()
         return
       }
       if (/unsupported|unknown method|invalid params|extra inputs/i.test(listed.error || '')) this.listStyle = 'plain'
     }
-    const fallback = await this.listSessions({ limit: 200 })
+    const [jobs, fallback] = await Promise.all([jobsPromise, this.listSessions({ limit: 200 })])
     if (!current()) return
     if (fallback.ok) {
       const next = sortSessions(normalizeSessions(fallback.value))
@@ -872,6 +894,7 @@ export class HermesClient {
         this.sessions = sortSessions(mergeSessionRows(previous, next))
       }
       this.sessions = sortSessions(mergeSessionRows(this.sessions, jobs))
+      this.profileSessionsCache.set(this.profileCacheKey(gatewayId, profile), [...this.sessions])
       this.applyActiveSessionModel()
       this.emit()
       return
@@ -883,6 +906,7 @@ export class HermesClient {
       this.sessions = sortSessions(merge ? mergeSessionRows(previous, next) : next)
       this.sessions = sortSessions(mergeSessionRows(this.sessions, jobs))
     }
+    this.profileSessionsCache.set(this.profileCacheKey(gatewayId, profile), [...this.sessions])
     this.applyActiveSessionModel()
     this.emit()
   }
@@ -933,12 +957,76 @@ export class HermesClient {
     if (provider) this.side.models.currentProvider = provider
   }
 
+  private profileCacheKey(gatewayId = this.activeGatewayId, profile = this.activeProfile): string {
+    return `${gatewayId}:${profile}`
+  }
+
+  private sessionCacheKey(id: string): string {
+    return `${this.activeGatewayId}:${this.activeProfile}:${id}`
+  }
+
+  private cacheActiveTranscript(): void {
+    if (!this.live?.stored || !this.transcript.messages.length) return
+    const entry = {
+      transcript: this.transcript,
+      live: this.live.live,
+      stored: this.live.stored,
+      executionGeneration: this.executionGeneration,
+      revision: this.revision
+    }
+    const keys = [this.sessionCacheKey(this.live.stored)]
+    if (this.live.live && this.live.live !== this.live.stored) {
+      keys.push(this.sessionCacheKey(this.live.live))
+    }
+    for (const key of keys) {
+      this.transcriptCache.delete(key)
+      this.transcriptCache.set(key, entry)
+    }
+    while (this.transcriptCache.size > 32) {
+      const oldest = this.transcriptCache.keys().next().value
+      if (!oldest) break
+      this.transcriptCache.delete(oldest)
+    }
+  }
+
+  private cacheActiveProfileState(): void {
+    this.cacheActiveTranscript()
+    const key = this.profileCacheKey()
+    if (this.sessions.length) this.profileSessionsCache.set(key, [...this.sessions])
+    if (this.side.models.models.length || this.side.skills.length || this.side.memory.available) {
+      this.profileSideCache.set(key, { ...this.side })
+    }
+  }
+
   async openSession(id: string): Promise<void> {
+    this.cacheActiveTranscript()
     this.stopSubagentPolling()
     this.resetTokenRate()
     const epoch = ++this.openEpoch
-    await this.detach()
-    if (epoch !== this.openEpoch) return
+    // Detach the previous subscription without delaying the new session.resume.
+    const previous = this.live
+    const previousProfile = this.activeProfile
+    if (previous?.subscriptionId) {
+      void this.detachSession(previous.live, previous.subscriptionId, previousProfile)
+    }
+    // Paint a cached session right away while session.resume refreshes live state.
+    const cached = this.transcriptCache.get(this.sessionCacheKey(id))
+    const rowHint = this.sessions.find(item => item.id === id)
+    if (cached) {
+      this.live = { live: cached.live, stored: cached.stored, subscriptionId: '' }
+      this.transcript = cached.transcript
+      this.executionGeneration = cached.executionGeneration
+      this.revision = cached.revision
+      this.question = null
+      this.subagents = []
+      if (rowHint?.model) {
+        const sameModel = modelIdsMatch(this.side.models.currentModel, rowHint.model)
+        const provider = (sameModel ? this.side.models.currentProvider : '') || this.providerForModel(rowHint.model)
+        this.side.models.currentModel = rowHint.model
+        if (provider) this.side.models.currentProvider = provider
+      }
+      this.emit()
+    }
     let resumed: unknown
     try {
       resumed = await this.rpc('session.resume', this.scope({ session_id: id, display_projection: true }))
@@ -959,6 +1047,7 @@ export class HermesClient {
         this.question = null
         this.subagents = []
         this.rememberSession(id)
+        this.cacheActiveTranscript()
         this.emit()
         return
       }
@@ -1003,11 +1092,16 @@ export class HermesClient {
     }
     this.question = null
     this.subagents = []
-    await this.readReasoning().catch(() => undefined)
-    if (epoch !== this.openEpoch) return
-    await this.refreshModelOptions().catch(() => undefined)
-    if (epoch !== this.openEpoch) return
     this.rememberSession(stored)
+    this.cacheActiveTranscript()
+    // Paint the loaded transcript immediately; reasoning and model options
+    // hydrate in parallel right afterwards instead of blocking the first frame.
+    this.emit()
+    await Promise.all([
+      this.readReasoning().catch(() => undefined),
+      this.refreshModelOptions().catch(() => undefined)
+    ])
+    if (epoch !== this.openEpoch) return
     this.emit()
   }
 
@@ -1137,10 +1231,12 @@ export class HermesClient {
     return lines.join('\n')
   }
 
-  async newChat(): Promise<void> {
+  async newChat(refresh = true): Promise<void> {
+    this.cacheActiveTranscript()
     this.openEpoch += 1
     this.stopSubagentPolling()
-    await this.detach()
+    const previous = this.live
+    const previousProfile = this.activeProfile
     this.live = null
     this.executionGeneration = 0
     this.revision = 0
@@ -1151,9 +1247,12 @@ export class HermesClient {
     this.resetTokenRate()
     this.forgetSession()
     this.emit()
+    if (previous?.subscriptionId) {
+      void this.detachSession(previous.live, previous.subscriptionId, previousProfile)
+    }
     // The chat that just ended is still a stored session. Refresh the list so
     // it appears in History immediately instead of waiting for another event.
-    void this.refreshSessions()
+    if (refresh) void this.refreshSessions()
   }
 
   async send(text: string, attachments: OutgoingAttachment[] = []): Promise<void> {
@@ -1810,8 +1909,12 @@ export class HermesClient {
       instructionsNote: soulText
     }
     if (soulText) this.side.memory = { ...this.side.memory, instructions: soulText }
-    await this.readReasoning().catch(() => undefined)
-    await this.readGlobalReasoning().catch(() => undefined)
+    await Promise.all([
+      this.readReasoning().catch(() => undefined),
+      this.readGlobalReasoning().catch(() => undefined)
+    ])
+    if (profileEpoch !== this.profileEpoch) return
+    this.profileSideCache.set(this.profileCacheKey(), { ...this.side })
     this.emit()
   }
 
@@ -1839,12 +1942,11 @@ export class HermesClient {
     instructionsNote: ''
   }
 
-  private async detach(): Promise<void> {
-    if (!this.live?.subscriptionId) return
-    await this.tryRpc('session.detach', this.scope({
-      session_id: this.live.live,
-      subscription_id: this.live.subscriptionId
-    }))
+  private async detachSession(sessionId: string, subscriptionId: string, profile: string): Promise<void> {
+    if (!subscriptionId) return
+    const params: Record<string, unknown> = { session_id: sessionId, subscription_id: subscriptionId }
+    if (profile) params.profile = profile
+    await this.tryRpc('session.detach', params)
   }
 
   private applyProfile(profile: AgentProfile): void {
@@ -2207,7 +2309,10 @@ export class HermesClient {
       if (event.type === 'message.delta' && typeof event.payload?.text === 'string') this.noteStreamText(event.payload.text)
       if (event.type === 'message.complete' || event.type === 'error') this.resetStreamRate()
       this.transcript = applyGatewayEvent(this.transcript, event)
-      if (event.type === 'message.complete') void this.refreshSessions()
+      if (event.type === 'message.complete') {
+        this.cacheActiveTranscript()
+        void this.refreshSessions()
+      }
     }
     this.emit()
   }

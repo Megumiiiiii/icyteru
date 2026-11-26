@@ -1105,7 +1105,7 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
           <DesktopPreviewPanel target={desktopPreview} onClose={() => setDismissedPreview(desktopPreview.id)} />
         )}
       </section>
-      {panel && <SidePanel snapshot={snapshot} pane={pane} setPane={setPane} query={query} setQuery={setQuery} onNotice={setNotice} />}
+      {panel && <SidePanel snapshot={snapshot} hidden={hidden} pane={pane} setPane={setPane} query={query} setQuery={setQuery} onNotice={setNotice} />}
     </>
   )
 }
@@ -1991,8 +1991,9 @@ function ReasoningMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (
   )
 }
 
-function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
+function SidePanel({ snapshot, hidden = false, pane, setPane, query, setQuery, onNotice }: {
   snapshot: Snapshot
+  hidden?: boolean
   pane: 'history' | 'profile'
   setPane: (pane: 'history' | 'profile') => void
   query: string
@@ -2025,14 +2026,14 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
   const renameSubmitting = useRef(false)
 
   useEffect(() => {
-    if (!renamingId) return
+    if (!renamingId || hidden) return
     const onBack = (event: Event) => {
       event.preventDefault()
       cancelRename()
     }
     window.addEventListener('icyteru:back', onBack)
     return () => window.removeEventListener('icyteru:back', onBack)
-  }, [renamingId])
+  }, [hidden, renamingId])
 
   function startRename(session: SessionRow) {
     renameAttempt.current += 1
@@ -2081,7 +2082,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
   }
 
   useEffect(() => {
-    if (!sessionInfo) return
+    if (!sessionInfo || hidden) return
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setSessionInfo(null)
     }
@@ -2095,7 +2096,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('icyteru:back', onBack)
     }
-  }, [sessionInfo])
+  }, [hidden, sessionInfo])
 
   function openSessionInfo(session: SessionRow) {
     setSessionInfo({ session, loading: true })

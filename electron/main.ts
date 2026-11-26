@@ -20,6 +20,7 @@ let phase: Snapshot['phase'] = 'idle'
 let error = ''
 let status = ''
 let publishTimer: NodeJS.Timeout | null = null
+let publishPending = false
 let notifyTimer: NodeJS.Timeout | null = null
 let notifyPolling = false
 let notifyCursor = 0
@@ -92,10 +93,17 @@ function snapshot(): Snapshot {
 }
 
 function publish(): void {
-  if (publishTimer) return
+  if (publishTimer) {
+    publishPending = true
+    return
+  }
+  window?.webContents.send('snapshot', snapshot())
   publishTimer = setTimeout(() => {
     publishTimer = null
-    window?.webContents.send('snapshot', snapshot())
+    if (publishPending) {
+      publishPending = false
+      publish()
+    }
   }, 30)
 }
 

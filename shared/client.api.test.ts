@@ -1056,3 +1056,68 @@ test('session.info and refreshLiveSessions keep background activity dots in sync
   assert.equal(c.sessions.find((row: { id: string }) => row.id === 'tg-1').running, false)
   assert.ok(emits > afterRunning)
 })
+
+test('openSession paints cached transcripts immediately while refreshing in the background', async () => {
+  const snapshots: Array<{ id: string; count: number }> = []
+  const c = new HermesClient(() => {
+    snapshots.push({ id: c.state.activeSessionId, count: c.state.transcript.messages.length })
+  }) as unknown as AnyClient
+  c.activeGatewayId = 'primary'
+  c.activeProfile = 'rin'
+  c.live = { live: 's1', stored: 's1', subscriptionId: 'sub-1' }
+  c.transcript = {
+    streaming: false,
+    messages: [{ id: 'm1', role: 'user', text: 'cached hello', tools: [], pending: false }]
+  }
+  c.cacheActiveTranscript()
+  c.live = { live: 's2', stored: 's2', subscriptionId: 'sub-2' }
+  c.transcript = { streaming: false, messages: [] }
+  c.tryRpc = async () => ({ ok: true })
+  c.readReasoning = async () => undefined
+  c.refreshModelOptions = async () => undefined
+  let resolveResume: (value: unknown) => void = () => undefined
+  c.rpc = () => new Promise(resolve => { resolveResume = resolve })
+
+  const opening = c.openSession('s1')
+  // Cached transcript is painted synchronously before session.resume resolves.
+  assert.equal(c.state.activeSessionId, 's1')
+  assert.equal(c.state.transcript.messages.length, 1)
+  assert.equal(snapshots[0]?.id, 's1')
+  assert.equal(snapshots[0]?.count, 1)
+
+  resolveResume({
+    session_id: 's1',
+    stored_session_id: 's1',
+    subscription_id: 'sub-3',
+    running: false,
+    messages: [
+      { id: 'm1', role: 'user', content: 'cached hello' },
+      { id: 'm2', role: 'assistant', content: 'fresh reply' }
+    ]
+  })
+  await opening
+  assert.equal(c.state.transcript.messages.length, 2)
+})
+
+test('selectProfile restores cached sessions immediately when switching back to a visited profile', async () => {
+  const c = client()
+  c.gateways = [{ id: 'primary', url: 'http://gw' }]
+  c.profiles = [
+    { gatewayId: 'primary', name: 'rin', label: 'Rin' },
+    { gatewayId: 'primary', name: 'scout', label: 'Scout' }
+  ]
+  c.activeGatewayId = 'primary'
+  c.activeProfile = 'rin'
+  c.sessions = [{ id: 'rin-1', title: 'Rin chat', preview: '', source: 'local', model: '', updatedAt: 1, messageCount: 2, running: false, pinned: false }]
+  c.socket = { isOpen: true }
+  c.tryRpc = async () => ({ ok: true })
+  c.refreshSessions = async () => undefined
+  c.refreshSideData = async () => undefined
+
+  await c.selectProfile('primary', 'scout')
+  assert.equal(c.sessions.length, 0)
+
+  await c.selectProfile('primary', 'rin')
+  assert.equal(c.sessions.length, 1)
+  assert.equal(c.sessions[0].id, 'rin-1')
+})

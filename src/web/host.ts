@@ -68,6 +68,7 @@ let phase: Snapshot['phase'] = 'idle'
 let error = ''
 let status = ''
 let publishTimer: ReturnType<typeof setTimeout> | null = null
+let publishPending = false
 const listeners = new Set<(snapshot: Snapshot) => void>()
 
 const client = new HermesClient(() => {
@@ -169,13 +170,20 @@ function snapshot(): Snapshot {
 }
 
 function publish(): void {
-  if (publishTimer) return
+  void syncConnectionService()
+  if (publishTimer) {
+    publishPending = true
+    return
+  }
+  const next = snapshot()
+  listeners.forEach(listener => listener(next))
   publishTimer = setTimeout(() => {
     publishTimer = null
-    const next = snapshot()
-    listeners.forEach(listener => listener(next))
+    if (publishPending) {
+      publishPending = false
+      publish()
+    }
   }, 30)
-  void syncConnectionService()
 }
 
 let connectionServiceActive = false
