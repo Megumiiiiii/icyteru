@@ -1,6 +1,7 @@
 mod bridge;
 mod feed;
 mod files;
+mod notify;
 mod vault;
 mod window;
 
@@ -49,6 +50,7 @@ pub fn run() {
             feed::feed_start,
             feed::feed_stop,
             feed::feed_set_active_session,
+            notify::notify_send,
             window::get_close_behavior,
             window::set_close_behavior,
         ])

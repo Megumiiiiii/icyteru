@@ -9,7 +9,6 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_notification::NotificationExt;
 use tokio::sync::oneshot;
 
 #[derive(Default)]
@@ -83,6 +82,8 @@ pub fn feed_start(
     *state.stop.lock().unwrap_or_else(|error| error.into_inner()) = Some(stop);
     let client = reqwest::Client::builder()
         .user_agent("Icyteru-Canary")
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(15))
         .build()
         .map_err(|error| error.to_string())?;
 
@@ -126,25 +127,12 @@ pub fn feed_start(
                     continue;
                 }
                 let body = entry.body.chars().take(240).collect::<String>();
-                // An overlay window froze the app on Windows, so this is a plain
-                // OS toast again. It cannot report a click; that is the trade.
                 let title = if entry.title.is_empty() {
                     "Icyteru".to_string()
                 } else {
                     entry.title.clone()
                 };
-                let title = if entry.title.is_empty() {
-                    "Icyteru".to_string()
-                } else {
-                    entry.title.clone()
-                };
-                let _ = app
-                    .notification()
-                    .builder()
-                    .title(&title)
-                    .body(&body)
-                    .show();
-                // The toast cannot report a click; the tray entry can.
+                crate::notify::send(&app, &title, &body, Some(entry.session_id.clone()));
                 crate::window::note_notification(&app, &title);
                 *pending.lock().unwrap_or_else(|error| error.into_inner()) =
                     Some(entry.session_id.clone());

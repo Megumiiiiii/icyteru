@@ -132,7 +132,34 @@ pub fn show_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
         let _ = window.show();
+        #[cfg(target_os = "windows")]
+        {
+            // Briefly toggle always-on-top so Windows's foreground lock cannot
+            // trap Icyteru behind another active window on toast activation.
+            let _ = window.set_always_on_top(true);
+            let _ = window.set_always_on_top(false);
+        }
         let _ = window.set_focus();
+    }
+}
+
+pub fn clear_notification_tray(app: &AppHandle) {
+    if let Some(tray) = app.try_state::<Tray>() {
+        let _ = tray.open.set_text("No new notifications");
+        let _ = tray.open.set_enabled(false);
+    }
+}
+
+pub fn activate_from_notification(app: &AppHandle, session_id: Option<&str>) {
+    let pending = crate::feed::take_pending(app);
+    clear_notification_tray(app);
+    show_main(app);
+    let target = session_id
+        .filter(|id| !id.is_empty())
+        .map(ToOwned::to_owned)
+        .or(pending);
+    if let Some(session) = target.filter(|id| !id.is_empty()) {
+        let _ = app.emit("icyteru-feed-open", session);
     }
 }
 
@@ -161,13 +188,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .tooltip("Icyteru")
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "open" => {
-                let session = crate::feed::take_pending(app).unwrap_or_default();
-                show_main(app);
-                if !session.is_empty() {
-                    let _ = app.emit("icyteru-feed-open", session);
-                }
-            }
+            "open" => activate_from_notification(app, None),
             "show" => show_main(app),
             "quit" => {
                 if let Some(state) = app.try_state::<WindowPrefs>() {
@@ -206,9 +227,9 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
         }
         WindowEvent::Focused(true) => {
             let app = window.app_handle();
-            // Kept so a future notification surface can claim it; nothing shows
-            // an overlay window any more.
-            let _ = crate::feed::take_pending(app);
+            if crate::feed::take_pending(app).is_some() {
+                clear_notification_tray(app);
+            }
         }
         _ => {}
     }

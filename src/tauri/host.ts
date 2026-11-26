@@ -7,8 +7,7 @@ import { listen } from '@tauri-apps/api/event'
 import { save } from '@tauri-apps/plugin-dialog'
 import {
   isPermissionGranted,
-  requestPermission,
-  sendNotification as sendDesktopNotification
+  requestPermission
 } from '@tauri-apps/plugin-notification'
 import { HermesClient } from '../../shared/hermes'
 import { emptySnapshot, isThemePreference, type AppScreen, type Snapshot, type ThemePreference } from '../../shared/snapshot'
@@ -530,7 +529,11 @@ export async function installTauriHost(): Promise<void> {
     enableNotifications: () => enableDesktopNotifications(),
     notify: async (payload: NotificationPayload) => {
       if (!await enableDesktopNotifications()) return
-      sendDesktopNotification({ title: payload.title, body: payload.body })
+      await invoke('notify_send', {
+        title: payload.title,
+        body: payload.body,
+        sessionId: client.state.activeSessionId || null
+      }).catch(() => undefined)
     },
     interrupt: () => client.interrupt(),
     answer: (id: string, result: unknown) => client.answer(id, result),
@@ -611,7 +614,12 @@ export async function installTauriHost(): Promise<void> {
   // over on the window's first focus event.
   void listen<string>('icyteru-feed-open', event => {
     const id = typeof event.payload === 'string' ? event.payload : ''
-    if (id && phase === 'ready') void api.openSession(id).catch(() => undefined)
+    if (!id || phase !== 'ready') return
+    if (screen === 'settings') {
+      screen = 'chat'
+      publish()
+    }
+    void api.openSession(id).catch(() => undefined)
   }).catch(() => undefined)
   if (saved.url && screen === 'chat') void connectSaved()
   else publish()
