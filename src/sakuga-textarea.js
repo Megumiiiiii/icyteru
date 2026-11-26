@@ -33,7 +33,7 @@ class SakugaTextarea extends fx.Base {
     }
     if (this.ta.value === next) return;
     this.ta.value = next;
-    this.grow();
+    this.grow(true);
   }
   get disabled() { return this.hasAttribute('disabled'); }
   set disabled(v) { this.toggleAttribute('disabled', !!v); }
@@ -55,16 +55,41 @@ class SakugaTextarea extends fx.Base {
       aria-label="${a('label', 'Message')}" autocomplete="off" spellcheck="true"${this.disabled ? ' disabled' : ''}>${a('value')}</textarea>`;
   }
 
-  // Grow upward like the plain composer: reset, measure once, clamp at the CSS max.
-  grow() {
+  // Grow upward like the plain composer without thrashing layout on every keystroke.
+  grow(forceShrink = false) {
     const ta = this.ta;
     if (!ta) return;
-    ta.style.height = 'auto';
+    const len = ta.value.length;
+    if (len === 0) {
+      this._lastLen = 0;
+      if (this._lastHeight !== 48) {
+        this._lastHeight = 48;
+        ta.style.height = '48px';
+      }
+      if (ta.style.overflowY !== 'hidden') ta.style.overflowY = 'hidden';
+      return;
+    }
+    const shrinking = forceShrink || len < (this._lastLen || 0);
+    this._lastLen = len;
+    if (shrinking && (this._lastHeight || 48) > 48) {
+      ta.style.height = 'auto';
+    }
     const measured = ta.scrollHeight;
-    const height = `${Math.max(48, Math.min(measured, 280))}px`;
+    const next = Math.max(48, Math.min(measured, 280));
+    if (next !== this._lastHeight || shrinking) {
+      this._lastHeight = next;
+      ta.style.height = `${next}px`;
+    }
     const overflow = measured > 280 ? 'auto' : 'hidden';
-    ta.style.height = height;
     if (ta.style.overflowY !== overflow) ta.style.overflowY = overflow;
+  }
+
+  scheduleGrow() {
+    if (this._growRaf != null) cancelAnimationFrame(this._growRaf);
+    this._growRaf = requestAnimationFrame(() => {
+      this._growRaf = null;
+      this.grow();
+    });
   }
 
   metrics() {
@@ -109,7 +134,7 @@ class SakugaTextarea extends fx.Base {
       ticks(c.x - 4, c.y - 2, { dir: -1.05, n: 3, r: 4, len: 14, fan: 0.36, life: 0.45 });
     });
     ta.addEventListener('input', () => {
-      this.grow();
+      this.scheduleGrow();
       this.s.x = 0.994;
       this._moving = true;
       const now = performance.now();

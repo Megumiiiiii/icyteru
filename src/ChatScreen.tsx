@@ -387,7 +387,11 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
   onToggleLeft?: () => void
 }) {
   const phone = useContext(PhoneNav)
-  const [draft, setDraft] = useState('')
+  const draftRef = useRef('')
+  const [hasDraft, setHasDraft] = useState(false)
+  const composerHeightRef = useRef(48)
+  const composerLenRef = useRef(0)
+  const composerGrowRaf = useRef<number | null>(null)
   const [panel, setPanel] = useState(() => {
     const shot = new URLSearchParams(location.search).get('shot') || ''
     if (['history', 'profile', 'dark-history'].includes(shot)) return true
@@ -510,22 +514,77 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
     node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
   }
 
-  // Grow the composer upward as the draft wraps, keeping the caret in view.
-  useEffect(() => {
+  function measureComposer(forceShrink = false): void {
     const node = composer.current
     if (!node) return
-    node.style.height = 'auto'
+    const len = node.value.length
+    if (len === 0) {
+      composerLenRef.current = 0
+      if (composerHeightRef.current !== 48) {
+        composerHeightRef.current = 48
+        node.style.height = '48px'
+      }
+      if (node.style.overflowY !== 'hidden') node.style.overflowY = 'hidden'
+      return
+    }
+    const shrinking = forceShrink || len < composerLenRef.current
+    composerLenRef.current = len
+    if (shrinking && composerHeightRef.current > 48) {
+      node.style.height = 'auto'
+    }
     const measured = node.scrollHeight
-    const next = Math.min(measured, 280)
-    node.style.height = `${Math.max(next, 48)}px`
-    node.style.overflowY = measured > 280 ? 'auto' : 'hidden'
-  }, [draft])
+    const next = Math.max(Math.min(measured, 280), 48)
+    if (next !== composerHeightRef.current || shrinking) {
+      composerHeightRef.current = next
+      node.style.height = `${next}px`
+    }
+    const overflow = measured > 280 ? 'auto' : 'hidden'
+    if (node.style.overflowY !== overflow) node.style.overflowY = overflow
+  }
 
-  // The Sakuga textarea owns its own auto-grow; only its value needs mirroring.
+  function scheduleComposerGrow(forceShrink = false): void {
+    if (composerGrowRaf.current != null) cancelAnimationFrame(composerGrowRaf.current)
+    composerGrowRaf.current = requestAnimationFrame(() => {
+      composerGrowRaf.current = null
+      measureComposer(forceShrink)
+    })
+  }
+
+  useEffect(() => () => {
+    if (composerGrowRaf.current != null) cancelAnimationFrame(composerGrowRaf.current)
+  }, [])
+
+  function syncDraftFromDom(next: string): void {
+    draftRef.current = next
+    const nonEmpty = next.trim().length > 0
+    setHasDraft(current => (current === nonEmpty ? current : nonEmpty))
+    if (!sakugaComposer) scheduleComposerGrow()
+  }
+
+  function setDraftValue(next: string): void {
+    draftRef.current = next
+    const nonEmpty = next.trim().length > 0
+    setHasDraft(current => (current === nonEmpty ? current : nonEmpty))
+    if (composer.current && composer.current.value !== next) {
+      composer.current.value = next
+      measureComposer(true)
+    }
+    if (sakugaComposerRef.current && sakugaComposerRef.current.value !== next) {
+      sakugaComposerRef.current.value = next
+    }
+  }
+
+  // Mirror the draft when switching between native textarea and sakuga-textarea.
   useEffect(() => {
-    const node = sakugaComposerRef.current
-    if (node && node.value !== draft) node.value = draft
-  }, [draft, sakugaComposer])
+    const current = draftRef.current
+    if (sakugaComposer) {
+      const node = sakugaComposerRef.current
+      if (node && node.value !== current) node.value = current
+    } else if (composer.current) {
+      if (composer.current.value !== current) composer.current.value = current
+      measureComposer(true)
+    }
+  }, [sakugaComposer])
 
   useEffect(() => {
     if (!sakugaOn) {
@@ -608,7 +667,7 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
 
   async function submit(text: string, sendingFiles: OutgoingAttachment[], force = false): Promise<void> {
     if ((!text && sendingFiles.length === 0) || (sending && !force)) return
-    setDraft('')
+    setDraftValue('')
     setFiles([])
     setSending(true)
     setNotice('')
@@ -713,11 +772,12 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
   }, [compress])
 
   async function enqueue(text: string, attachments: OutgoingAttachment[]): Promise<void> {
+    const submittedDraft = draftRef.current
     setSending(true)
     setNotice('')
     try {
       await window.icyteru.queue(text, attachments)
-      setDraft(current => current === draft ? '' : current)
+      if (draftRef.current === submittedDraft) setDraftValue('')
       setFiles(current => current.filter(file => !attachments.includes(file)))
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not queue the message.')
@@ -733,21 +793,21 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
   }
 
   async function send() {
-    const text = draft.trim()
+    const text = draftRef.current.trim()
     if ((!text && files.length === 0) || sending) return
 
     // A free-text reply while a clarify card is open is the answer to that card,
     // not a new chat turn.
     if (text && files.length === 0 && snapshot.question?.questions.length === 1) {
       const item = snapshot.question.questions[0]
-      setDraft('')
+      setDraftValue('')
       setSending(true)
       setNotice('')
       try {
         await window.icyteru.answer(snapshot.question.id, { answers: { [item.id]: text }, outcome: 'submitted' })
       } catch (error) {
         setNotice(error instanceof Error ? error.message : 'Message was not sent.')
-        setDraft(text)
+        setDraftValue(text)
       } finally {
         setSending(false)
       }
@@ -777,7 +837,7 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
           setNotice('Usage: /steer <message>')
           return
         }
-        setDraft('')
+        setDraftValue('')
         if (!streaming) {
           await submit(arg, [])
           return
@@ -801,7 +861,7 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
       }
 
       if (name === 'compress' || name === 'compact') {
-        setDraft('')
+        setDraftValue('')
         setSending(true)
         setNotice('')
         setCompress({ status: 'running', started: Date.now(), message: '' })
@@ -821,7 +881,7 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
         return
       }
 
-      setDraft('')
+      setDraftValue('')
       setSending(true)
       setNotice('')
       try {
@@ -866,7 +926,7 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
         }
         if (/^Steered|^Steer sent/.test(note)) beginSteer(note)
         else setNotice(note)
-        setDraft('')
+        setDraftValue('')
       } catch (error) {
         setNotice(error instanceof Error ? error.message : 'Steer failed.')
       } finally {
@@ -1140,25 +1200,25 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
               disabled={snapshot.phase !== 'ready'}
               rows={1}
               label={snapshot.phase === 'ready' ? `Message ${snapshot.profileName}` : 'Message'}
-              onInput={event => setDraft((event.target as unknown as { value: string }).value)}
+              onInput={event => syncDraftFromDom((event.target as unknown as { value: string }).value)}
               onPaste={composerPaste}
               onKeyDown={composerKeyDown}
             />
           ) : (
             <textarea
               ref={composer}
-              value={draft}
+              defaultValue=""
               placeholder={snapshot.phase === 'ready' ? `Message ${snapshot.profileName}` : 'Connect to Hermes to send a message'}
               disabled={snapshot.phase !== 'ready'}
               rows={1}
-              onChange={event => setDraft(event.target.value)}
+              onInput={event => syncDraftFromDom(event.currentTarget.value)}
               onPaste={composerPaste}
               onKeyDown={composerKeyDown}
             />
           )}
-          {streaming && !draft.trim() && files.length === 0
+          {streaming && !hasDraft && files.length === 0
             ? <button className="solid" onClick={() => void window.icyteru.interrupt()} type="button">Stop</button>
-            : <button className="solid" disabled={snapshot.phase !== 'ready' || sending || (!draft.trim() && files.length === 0)} type="submit">Send</button>}
+            : <button className="solid" disabled={snapshot.phase !== 'ready' || sending || (!hasDraft && files.length === 0)} type="submit">Send</button>}
         </form>
         {desktopPreview && !showDesktopPreview && (
           <button className="preview-reopen" type="button" onClick={() => setDismissedPreview('')}>

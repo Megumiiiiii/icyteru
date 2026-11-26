@@ -210,7 +210,7 @@ html[data-backdrop="image"] .chat {
 html[data-theme="light"][data-backdrop="image"] .chat {
   background: rgba(243, 240, 232, 0.5);
 }
-.sky { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: var(--bg); }
+.sky { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: var(--bg); contain: strict; }
 .sky-photo { position: absolute; inset: 0; background-size: cover; background-position: center; }
 .sky-dim { position: absolute; inset: 0; background: #100818; }
 html[data-backdrop="image"] .sky-dim { opacity: var(--bg-dim); }
@@ -218,12 +218,11 @@ html[data-backdrop="stars"] .sky-dim { opacity: 0; }
 html[data-backdrop="sakura"] .sky-dim { opacity: 0; }
 html[data-backdrop="plain"] .sky { display: none; }
 .starfield, .starfield canvas { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }
-.sakura-petals { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.sakura-petals { position: absolute; inset: 0; overflow: hidden; pointer-events: none; contain: strict; }
 .sakura-blossom {
   position: absolute;
   opacity: var(--blossom-opacity, 0.24);
   transform-origin: 50% 50%;
-  filter: drop-shadow(0 3px 5px rgba(157, 23, 77, 0.10));
   animation: blossom-drift 12s ease-in-out infinite alternate;
 }
 @keyframes blossom-drift {
@@ -236,8 +235,6 @@ html[data-backdrop="plain"] .sky { display: none; }
   display: block;
   clip-path: polygon(50% 0%, 64% 9%, 92% 18%, 100% 48%, 82% 78%, 50% 100%, 18% 78%, 0% 48%, 8% 18%, 36% 9%);
   background: linear-gradient(140deg, #ffd7e8 0%, #ec83b1 45%, #c43f78 100%);
-  box-shadow: 0 2px 6px rgba(131, 24, 67, 0.28);
-  filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.45));
   opacity: 0;
   animation-name: sakura-fall;
   animation-timing-function: linear;
@@ -253,7 +250,7 @@ html[data-backdrop="plain"] .sky { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .sakura-petals { display: none; }
 }
-.snowfall { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.snowfall { position: absolute; inset: 0; overflow: hidden; pointer-events: none; contain: strict; }
 .snowflake {
   position: absolute;
   top: -14%;
@@ -269,7 +266,10 @@ html[data-backdrop="plain"] .sky { display: none; }
   display: block;
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 1px 2px rgba(75, 129, 158, 0.28));
+}
+@media (max-width: 760px), (pointer: coarse) {
+  .sakura-petals i:nth-of-type(n + 11),
+  .snowfall .snowflake:nth-of-type(n + 13) { display: none; }
 }
 @keyframes snow-fall {
   0% { transform: translate3d(0, -14vh, 0) rotate(0deg); opacity: 0; }
@@ -843,6 +843,7 @@ html[data-backdrop="kraft"] .sky-dim { opacity: 0; }
   overflow-y: auto;
   overflow-x: hidden;
   padding: 8px 22px 20px;
+  contain: layout style;
 }
 .welcome { max-width: 440px; margin: 12vh auto 0; text-align: center; }
 .welcome h2 { margin: 0 0 8px; font-weight: 560; }
