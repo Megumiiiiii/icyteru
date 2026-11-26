@@ -253,7 +253,6 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
           </label>
           <FallbackModelsField
             models={snapshot.models}
-            primaryIndex={globalModelIndex}
             rows={fallbackRows}
             onChange={setFallbackRows}
           />
@@ -455,25 +454,12 @@ function WindowCloseCard() {
   )
 }
 
-function FallbackModelsField({ models, primaryIndex, rows, onChange }: {
+function FallbackModelsField({ models, rows, onChange }: {
   models: ModelChoice[]
-  primaryIndex: number
   rows: FallbackModelEntry[]
   onChange: (next: FallbackModelEntry[]) => void
 }) {
-  function pickNextDefault(): FallbackModelEntry {
-    const primary = models[primaryIndex]
-    const used = new Set(rows.map(item => `${item.provider.toLowerCase()}:${item.model.toLowerCase()}`))
-    if (primary) used.add(`${(primary.providerId || primary.provider).toLowerCase()}:${primary.id.toLowerCase()}`)
-    const candidate = models.find(item => !used.has(`${(item.providerId || item.provider).toLowerCase()}:${item.id.toLowerCase()}`))
-      ?? models[0]
-    if (!candidate) return { provider: '', model: '' }
-    return { provider: candidate.providerId || candidate.provider, model: candidate.id }
-  }
-
-  function addRow() {
-    onChange([...rows, pickNextDefault()])
-  }
+  const [adding, setAdding] = useState(false)
 
   function updateRow(index: number, modelIndex: number) {
     const choice = models[modelIndex]
@@ -508,13 +494,13 @@ function FallbackModelsField({ models, primaryIndex, rows, onChange }: {
         <button
           className="ghost tiny"
           type="button"
-          disabled={models.length === 0}
-          onClick={addRow}
+          disabled={models.length === 0 || adding}
+          onClick={() => setAdding(true)}
         >
           + Add fallback
         </button>
       </div>
-      {rows.length === 0 ? (
+      {rows.length === 0 && !adding ? (
         <p className="hint fallback-empty">No fallback models yet. Add one to fail over automatically when the primary model is unavailable.</p>
       ) : (
         <div className="fallback-list">
@@ -571,17 +557,43 @@ function FallbackModelsField({ models, primaryIndex, rows, onChange }: {
               </div>
             )
           })}
+          {adding && (
+            <div className="fallback-row fallback-add-row">
+              <span className="fallback-rank" aria-hidden="true">{rows.length + 1}</span>
+              <GlobalModelPicker
+                models={models}
+                value={-1}
+                placeholder="Choose a model…"
+                onChange={nextIndex => {
+                  const choice = models[nextIndex]
+                  if (!choice) return
+                  onChange([...rows, { provider: choice.providerId || choice.provider, model: choice.id }])
+                  setAdding(false)
+                }}
+              />
+              <button
+                className="ghost tiny fallback-icon"
+                type="button"
+                title="Cancel"
+                aria-label="Cancel adding a fallback model"
+                onClick={() => setAdding(false)}
+              >
+                ×
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-function GlobalModelPicker({ models, value, onChange, fallbackLabel }: {
+function GlobalModelPicker({ models, value, onChange, fallbackLabel, placeholder }: {
   models: ModelChoice[]
   value: number
   onChange: (index: number) => void
   fallbackLabel?: { label: string; provider: string }
+  placeholder?: string
 }) {
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
@@ -592,7 +604,7 @@ function GlobalModelPicker({ models, value, onChange, fallbackLabel }: {
   const matched = value >= 0 ? models[value] : undefined
   const selected = matched ?? (fallbackLabel
     ? { id: fallbackLabel.label, label: fallbackLabel.label, provider: fallbackLabel.provider, providerId: fallbackLabel.provider }
-    : models[0])
+    : placeholder ? undefined : models[0])
   const selectedProvider = selected ? selected.providerId || selected.provider || 'other' : ''
 
   function openPicker() {
@@ -678,7 +690,7 @@ function GlobalModelPicker({ models, value, onChange, fallbackLabel }: {
     })
   }, [filter, models, provider])
 
-  if (!selected) return <p className="hint">No models available.</p>
+  if (models.length === 0) return <p className="hint">No models available.</p>
 
   return (
     <div className="global-model-picker" ref={root}>
@@ -690,8 +702,14 @@ function GlobalModelPicker({ models, value, onChange, fallbackLabel }: {
         onClick={() => open ? close() : openPicker()}
       >
         <span className="model-label">
-          <strong>{selected.label}</strong>
-          <em>{selected.provider}</em>
+          {selected ? (
+            <>
+              <strong>{selected.label}</strong>
+              <em>{selected.provider}</em>
+            </>
+          ) : (
+            <strong className="model-placeholder">{placeholder}</strong>
+          )}
         </span>
         <span aria-hidden="true">⌄</span>
       </button>

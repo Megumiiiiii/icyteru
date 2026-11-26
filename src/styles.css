@@ -1725,6 +1725,8 @@ button:disabled { opacity: 0.45; cursor: default; }
 .settings-field-label { font-size: 13px; font-weight: 560; }
 .fallback-models-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .fallback-empty { margin: 2px 0 0; font-size: 12px; }
+.model-placeholder { color: var(--muted); font-weight: 500; }
+.fallback-add-row .global-model-trigger { border-style: dashed; }
 .fallback-list { display: grid; gap: 8px; }
 .fallback-row {
   display: flex;
