@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { memo, useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { tokenizeMarkdownInline, type InlineToken } from '../shared/markdown-inline'
 
@@ -12,13 +12,13 @@ type Block =
   | { kind: 'hr' }
   | { kind: 'para'; lines: string[] }
 
-export function Markdown({ text }: { text: string }) {
+export const Markdown = memo(function Markdown({ text }: { text: string }) {
   return (
     <div className="md">
       {parseBlocks(text).map((block, index) => <Block key={index} block={block} />)}
     </div>
   )
-}
+})
 
 export function parseBlocks(source: string): Block[] {
   const lines = source.replace(/\r\n?/g, '\n').split('\n')

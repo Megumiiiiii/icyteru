@@ -8,6 +8,10 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Both `ring` (via tauri-plugin-updater) and `aws-lc-rs` (via reqwest 0.13)
+    // live in the dependency graph; install one process-level rustls provider
+    // upfront so tokio-tungstenite's wss:// handshake never panics.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let bridge = bridge::Bridge::new().expect("failed to create native gateway bridge");
     tauri::Builder::default()
         // Registered first: a second launch must never race the first one's vault file.

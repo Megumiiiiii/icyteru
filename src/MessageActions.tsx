@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { copyText } from './Markdown'
 
 const REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '🔥']
@@ -28,7 +28,7 @@ function writeStore(store: Store): void {
  * sit on its right, the user's copy sits on the left. Positions are CSS-only so
  * nothing reflows while they fade in.
  */
-export function MessageActions({ id, role, text }: { id: string; role: 'user' | 'assistant'; text: string }) {
+export const MessageActions = memo(function MessageActions({ id, role, text }: { id: string; role: 'user' | 'assistant'; text: string }) {
   const [copied, setCopied] = useState(false)
   const [open, setOpen] = useState(false)
   const [reaction, setReaction] = useState('')
@@ -115,4 +115,4 @@ export function MessageActions({ id, role, text }: { id: string; role: 'user' | 
       )}
     </div>
   )
-}
+})

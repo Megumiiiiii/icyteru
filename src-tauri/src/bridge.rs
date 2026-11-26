@@ -4,6 +4,7 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
+    time::Duration,
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -164,9 +165,13 @@ pub async fn ws_open(
             .headers_mut()
             .insert("Sec-WebSocket-Protocol", value);
     }
-    let (socket, _) = tokio_tungstenite::connect_async(request)
-        .await
-        .map_err(safe_error)?;
+    let (socket, _) = tokio::time::timeout(
+        Duration::from_secs(10),
+        tokio_tungstenite::connect_async(request),
+    )
+    .await
+    .map_err(|_| "The gateway did not answer the WebSocket handshake in time.".to_string())?
+    .map_err(safe_error)?;
     let id = state.next_socket.fetch_add(1, Ordering::Relaxed);
     let (commands_tx, mut commands_rx) = mpsc::unbounded_channel();
     state.sockets.lock().await.insert(id, commands_tx);

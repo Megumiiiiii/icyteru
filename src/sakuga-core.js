@@ -39,7 +39,7 @@ function ensureFront() {
   document.body.append(front.c); front.g = front.c.getContext('2d'); size();
 }
 function size() {
-  dpr = Math.min(2.5, devicePixelRatio || 1);
+  dpr = Math.min(2, devicePixelRatio || 1);
   if (front.c) {
     const r = front.c.getBoundingClientRect();
     front.c.width = Math.max(1, Math.round((r.width || innerWidth) * dpr));
@@ -52,7 +52,7 @@ const add = (life, draw, L) => { const p = { t: 0, life, draw }; if (!calm) { L 
 // an effect with no end: it draws every frame until its handle is marked dead. layer puts it on a component's back layer.
 const persist = (draw, layer) => add(Infinity, draw, layer);
 function tick(dt) {
-  dpr = Math.min(2.5, devicePixelRatio || 1);
+  dpr = Math.min(2, devicePixelRatio || 1);
   for (const L of layers) {
     if (!L.c || (!L.live.length && !L.dirty)) continue;
     if (!L.c.isConnected) { L.live = []; L.dirty = false; continue; }
@@ -93,14 +93,14 @@ function start() { if (running) return; running = true; last = performance.now()
 function blob(cs, lw = 1.5, _, { lx = -1, arcs = false, deep = 1 } = {}) {
   const u = new Path2D(); for (const [x, y, r] of cs) if (r > 0.3) { u.moveTo(x + r, y); u.arc(x, y, r, 0, TAU); }
   g.save(); g.lineWidth = lw * 2; g.strokeStyle = P.line; g.stroke(u); g.restore();
-  g.save(); g.clip(u); g.fillStyle = P.shade; g.fillRect(-1e4, -1e4, 2e4, 2e4); const r = cs[0] ? cs[0][2] : 8;
+  g.save(); g.fillStyle = P.shade; g.fill(u); g.clip(u); const r = cs[0] ? cs[0][2] : 8;
   g.save(); g.translate(lx * r * 0.2 * deep, -r * 0.26 * deep); g.fillStyle = P.fill; g.fill(u); g.restore();
   if (arcs) { g.strokeStyle = P.line; g.lineWidth = lw * 0.75; g.beginPath(); for (const [x, y, rr] of cs) if (rr > 3) { g.moveTo(x + Math.cos(-2.7) * rr, y + Math.sin(-2.7) * rr); g.arc(x, y, rr, -2.7, -0.5); } g.stroke(); }   // the cumulus lines inside the cloud
   g.restore();
 }
 function shape(path, lw = 1.5, off = 3, fill = P.fill) {
   g.save(); g.lineWidth = lw * 2; g.strokeStyle = P.line; g.stroke(path); g.restore();
-  g.save(); g.clip(path); g.fillStyle = P.shade; g.fillRect(-1e4, -1e4, 2e4, 2e4); g.translate(-off * 0.7, -off); g.fillStyle = fill; g.fill(path); g.restore();
+  g.save(); g.fillStyle = P.shade; g.fill(path); g.clip(path); g.translate(-off * 0.7, -off); g.fillStyle = fill; g.fill(path); g.restore();
 }
 // a puff of smoke: lobes swell out with a little overshoot, roll, and shrink away
 function puff(x, y, { n = 5, size = 13, vx = 0, vy = -18, life = 0.8, spread = 1 } = {}) {
@@ -175,7 +175,7 @@ function donut(x, y, { r = 20, vx = 30, vy = -50, life = 1, tilt = -0.25 } = {})
   const ph = rnd(TAU);
   add(life, (k, t) => { const s = back(clamp(t / 0.22)) * (1 - inn(clamp((k - 0.6) / 0.4))), px = x + vx * out(k) * life, py = y + vy * out(k) * life, hole = 0.42 + 0.22 * k, p = new Path2D(); if (s < 0.03) return;
     for (const [m, bump] of [[1, 0.09], [hole, 0.05]]) for (let i = 0; i <= 48; i++) { const a = i / 48 * TAU, rr = r * s * m * (1 + bump * Math.sin(a * 9 + ph + t * 2)), ex = Math.cos(a) * rr, ey = Math.sin(a) * rr * 0.52; p[i ? 'lineTo' : 'moveTo'](px + ex * Math.cos(tilt) - ey * Math.sin(tilt), py + ex * Math.sin(tilt) + ey * Math.cos(tilt)); }
-    g.save(); g.lineWidth = 3; g.strokeStyle = P.line; g.stroke(p); g.restore(); g.save(); g.clip(p, 'evenodd'); g.fillStyle = P.shade; g.fillRect(-1e4, -1e4, 2e4, 2e4); g.translate(r * 0.06, -r * 0.2); g.fillStyle = P.fill; g.fill(p, 'evenodd'); g.restore(); });
+    g.save(); g.lineWidth = 3; g.strokeStyle = P.line; g.stroke(p); g.restore(); g.save(); g.fillStyle = P.shade; g.fill(p, 'evenodd'); g.clip(p, 'evenodd'); g.translate(r * 0.06, -r * 0.2); g.fillStyle = P.fill; g.fill(p, 'evenodd'); g.restore(); });
 }
 // wobble marks: the two little arcs beside something that has just stopped
 function wob(x, y, { dir = 1, r = 16, life = 0.45 } = {}) {

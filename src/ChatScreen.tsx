@@ -1,4 +1,4 @@
-import { Fragment, useContext, useEffect, useMemo, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { Fragment, memo, useContext, useEffect, useMemo, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
@@ -515,9 +515,10 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
     const node = composer.current
     if (!node) return
     node.style.height = 'auto'
-    const next = Math.min(node.scrollHeight, 280)
+    const measured = node.scrollHeight
+    const next = Math.min(measured, 280)
     node.style.height = `${Math.max(next, 48)}px`
-    node.style.overflowY = node.scrollHeight > 280 ? 'auto' : 'hidden'
+    node.style.overflowY = measured > 280 ? 'auto' : 'hidden'
   }, [draft])
 
   // The Sakuga textarea owns its own auto-grow; only its value needs mirroring.
@@ -936,53 +937,7 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
           </div>
         )}
         <div className="transcript" ref={scroller}>
-          {snapshot.transcript.messages.length === 0 && (
-            <div className="welcome">
-              <h2>Ask {snapshot.profileName}</h2>
-              <p>The reply is streamed from your own gateway. Tool calls stay tucked under the message.</p>
-            </div>
-          )}
-          {snapshot.transcript.messages.map(message => (
-            <Fragment key={message.id}>
-              {orderedParts(message).map((part, i) => {
-                const media = splitMedia(part.text)
-                return (
-                  <Fragment key={i}>
-                    {part.tools.length > 0 && <div className="tool-standalone"><ToolGroup tools={part.tools} /></div>}
-                    {(media.text.trim() || media.attachments.length > 0) && (
-                      <article className={`bubble ${message.role}`}>
-                        <MessageActions id={`${message.id}:${i}`} role={message.role === 'user' ? 'user' : 'assistant'} text={media.text} />
-                        {media.text.trim() && <Markdown text={media.text} />}
-                        {media.attachments.length > 0 && (
-                          <div className="incoming-attachments">
-                            {media.attachments.map(attachment => (
-                              <MediaAttachment key={attachment.path} path={attachment.path} name={attachment.name} image={attachment.image} />
-                            ))}
-                          </div>
-                        )}
-                        {message.attachments && message.attachments.length > 0 && (
-                          <div className="incoming-attachments outgoing-attachments">
-                            {message.attachments.map(attachment => (
-                              <MediaAttachment
-                                key={`${message.id}:${attachment.name}`}
-                                path=""
-                                name={attachment.name}
-                                image={attachment.image}
-                                src={attachment.dataUrl}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </article>
-                    )}
-                  </Fragment>
-                )
-              })}
-              {message.error && (
-                <p className="inline-error standalone-error">{message.error}</p>
-              )}
-            </Fragment>
-          ))}
+          <TranscriptMessages messages={snapshot.transcript.messages} profileName={snapshot.profileName} />
           <SubagentGroup subagents={snapshot.subagents} />
           {streaming && (
             thinking || toolRunning
@@ -1218,6 +1173,65 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
     </>
   )
 }
+
+const TranscriptMessages = memo(function TranscriptMessages({ messages, profileName }: {
+  messages: Snapshot['transcript']['messages']
+  profileName: string
+}) {
+  if (messages.length === 0) {
+    return (
+      <div className="welcome">
+        <h2>Ask {profileName}</h2>
+        <p>The reply is streamed from your own gateway. Tool calls stay tucked under the message.</p>
+      </div>
+    )
+  }
+  return (
+    <>
+      {messages.map(message => (
+        <Fragment key={message.id}>
+          {orderedParts(message).map((part, i) => {
+            const media = splitMedia(part.text)
+            return (
+              <Fragment key={i}>
+                {part.tools.length > 0 && <div className="tool-standalone"><ToolGroup tools={part.tools} /></div>}
+                {(media.text.trim() || media.attachments.length > 0) && (
+                  <article className={`bubble ${message.role}`}>
+                    <MessageActions id={`${message.id}:${i}`} role={message.role === 'user' ? 'user' : 'assistant'} text={media.text} />
+                    {media.text.trim() && <Markdown text={media.text} />}
+                    {media.attachments.length > 0 && (
+                      <div className="incoming-attachments">
+                        {media.attachments.map(attachment => (
+                          <MediaAttachment key={attachment.path} path={attachment.path} name={attachment.name} image={attachment.image} />
+                        ))}
+                      </div>
+                    )}
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className="incoming-attachments outgoing-attachments">
+                        {message.attachments.map(attachment => (
+                          <MediaAttachment
+                            key={`${message.id}:${attachment.name}`}
+                            path=""
+                            name={attachment.name}
+                            image={attachment.image}
+                            src={attachment.dataUrl}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                )}
+              </Fragment>
+            )
+          })}
+          {message.error && (
+            <p className="inline-error standalone-error">{message.error}</p>
+          )}
+        </Fragment>
+      ))}
+    </>
+  )
+})
 
 function WorkingPhase({ startedAt, emoji, label }: { startedAt: number | null; emoji: string; label: string }) {
   const [now, setNow] = useState(() => Date.now())
@@ -2127,7 +2141,7 @@ function ReasoningMenu({ snapshot, onNotice }: { snapshot: Snapshot; onNotice: (
   )
 }
 
-function SidePanel({ snapshot, hidden = false, pane, setPane, query, setQuery, onNotice }: {
+const SidePanel = memo(function SidePanel({ snapshot, hidden = false, pane, setPane, query, setQuery, onNotice }: {
   snapshot: Snapshot
   hidden?: boolean
   pane: 'history' | 'profile'
@@ -2594,7 +2608,7 @@ function SidePanel({ snapshot, hidden = false, pane, setPane, query, setQuery, o
       )}
     </aside>
   )
-}
+})
 
 function Paperclip() {
   return (
