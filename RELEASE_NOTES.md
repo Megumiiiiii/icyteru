@@ -1,3 +1,19 @@
+## v0.0.90
+
+### Added
+
+- The Updates card shows a real download bar instead of a bare percentage:
+  a theme-aware `.update-progress` track normally, and the Sakuga progress
+  element when Sakuga mode is on.
+
+### Changed
+
+- Copy and react buttons on message bubbles lost their panel background and
+  hover outline; only the icon colour changes, so the rail reads as part of the
+  bubble edge.
+- Every push to `beta` now builds the canary installers automatically, so a test
+  build no longer needs a manual workflow dispatch (no effect on releases).
+
 ## v0.0.89
 
 ### Fixed
