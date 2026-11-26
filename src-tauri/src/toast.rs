@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWi
 const TOAST: &str = "toast";
 const WIDTH: f64 = 372.0;
 const HEIGHT: f64 = 96.0;
-const LIFETIME: Duration = Duration::from_secs(8);
+const LIFETIME: Duration = Duration::from_secs(6);
 
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 /// The card may finish loading after `show()` emitted, so keep the payload.
@@ -26,11 +26,10 @@ fn place(window: &tauri::WebviewWindow) {
     let size = monitor.size();
     let scale = monitor.scale_factor();
     let width = (WIDTH * scale) as i32;
-    let height = (HEIGHT * scale) as i32;
     let margin = (18.0 * scale) as i32;
-    // Sit above the taskbar/dock instead of under it.
+    // Top-right: the composer lives bottom-right, so never park the card there.
     let x = (size.width as i32 - width - margin).max(0);
-    let y = (size.height as i32 - height - margin - (42.0 * scale) as i32).max(0);
+    let y = ((42.0 * scale) as i32).max(0);
     let _ = window.set_position(PhysicalPosition::new(x, y));
 }
 
@@ -42,7 +41,8 @@ fn ensure_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
         .title("Icyteru")
         .inner_size(WIDTH, HEIGHT)
         .decorations(false)
-        .transparent(true)
+        .transparent(false)
+        .background_color(tauri::window::Color(34, 26, 45, 255))
         .always_on_top(true)
         .skip_taskbar(true)
         .resizable(false)
