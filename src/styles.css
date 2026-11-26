@@ -1774,6 +1774,9 @@ button:disabled { opacity: 0.45; cursor: default; }
 .global-model-pop .model-label strong { overflow-wrap: anywhere; }
 
 .connect {
+  position: relative;
+  z-index: 2;
+  isolation: isolate;
   box-sizing: border-box;
   height: 100%;
   display: flex;
@@ -1785,7 +1788,11 @@ button:disabled { opacity: 0.45; cursor: default; }
 .connect-card {
   /* auto margins centre a short card and collapse to 0 when it is taller
      than the window, so the top of the form can never sit above the scroll box. */
+  position: relative;
+  z-index: 1;
   margin: auto 0;
+  background-color: var(--surface);
+  color: var(--ink);
   flex: 0 0 auto;
   width: min(520px, 100%);
   background: var(--surface);
