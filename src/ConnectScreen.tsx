@@ -17,6 +17,13 @@ export function ConnectScreen({ snapshot }: { snapshot: Snapshot }) {
   const [ok, setOk] = useState(false)
   const picked = useRef(false)
 
+  // Leaving a long chat leaves the document scrolled, which parks the sign-in
+  // card above the viewport and shows only the last button.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+    document.documentElement.scrollTop = 0
+  }, [])
+
   // A gateway advertises its login options in /api/status. Preselect the right
   // tab, but never fight a choice the user has already made.
   useEffect(() => {

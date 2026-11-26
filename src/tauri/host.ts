@@ -472,6 +472,7 @@ export async function installTauriHost(): Promise<void> {
     },
     forgetConnection: async () => {
       client.disconnect()
+      client.lastError = ''
       void invoke('feed_stop').catch(() => undefined)
       saved = { ...saved, url: '', token: '', username: '', password: '', method: undefined, gateways: [] }
       await invoke('vault_clear')

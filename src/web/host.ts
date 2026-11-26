@@ -392,6 +392,7 @@ export function installWebHost(): void {
         }
       }
       client.disconnect()
+      client.lastError = ''
       saved = { ...saved, url: '', token: '', username: '', password: '', method: undefined, gateways: [] }
       persist()
       screen = 'connect'
