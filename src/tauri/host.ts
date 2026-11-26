@@ -101,6 +101,27 @@ async function persist(): Promise<void> {
   await invoke('vault_save', { value: JSON.stringify(saved) })
 }
 
+/** Carry the gateway URL, theme, and extra gateways over from the Electron build. */
+async function importFromElectron(): Promise<SavedConnection | null> {
+  try {
+    const raw = await invoke<string | null>('vault_import_electron')
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<SavedConnection>
+    if (!parsed.url) return null
+    return {
+      url: parsed.url,
+      token: typeof parsed.token === 'string' ? parsed.token : '',
+      username: typeof parsed.username === 'string' ? parsed.username : '',
+      password: typeof parsed.password === 'string' ? parsed.password : '',
+      method: parsed.method === 'password' || parsed.method === 'token' ? parsed.method : undefined,
+      theme: isThemePreference(parsed.theme) ? parsed.theme : 'system',
+      gateways: Array.isArray(parsed.gateways) ? parsed.gateways : []
+    }
+  } catch {
+    return null
+  }
+}
+
 function connectionInfo() {
   return {
     url: saved.url,
@@ -203,11 +224,8 @@ async function syncFeedSession(): Promise<void> {
   await invoke('feed_set_active_session', { sessionId: client.state.activeSessionId }).catch(() => undefined)
 }
 
-let pendingSession = ''
-
 function noteFeedEvent(sessionId: string): void {
   if (!sessionId) return
-  if (document.hidden) pendingSession = sessionId
   void client.refreshSessions().catch(() => undefined)
 }
 
@@ -408,7 +426,18 @@ export async function installTauriHost(): Promise<void> {
   installNativeFetch()
   installNativeWebSocket()
   saved = await loadConnection()
-  screen = saved.url ? 'chat' : 'connect'
+  let needsCredentials = false
+  if (!saved.url) {
+    const imported = await importFromElectron()
+    if (imported) {
+      saved = imported
+      needsCredentials = !imported.token && !(imported.username && imported.password)
+      await persist()
+    }
+  }
+  // An imported gateway has no usable secret (Electron's keychain blob stays his),
+  // so show the Connect form rather than a chat that cannot authenticate.
+  screen = saved.url && !needsCredentials ? 'chat' : 'connect'
   const api = {
     getSnapshot: () => Promise.resolve(snapshot()),
     testConnection: async (input: ConnectionInput) => {
@@ -575,13 +604,13 @@ export async function installTauriHost(): Promise<void> {
   installContextMenu()
   void listen<{ sessionId: string }>('icyteru-feed', event => noteFeedEvent(event.payload?.sessionId || ''))
     .catch(() => undefined)
-  window.addEventListener('focus', () => {
-    if (!pendingSession || phase !== 'ready') return
-    const id = pendingSession
-    pendingSession = ''
-    void api.openSession(id).catch(() => undefined)
-  })
-  if (saved.url) void connectSaved()
+  // Rust remembers which session the last notification pointed at and hands it
+  // over on the window's first focus event.
+  void listen<string>('icyteru-feed-open', event => {
+    const id = typeof event.payload === 'string' ? event.payload : ''
+    if (id && phase === 'ready') void api.openSession(id).catch(() => undefined)
+  }).catch(() => undefined)
+  if (saved.url && screen === 'chat') void connectSaved()
   else publish()
 }
 

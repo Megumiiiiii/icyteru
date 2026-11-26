@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::oneshot;
 
@@ -16,6 +16,10 @@ use tokio::sync::oneshot;
 pub struct Feed {
     stop: StdMutex<Option<oneshot::Sender<()>>>,
     active: Arc<StdMutex<String>>,
+    /// The session the newest notification pointed at, waiting for the window to
+    /// come forward. Tauri's notification plugin has no click callback, so the
+    /// focus event is the closest honest signal.
+    pending: Arc<StdMutex<Option<String>>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -74,6 +78,7 @@ pub fn feed_start(
         .lock()
         .unwrap_or_else(|error| error.into_inner()) = active_session;
     let active = Arc::clone(&state.active);
+    let pending = Arc::clone(&state.pending);
     let (stop, mut stopped) = oneshot::channel::<()>();
     *state.stop.lock().unwrap_or_else(|error| error.into_inner()) = Some(stop);
     let client = reqwest::Client::builder()
@@ -131,6 +136,8 @@ pub fn feed_start(
                     })
                     .body(&body)
                     .show();
+                *pending.lock().unwrap_or_else(|error| error.into_inner()) =
+                    Some(entry.session_id.clone());
                 let _ = app.emit(
                     "icyteru-feed",
                     FeedEvent {
@@ -155,6 +162,17 @@ fn feed_stop_inner(state: &tauri::State<'_, Feed>) {
     {
         let _ = stop.send(());
     }
+}
+
+/// Called from the window's focus event: hands the pending session to the
+/// renderer exactly once.
+pub fn take_pending(app: &AppHandle) -> Option<String> {
+    let state = app.try_state::<Feed>()?;
+    state
+        .pending
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .take()
 }
 
 #[tauri::command]

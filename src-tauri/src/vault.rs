@@ -160,3 +160,87 @@ pub fn vault_clear(app: tauri::AppHandle) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// Where the Electron build keeps its data, oldest install first.
+fn electron_candidates() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        paths.push(PathBuf::from(appdata).join("Icyteru"));
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        let home = PathBuf::from(home);
+        paths.push(home.join(".config/Icyteru"));
+        paths.push(home.join("Library/Application Support/Icyteru"));
+    }
+    paths
+}
+
+fn plain_token(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(text) => text.clone(),
+        serde_json::Value::Object(map) => {
+            let plain = map.get("encoding").and_then(|v| v.as_str()) == Some("plain");
+            if plain {
+                map.get("value")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string()
+            } else {
+                String::new()
+            }
+        }
+        _ => String::new(),
+    }
+}
+
+/// Read what the Electron build saved. `safeStorage` blobs are bound to the OS
+/// keychain entry Electron created, so only a plain token can be carried over;
+/// the gateway URL, theme, and extra gateways always can.
+#[tauri::command]
+pub fn vault_import_electron() -> Option<String> {
+    for directory in electron_candidates() {
+        let path = directory.join("connection.json");
+        let Ok(bytes) = fs::read(&path) else { continue };
+        let Ok(parsed) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            continue;
+        };
+        let url = parsed
+            .get("url")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if url.is_empty() {
+            continue;
+        }
+        let gateways = parsed
+            .get("gateways")
+            .and_then(|v| v.as_array())
+            .map(|rows| {
+                rows.iter()
+                    .filter_map(|row| {
+                        let url = row.get("url").and_then(|v| v.as_str())?;
+                        Some(serde_json::json!({
+                            "id": row.get("id").and_then(|v| v.as_str()).unwrap_or(url),
+                            "url": url,
+                            "token": row.get("token").map(plain_token).unwrap_or_default(),
+                            "username": row.get("username").map(plain_token).unwrap_or_default(),
+                            "password": row.get("password").map(plain_token).unwrap_or_default(),
+                        }))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let imported = serde_json::json!({
+            "url": url,
+            "theme": parsed.get("theme").and_then(|v| v.as_str()).unwrap_or("system"),
+            "method": parsed.get("method").and_then(|v| v.as_str()).unwrap_or(""),
+            "token": parsed.get("token").map(plain_token).unwrap_or_default(),
+            "username": parsed.get("username").map(plain_token).unwrap_or_default(),
+            "password": parsed.get("password").map(plain_token).unwrap_or_default(),
+            "gateways": gateways,
+        });
+        return Some(imported.to_string());
+    }
+    None
+}

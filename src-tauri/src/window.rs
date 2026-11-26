@@ -12,7 +12,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use tauri::{
-    AppHandle, Manager, WindowEvent,
+    AppHandle, Emitter, Manager, WindowEvent,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
@@ -155,11 +155,21 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Keep the tray icon working even when the window closes for real.
+/// Keep the tray icon working even when the window closes for real, and turn a
+/// notification into a session switch when the user comes back.
 pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
-    if let WindowEvent::CloseRequested { api, .. } = event {
-        if intercept_close(window) {
-            api.prevent_close();
+    match event {
+        WindowEvent::CloseRequested { api, .. } => {
+            if intercept_close(window) {
+                api.prevent_close();
+            }
         }
+        WindowEvent::Focused(true) => {
+            let app = window.app_handle();
+            if let Some(session_id) = crate::feed::take_pending(app) {
+                let _ = app.emit("icyteru-feed-open", session_id);
+            }
+        }
+        _ => {}
     }
 }

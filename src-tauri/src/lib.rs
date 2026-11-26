@@ -37,6 +37,7 @@ pub fn run() {
             vault::vault_load,
             vault::vault_save,
             vault::vault_clear,
+            vault::vault_import_electron,
             files::save_download,
             files::open_external,
             feed::feed_start,
