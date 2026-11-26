@@ -408,6 +408,7 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
   const [steerPending, setSteerPending] = useState<{ toolCount: number } | null>(null)
   const [steerNote, setSteerNote] = useState<{ text: string; age: number } | null>(null)
   const [queueOpen, setQueueOpen] = useState(false)
+  const [queueEdit, setQueueEdit] = useState<{ id: string; text: string } | null>(null)
   const [atBottom, setAtBottom] = useState(true)
   const [files, setFiles] = useState<OutgoingAttachment[]>([])
   const scroller = useRef<HTMLDivElement>(null)
@@ -546,6 +547,27 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
     const form = event.currentTarget.closest('form')
     playSendEffect(form?.querySelector('button[type="submit"]') ?? null)
     void send()
+  }
+
+
+  function queueAction(run: () => Promise<void> | undefined): void {
+    setNotice('')
+    void (async () => {
+      try {
+        await run()
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : 'That queue change did not go through.')
+      }
+    })()
+  }
+
+  function saveQueueEdit(): void {
+    const draft = queueEdit
+    if (!draft) return
+    queueAction(async () => {
+      await window.icyteru.editQueued?.(draft.id, draft.text)
+      setQueueEdit(null)
+    })
   }
 
   function composerPaste(event: ReactClipboardEvent<HTMLElement>): void {
@@ -1055,17 +1077,55 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
                       <span>{[entry.text, ...(entry.attachmentNames || [])].filter(Boolean).join(' · ')}</span>
                       {entry.status === 'unknown' && <small>Gateway status unknown</small>}
                       {entry.error && <small>{entry.error}</small>}
+                      {queueEdit?.id === entry.id && (
+                        <textarea
+                          className="queue-edit"
+                          value={queueEdit.text}
+                          rows={2}
+                          aria-label="Edit queued message"
+                          onChange={event => setQueueEdit({ id: entry.id, text: event.target.value })}
+                          onKeyDown={event => {
+                            if (event.key === 'Enter' && !event.shiftKey) {
+                              event.preventDefault()
+                              saveQueueEdit()
+                            }
+                            if (event.key === 'Escape') setQueueEdit(null)
+                          }}
+                        />
+                      )}
                     </div>
                     {entry.status !== 'unknown' && (
                       <div className="queue-actions">
-                        <button
-                          type="button"
-                          className="ghost tiny danger"
-                          disabled={entry.status !== 'failed'}
-                          title={entry.status === 'failed' ? 'Dismiss' : 'The gateway cannot delete this without risking interruption of a started turn.'}
-                          aria-label={entry.status === 'failed' ? 'Dismiss failed message' : 'Delete queued message'}
-                          onClick={() => void window.icyteru.deleteQueued(entry.id).catch(error => setNotice(error instanceof Error ? error.message : 'Could not delete the queued message.'))}
-                        >×</button>
+                        {queueEdit?.id === entry.id ? (
+                          <>
+                            <button type="button" className="ghost tiny" onClick={saveQueueEdit}>Save</button>
+                            <button type="button" className="ghost tiny" onClick={() => setQueueEdit(null)}>Cancel</button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="ghost tiny queue-icon"
+                              title="Send now"
+                              aria-label="Send queued message now"
+                              onClick={() => queueAction(() => window.icyteru.sendQueuedNow?.(entry.id))}
+                            >↑</button>
+                            <button
+                              type="button"
+                              className="ghost tiny queue-icon"
+                              title="Edit"
+                              aria-label="Edit queued message"
+                              onClick={() => setQueueEdit({ id: entry.id, text: entry.text })}
+                            >✎</button>
+                            <button
+                              type="button"
+                              className="ghost tiny queue-icon danger"
+                              title={entry.status === 'failed' ? 'Dismiss' : 'Remove from the queue'}
+                              aria-label={entry.status === 'failed' ? 'Dismiss failed message' : 'Remove queued message'}
+                              onClick={() => queueAction(() => window.icyteru.deleteQueued(entry.id))}
+                            >🗑</button>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>

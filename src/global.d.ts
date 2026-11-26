@@ -30,6 +30,8 @@ declare global {
       steer: (text: string) => Promise<string>
       queue: (text: string, attachments?: OutgoingAttachment[]) => Promise<void>
       deleteQueued: (id: string) => Promise<void>
+      editQueued?: (id: string, text: string) => Promise<void>
+      sendQueuedNow?: (id: string) => Promise<void>
       mediaUrl: (path: string) => Promise<string>
       mediaData: (path: string) => Promise<string>
       saveDownload: (name: string, dataUrl: string) => Promise<string>

@@ -446,15 +446,23 @@ test('send appends a user bubble and submits prompt text', async () => {
   assert.match((c.transcript.messages as any[]).at(-1).error, /gateway_down/)
 })
 
-test('queue tracks a receipt and deleteQueued only removes failed entries', async () => {
+test('queue cancels a live entry through the gateway and drops failed ones locally', async () => {
   const c = client()
   c.live = live()
-  c.rpc = async () => ({ status: 'queued', admission_id: 'a1' })
+  const calls: string[] = []
+  c.rpc = async (method: string) => {
+    calls.push(method)
+    if (method === 'prompt.cancel') return { status: 'terminal', outcome: 'cancelled' }
+    return { status: 'queued', admission_id: 'a1' }
+  }
   await c.queue('later')
   assert.equal((c.queued as unknown[]).length, 1)
-  await assert.rejects(() => c.deleteQueued((c.queued as any[])[0].id), /cannot safely delete/)
-  ;(c.queued as any[])[0].status = 'failed'
   await c.deleteQueued((c.queued as any[])[0].id)
+  assert.deepEqual(calls, ['prompt.submit', 'prompt.cancel'])
+  assert.equal((c.queued as unknown[]).length, 0)
+
+  ;(c.queued as any[]).push({ id: 'q2', sessionId: 's1', text: 'boom', attachmentNames: [], status: 'failed', createdAt: 1 })
+  await c.deleteQueued('q2')
   assert.equal((c.queued as unknown[]).length, 0)
   c.disconnect()
 })

@@ -1352,13 +1352,76 @@ export class HermesClient {
     this.emit()
   }
 
+  /** Dismiss a failed row, or cancel a live one through the gateway's own verb. */
   async deleteQueued(id: string): Promise<void> {
+    await this.removeQueued(id)
+  }
+
+  /**
+   * Replace a queued message. The gateway admits the edit as a brand new entry at
+   * the back of its FIFO, so the local list is reordered to match.
+   */
+  async editQueued(id: string, text: string): Promise<void> {
     const entry = this.queued.find(item => item.id === id)
     if (!entry) return
-    // prompt.cancel interrupts a started admission, even if a receipt just said queued.
-    if (entry.status !== 'failed') throw new Error('This gateway cannot safely delete a pending message.')
-    this.queued = this.queued.filter(item => item !== entry)
+    const body = text.trim()
+    if (!body) throw new Error('Write the message before saving it.')
+    if (!entry.admissionId) throw new Error('This gateway did not give the queued message an admission id.')
+    const receipt = asRecord(await this.rpc('prompt.replace_queued', {
+      session_id: entry.sessionId,
+      admission_id: entry.admissionId,
+      submission_id: crypto.randomUUID(),
+      text: body
+    }))
+    if (receipt.status === 'failed' || receipt.status === 'rejected' || receipt.outcome === 'failed') {
+      throw new Error('Hermes could not save that edit.')
+    }
+    const next = typeof receipt.admission_id === 'string' ? receipt.admission_id : ''
+    if (next) entry.admissionId = next
+    entry.text = body
+    entry.status = 'queued'
+    entry.error = ''
+    this.queued = [...this.queued.filter(item => item !== entry), entry]
     this.emit()
+  }
+
+  /** Cancel a queued message without ever interrupting a turn that already started. */
+  async removeQueued(id: string): Promise<void> {
+    const entry = this.queued.find(item => item.id === id)
+    if (!entry) return
+    if (entry.status === 'failed') {
+      this.queued = this.queued.filter(item => item !== entry)
+      this.emit()
+      return
+    }
+    if (!entry.admissionId) throw new Error('This gateway did not give the queued message an admission id.')
+    const receipt = asRecord(await this.rpc('prompt.cancel', {
+      session_id: entry.sessionId,
+      admission_id: entry.admissionId
+    }))
+    const outcome = typeof receipt.outcome === 'string' ? receipt.outcome : ''
+    if (receipt.status === 'terminal' && outcome === 'cancelled') {
+      this.queued = this.queued.filter(item => item !== entry)
+      this.emit()
+      return
+    }
+    if (receipt.status === 'started' || outcome === 'interrupted') {
+      throw new Error('That message already started running, so it cannot be removed.')
+    }
+    throw new Error('Hermes did not confirm the cancel. Check the chat before trying again.')
+  }
+
+  /** Send a queued message into the running turn, or straight away when it is idle. */
+  async sendQueuedNow(id: string): Promise<void> {
+    const entry = this.queued.find(item => item.id === id)
+    if (!entry) return
+    const text = entry.text
+    await this.removeQueued(id)
+    try {
+      await this.steer(text)
+    } catch {
+      await this.send(text)
+    }
   }
 
   private startQueuePolling(): void {

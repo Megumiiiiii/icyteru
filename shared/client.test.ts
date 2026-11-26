@@ -116,6 +116,55 @@ test('reconnect resumes receipt polling for queued entries', async () => {
   client.disconnect()
 })
 
+test('editing a queued message replaces it at the back of the queue', async () => {
+  const client = new HermesClient(() => undefined)
+  ;(client as unknown as { queued: unknown[] }).queued = [
+    { id: 'q1', sessionId: 's1', text: 'first', attachmentNames: [], status: 'queued', createdAt: 1, admissionId: 'a1' },
+    { id: 'q2', sessionId: 's1', text: 'second', attachmentNames: [], status: 'queued', createdAt: 2, admissionId: 'a2' }
+  ]
+  const calls: Array<{ method: string; params: Record<string, unknown> }> = []
+  ;(client as unknown as { rpc: Rpc }).rpc = async (method, params) => {
+    calls.push({ method, params: params || {} })
+    return { admission_id: 'a1b', status: 'queued' }
+  }
+  await client.editQueued('q1', 'first, edited')
+  assert.equal(calls[0].method, 'prompt.replace_queued')
+  assert.equal(calls[0].params.admission_id, 'a1')
+  assert.equal(calls[0].params.text, 'first, edited')
+  const queued = (client as unknown as { queued: Array<{ id: string; text: string; admissionId?: string }> }).queued
+  assert.deepEqual(queued.map(row => row.id), ['q2', 'q1'])
+  assert.equal(queued[1].text, 'first, edited')
+  assert.equal(queued[1].admissionId, 'a1b')
+  client.disconnect()
+})
+
+test('removing a queued message cancels it through the gateway verb', async () => {
+  const client = new HermesClient(() => undefined)
+  ;(client as unknown as { queued: unknown[] }).queued = [
+    { id: 'q1', sessionId: 's1', text: 'hello', attachmentNames: [], status: 'queued', createdAt: 1, admissionId: 'a1' }
+  ]
+  const calls: string[] = []
+  ;(client as unknown as { rpc: Rpc }).rpc = async method => {
+    calls.push(method)
+    return { status: 'terminal', outcome: 'cancelled' }
+  }
+  await client.removeQueued('q1')
+  assert.deepEqual(calls, ['prompt.cancel'])
+  assert.equal((client as unknown as { queued: unknown[] }).queued.length, 0)
+  client.disconnect()
+})
+
+test('removing a queued message refuses when the turn already started', async () => {
+  const client = new HermesClient(() => undefined)
+  ;(client as unknown as { queued: unknown[] }).queued = [
+    { id: 'q1', sessionId: 's1', text: 'hello', attachmentNames: [], status: 'queued', createdAt: 1, admissionId: 'a1' }
+  ]
+  ;(client as unknown as { rpc: Rpc }).rpc = async () => ({ status: 'started' })
+  await assert.rejects(() => client.removeQueued('q1'), /already started/)
+  assert.equal((client as unknown as { queued: unknown[] }).queued.length, 1)
+  client.disconnect()
+})
+
 test('ensureLive subscribes a newly created session before file attachment', async () => {
   const client = new HermesClient(() => undefined)
   let opened = ''

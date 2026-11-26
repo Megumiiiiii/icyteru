@@ -514,7 +514,9 @@ export async function installTauriHost(): Promise<void> {
     },
     steer: async (text: string) => client.steer(text),
     queue: async (text: string, attachments?: OutgoingAttachment[]) => client.queue(text, attachments),
-    deleteQueued: async (id: string) => client.deleteQueued(id),
+    deleteQueued: async (id: string) => client.removeQueued(id),
+    editQueued: async (id: string, text: string) => client.editQueued(id, text),
+    sendQueuedNow: async (id: string) => client.sendQueuedNow(id),
     mediaUrl: async (path: string) => client.mediaUrl(path),
     mediaData: async (path: string) => client.mediaData(path),
     saveDownload: async (name: string, dataUrl: string) => {
