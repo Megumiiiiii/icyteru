@@ -9,6 +9,9 @@
 
 ### Fixed
 
+- The sign-in card no longer starts above the window on a short window: it now
+  scrolls inside its own box instead of relying on centring, so the fields are
+  always reachable and the last button is never the only thing on screen.
 - `version:check` no longer passes while `src-tauri/Cargo.lock` is stale on a
   Windows checkout (CRLF), which used to fail the release before it started.
 
