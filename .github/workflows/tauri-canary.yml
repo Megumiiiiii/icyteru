@@ -7,7 +7,9 @@ name: Desktop build
 on:
   workflow_dispatch:
   push:
-    branches: [tauri-test]
+    # beta is the free build lane: every push produces testable installers
+    # without touching the released version on main.
+    branches: [beta, tauri-test]
 
 concurrency:
   group: tauri-canary
