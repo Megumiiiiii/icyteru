@@ -8,13 +8,6 @@ on:
   workflow_dispatch:
   push:
     branches: [tauri-test]
-    paths:
-      - 'src-tauri/**'
-      - 'src/**'
-      - 'shared/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/tauri-canary.yml'
 
 concurrency:
   group: tauri-canary
