@@ -12,6 +12,7 @@ import { Avatar } from './Avatar'
 import { Markdown, copyText } from './Markdown'
 import { PinIcon } from './PinIcon'
 import { SakugaProgressBar, useSakugaEnabled } from './SakugaProgressBar'
+import { ensureSakugaElement, playSendEffect, showSakugaToast } from './sakuga-ui'
 import { ago } from './time'
 
 type IncomingAttachment = {
@@ -274,7 +275,9 @@ function MediaAttachment({ path, name, image, src }: IncomingAttachment & { src?
     event.preventDefault()
     try {
       const saved = await window.icyteru.saveDownload(name, dataUrl)
-      setSaveNote(saved ? 'Saved to Downloads' : 'Saved')
+      const message = saved ? 'Saved to Downloads' : 'Saved'
+      if (await showSakugaToast(message)) return
+      setSaveNote(message)
       setTimeout(() => setSaveNote(''), 2600)
     } catch (err) {
       setSaveNote(err instanceof Error ? err.message : 'Could not save that file.')
@@ -1088,6 +1091,8 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
             onKeyDown={event => {
               if (event.key === 'Enter' && !event.shiftKey && !isAndroid) {
                 event.preventDefault()
+                // Enter skips the real click, so the button's Sakuga burst never fires.
+                playSendEffect(event.currentTarget.form?.querySelector('button[type="submit"]') ?? null)
                 void send()
               }
             }}
@@ -1350,6 +1355,22 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
   const [note, setNote] = useState('')
   const [sending, setSending] = useState(false)
   const sendingRef = useRef(false)
+  const sakugaOn = useSakugaEnabled()
+  const [sakugaButton, setSakugaButton] = useState(() => sakugaOn && Boolean(customElements.get('sakuga-button')))
+
+  useEffect(() => {
+    if (!sakugaOn) {
+      setSakugaButton(false)
+      return
+    }
+    let cancelled = false
+    void ensureSakugaElement('sakuga-button').then(ready => {
+      if (!cancelled) setSakugaButton(ready)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [sakugaOn])
 
   async function send(result: unknown) {
     if (sendingRef.current) return
@@ -1371,6 +1392,24 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
     if (item.multiSelect) return (multi[item.id] || []).length > 0
     return Boolean((answers[item.id] || '').trim())
   })
+
+  function submitAnswers() {
+    const merged: Record<string, string> = { ...answers }
+    for (const [id, value] of Object.entries(custom)) {
+      if (value.trim()) merged[id] = value.trim()
+    }
+    for (const item of question.questions) {
+      if (!item.multiSelect) continue
+      if (custom[item.id]?.trim()) continue
+      const selected = multi[item.id] || []
+      if (!selected.length) continue
+      merged[item.id] = selected
+        .map(choice => item.choices.indexOf(choice) + 1)
+        .filter(index => index > 0)
+        .join(', ')
+    }
+    void send({ answers: merged, outcome: 'submitted' })
+  }
   const saveLogin = question.vault?.kind === 'save_login'
   const secretPlaceholder = question.vault?.kind === 'code' ? 'One-time code' : 'Master password'
 
@@ -1437,31 +1476,24 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
       ))}
       {question.questions.length > 0 && (
         <div className="question-actions">
-          <button
-            className="solid"
-            disabled={!hasAnswer || sending}
-            aria-busy={sending}
-            onClick={() => {
-              const merged: Record<string, string> = { ...answers }
-              for (const [id, value] of Object.entries(custom)) {
-                if (value.trim()) merged[id] = value.trim()
-              }
-              for (const item of question.questions) {
-                if (!item.multiSelect) continue
-                if (custom[item.id]?.trim()) continue
-                const selected = multi[item.id] || []
-                if (!selected.length) continue
-                merged[item.id] = selected
-                  .map(choice => item.choices.indexOf(choice) + 1)
-                  .filter(index => index > 0)
-                  .join(', ')
-              }
-              void send({ answers: merged, outcome: 'submitted' })
-            }}
-            type="button"
-          >
-            {sending ? 'Sending…' : 'Send answers'}
-          </button>
+          {sakugaButton ? (
+            <sakuga-button
+              disabled={!hasAnswer || sending}
+              onClick={() => submitAnswers()}
+            >
+              {sending ? 'Sending…' : 'Send answers'}
+            </sakuga-button>
+          ) : (
+            <button
+              className="solid"
+              disabled={!hasAnswer || sending}
+              aria-busy={sending}
+              onClick={() => submitAnswers()}
+              type="button"
+            >
+              {sending ? 'Sending…' : 'Send answers'}
+            </button>
+          )}
         </div>
       )}
       {saveLogin && (
