@@ -12,7 +12,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use tauri::{
-    AppHandle, Emitter, Manager, WindowEvent,
+    AppHandle, Manager, WindowEvent,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
@@ -166,10 +166,9 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
         }
         WindowEvent::Focused(true) => {
             let app = window.app_handle();
-            crate::toast::hide(app);
-            if let Some(session_id) = crate::feed::take_pending(app) {
-                let _ = app.emit("icyteru-feed-open", session_id);
-            }
+            // Kept so a future notification surface can claim it; nothing shows
+            // an overlay window any more.
+            let _ = crate::feed::take_pending(app);
         }
         _ => {}
     }
