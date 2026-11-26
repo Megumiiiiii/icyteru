@@ -10,7 +10,10 @@ on:
     branches: [tauri-test]
     paths:
       - 'src-tauri/**'
-      - 'src/tauri/**'
+      - 'src/**'
+      - 'shared/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/tauri-canary.yml'
 
 concurrency:
