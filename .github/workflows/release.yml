@@ -92,6 +92,9 @@ jobs:
         run: npm ci
 
       - name: Build the Tauri bundles
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri:build -- --bundles ${{ matrix.bundles }}
 
       - name: Collect installers
@@ -102,6 +105,12 @@ jobs:
           cp src-tauri/target/release/bundle/dmg/*.dmg out/ 2>/dev/null || true
           cp src-tauri/target/release/bundle/deb/*.deb out/ 2>/dev/null || true
           cp src-tauri/target/release/bundle/appimage/*.AppImage out/ 2>/dev/null || true
+          # Updater signatures: Tauri writes `<asset>.sig` beside each bundle.
+          cp src-tauri/target/release/bundle/nsis/*.sig out/ 2>/dev/null || true
+          cp src-tauri/target/release/bundle/appimage/*.sig out/ 2>/dev/null || true
+          cp src-tauri/target/release/bundle/macos/*.tar.gz out/ 2>/dev/null || true
+          cp src-tauri/target/release/bundle/macos/*.sig out/ 2>/dev/null || true
+          cp src-tauri/target/release/bundle/dmg/*.sig out/ 2>/dev/null || true
           ls -l out
 
       - name: Upload installers
@@ -270,6 +279,14 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Write the updater manifest
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          node scripts/latest-json.mjs "${RELEASE_TAG#v}" artifacts "${GITHUB_REPOSITORY}" latest.json
+          cat latest.json
+
       - name: Attach installers to the release
         uses: softprops/action-gh-release@v2
         with:
@@ -282,6 +299,9 @@ jobs:
             artifacts/*.AppImage
             artifacts/*.deb
             artifacts/*.apk
+            artifacts/*.sig
+            artifacts/*.tar.gz
+            latest.json
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

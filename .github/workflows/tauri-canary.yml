@@ -73,6 +73,9 @@ jobs:
         run: npm test
 
       - name: Build the Tauri bundles
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri:build -- --bundles ${{ matrix.bundles }}
 
       - uses: actions/upload-artifact@v4

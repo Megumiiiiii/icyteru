@@ -11,6 +11,8 @@
     "core:window:allow-unminimize",
     "notification:default",
     "dialog:allow-save",
-    "opener:default"
+    "opener:default",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

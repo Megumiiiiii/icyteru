@@ -50,9 +50,9 @@
     ],
     "category": "Productivity",
     "shortDescription": "Desktop client for a Hermes Agent gateway",
-    "copyright": "Copyright © 2026 Megumiiiiii",
+    "copyright": "Copyright \u00a9 2026 Megumiiiiii",
     "publisher": "Megumiiiiii",
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "macOS": {
       "minimumSystemVersion": "11.0",
       "hardenedRuntime": true,
@@ -66,6 +66,15 @@
         "installMode": "currentUser",
         "displayLanguageSelector": false
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/Megumiiiiii/icyteru/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg3NzhDMTY3NTdDN0FCNzUKUldSMXE4ZFhaOEY0aDFKVEZmOXNGbm1rZnZ5YlY1eGFLMWw0aUNsYzZzRy80eUlmNHpOOFlPN1cK"
     }
   }
 }

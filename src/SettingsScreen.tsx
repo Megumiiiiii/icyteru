@@ -394,6 +394,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
           </div>
           {approvalNote && <p className="hint">{approvalNote}</p>}
         </section>
+        <UpdateCard />
         <section>
           <h2>About</h2>
           <p>
@@ -401,6 +402,76 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
           </p>
         </section>
       </div>
+    </section>
+  )
+}
+
+
+type UpdateView =
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'current' }
+  | { kind: 'available'; version: string }
+  | { kind: 'downloading'; version: string; percent: number }
+  | { kind: 'installing'; version: string }
+  | { kind: 'error'; message: string }
+
+function UpdateCard() {
+  const desktop = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+  const [view, setView] = useState<UpdateView>({ kind: 'idle' })
+  const [note, setNote] = useState('')
+
+  if (!desktop) return null
+
+  const checkNow = () => {
+    setNote('')
+    setView({ kind: 'checking' })
+    void (async () => {
+      const mod = await import('./updater')
+      const next = await mod.checkForUpdate()
+      if (next.kind === 'available') setView({ kind: 'available', version: next.version })
+      else if (next.kind === 'current') setView({ kind: 'current' })
+      else if (next.kind === 'error') setView({ kind: 'error', message: next.message })
+      else setView({ kind: 'idle' })
+    })().catch(() => setView({ kind: 'error', message: 'Could not check for updates.' }))
+  }
+
+  const install = () => {
+    const version = view.kind === 'available' ? view.version : ''
+    setView({ kind: 'downloading', version, percent: 0 })
+    void (async () => {
+      const mod = await import('./updater')
+      const ok = await mod.installUpdate(percent => setView({ kind: 'downloading', version, percent }))
+      if (!ok) {
+        setView({ kind: 'error', message: 'The update did not install. Try again in a moment.' })
+        return
+      }
+      setView({ kind: 'installing', version })
+      setNote('Restarting into the new version…')
+      await mod.restartIntoUpdate()
+    })().catch(() => setView({ kind: 'error', message: 'The update did not install.' }))
+  }
+
+  return (
+    <section>
+      <h2>Updates</h2>
+      <p className="hint">
+        Desktop only. Updates are signed by Icyteru's own key and downloaded from the GitHub release page.
+      </p>
+      <div className="row">
+        <button className="ghost" type="button" disabled={view.kind === 'checking' || view.kind === 'downloading' || view.kind === 'installing'} onClick={checkNow}>
+          {view.kind === 'checking' ? 'Checking…' : 'Check for updates'}
+        </button>
+        {view.kind === 'available' && (
+          <button className="solid" type="button" onClick={install}>Install {view.version}</button>
+        )}
+      </div>
+      {view.kind === 'current' && <p className="hint">You are on the latest version.</p>}
+      {view.kind === 'available' && <p className="hint">Version {view.version} is available.</p>}
+      {view.kind === 'downloading' && <p className="hint">Downloading {view.version}… {view.percent}%</p>}
+      {view.kind === 'installing' && <p className="hint">Installing {view.version}…</p>}
+      {view.kind === 'error' && <p className="hint">{view.message}</p>}
+      {note && <p className="hint">{note}</p>}
     </section>
   )
 }
