@@ -23,13 +23,25 @@ class SakugaTextarea extends fx.Base {
     textarea:disabled { opacity: .5; }`;
 
   get value() { return this.ta ? this.ta.value : this.getAttribute('value') || ''; }
-  set value(v) { if (this.ta) this.ta.value = v ?? ''; else this.setAttribute('value', v ?? ''); }
+  // Clearing the draft after a send happens through this setter, so the height
+  // has to be recomputed here or a long message leaves the box tall.
+  set value(v) {
+    if (!this.ta) {
+      this.setAttribute('value', v ?? '');
+      return;
+    }
+    if (this.ta.value !== (v ?? '')) this.ta.value = v ?? '';
+    this.grow();
+  }
   get disabled() { return this.hasAttribute('disabled'); }
   set disabled(v) { this.toggleAttribute('disabled', !!v); }
 
   attributeChangedCallback(name, _old, value) {
     if (!this.ta) return;
-    if (name === 'value') this.value = value ?? '';
+    if (name === 'value') {
+      this.value = value ?? '';
+      this.grow();
+    }
     else if (name === 'disabled') this.ta.disabled = this.disabled;
     else if (name === 'placeholder') this.ta.placeholder = value ?? '';
     else if (name === 'label') this.ta.setAttribute('aria-label', value || 'Message');
