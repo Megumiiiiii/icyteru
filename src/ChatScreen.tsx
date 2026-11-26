@@ -375,8 +375,9 @@ function MediaAttachment({ path, name, image, src }: IncomingAttachment & { src?
   return <span className="incoming-file">{name}</span>
 }
 
-export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
+export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onToggleLeft }: {
   snapshot: Snapshot
+  hidden?: boolean
   leftHidden?: boolean
   onToggleLeft?: () => void
 }) {
@@ -605,6 +606,7 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
   }, [sendActions])
 
   useEffect(() => {
+    if (hidden) return
     const onBack = (event: Event) => {
       if (queueOpen) {
         event.preventDefault()
@@ -618,7 +620,7 @@ export function ChatScreen({ snapshot, leftHidden = false, onToggleLeft }: {
     }
     window.addEventListener('icyteru:back', onBack)
     return () => window.removeEventListener('icyteru:back', onBack)
-  }, [queueOpen, sendActions])
+  }, [hidden, queueOpen, sendActions])
 
   // Compression is one long gateway call, so keep a local status bar alive:
   // the backend does not stream a percentage, but elapsed time and phase are real.
@@ -2108,6 +2110,8 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
   const activeSessionRunning = snapshot.transcript.streaming
     || snapshot.transcript.messages.some(message => message.tools.some(tool => tool.status === 'running'))
     || snapshot.subagents.some(item => !isTerminalSubagentStatus(item.status))
+  const isSessionRunning = (session: SessionRow) =>
+    session.id === snapshot.activeSessionId ? activeSessionRunning : session.running
   const sessions = snapshot.sessions.filter(session => `${session.title} ${session.preview} ${session.source}`.toLowerCase().includes(needle))
   const bySource = new Map<string, typeof sessions>()
   for (const session of sessions) {
@@ -2206,6 +2210,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
             {sessions.length === 0 && <p className="empty-list">No chats for {snapshot.profileName} yet. Telegram and Discord chats show up here when Hermes has them.</p>}
             {groups.map(([label, group]) => {
               const open = openGroups.has(label)
+              const groupRunning = group.some(isSessionRunning)
               return (
                 <div
                   className={`session-group${draggingGroup === label ? ' dragging' : ''}${dropTarget === label ? ' drop-target' : ''}`}
@@ -2239,6 +2244,9 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
                       <span aria-hidden="true">⠿</span>
                     </button>
                     <span>{label}</span>
+                    {groupRunning && (
+                      <span className="dot session-group-dot" title="Active session in this group" aria-label="Active session in this group" />
+                    )}
                     <span className="session-group-count">{group.length}</span>
                     <i aria-hidden="true">›</i>
                   </div>
@@ -2300,7 +2308,7 @@ function SidePanel({ snapshot, pane, setPane, query, setQuery, onNotice }: {
                             onClick={() => { phone.setView('chat'); void window.icyteru.openSession(session.id) }}
                           >
                             <span className="session-title">
-                              {(session.id === snapshot.activeSessionId ? activeSessionRunning : session.running) && (
+                              {isSessionRunning(session) && (
                                 <i className="dot" title="Session is running" aria-label="Session is running" />
                               )}
                               {session.title}

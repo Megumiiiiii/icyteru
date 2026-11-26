@@ -963,6 +963,7 @@ test('disconnect stops polling and clears ephemeral session state', () => {
   c.socket = { close() {} }
   c.queuePoll = setInterval(() => undefined, 10000)
   c.clarifyPoll = setInterval(() => undefined, 10000)
+  c.sessionPoll = setInterval(() => undefined, 10000)
   c.disconnect()
   assert.equal(c.live, null)
   assert.equal(c.transcript.messages.length, 0)
@@ -972,4 +973,86 @@ test('disconnect stops polling and clears ephemeral session state', () => {
   assert.equal(c.question, null)
   assert.equal(c.queuePoll, null)
   assert.equal(c.clarifyPoll, null)
+  assert.equal(c.sessionPoll, null)
+})
+
+test('selectProfile keeps the open session when the active profile is clicked again', async () => {
+  const c = client()
+  c.gateways = [{ id: 'primary', url: 'http://gw' }]
+  c.profiles = [{ gatewayId: 'primary', name: 'rin', label: 'Rin' }]
+  c.activeGatewayId = 'primary'
+  c.activeProfile = 'rin'
+  c.live = live('s-open')
+  c.sessions = [{ id: 's-open', title: 'Open chat', running: false }]
+  c.socket = { isOpen: true }
+  let reset = false
+  c.newChat = async () => { reset = true }
+  await c.selectProfile('primary', 'rin')
+  assert.equal(reset, false)
+  assert.equal(c.live.stored, 's-open')
+  assert.equal(c.sessions.length, 1)
+})
+
+test('connect restores the remembered profile along with the active session', async () => {
+  const store = new Map<string, string>()
+  ;(globalThis as unknown as { localStorage: Storage }).localStorage = {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => { store.set(key, value) },
+    removeItem: (key: string) => { store.delete(key) },
+    clear: () => store.clear(),
+    key: () => null,
+    length: 0
+  } as Storage
+  store.set('icyteru.active-session.v1', JSON.stringify({ url: 'http://gw', id: 'stored-rin', profile: 'rin' }))
+  const c = client()
+  c.baseUrl = ''
+  c.live = null
+  c.activeProfile = 'default'
+  let restoredProfile = ''
+  let opened = ''
+  c.connectInner = async (_url: string, _creds: unknown, _extras: unknown, profile?: string) => {
+    restoredProfile = profile || ''
+  }
+  c.openSession = async (id: string) => { opened = id }
+  await c.connect('http://gw', { token: 't' })
+  assert.equal(restoredProfile, 'rin')
+  assert.equal(opened, 'stored-rin')
+  delete (globalThis as unknown as { localStorage?: Storage }).localStorage
+})
+
+test('session.info and refreshLiveSessions keep background activity dots in sync', async () => {
+  let emits = 0
+  const c = new HermesClient(() => { emits += 1 }) as unknown as AnyClient
+  c.live = live('s1')
+  c.socket = { isOpen: true }
+  c.transcript = { messages: [], streaming: false }
+  c.sessions = [
+    { id: 's1', title: 'Active', preview: '', source: 'local', model: '', updatedAt: 2, messageCount: 2, running: false, pinned: false },
+    { id: 'tg-1', title: 'Telegram', preview: '', source: 'telegram', model: '', updatedAt: 1, messageCount: 4, running: false, pinned: false }
+  ]
+  c.onEvent({ type: 'session.info', session_id: 'tg-1', payload: { running: true } })
+  assert.equal(c.transcript.streaming, false)
+  assert.equal(c.sessions.find((row: { id: string }) => row.id === 'tg-1').running, true)
+
+  const before = emits
+  c.listSessions = async () => ({
+    ok: true,
+    value: {
+      sessions: [
+        { session_id: 'tg-1', title: 'Telegram', source: 'telegram', last_active_at: 3, message_count: 5, running: true }
+      ]
+    }
+  })
+  await c.refreshLiveSessions()
+  assert.equal(c.sessions.find((row: { id: string }) => row.id === 'tg-1').running, true)
+  assert.ok(emits > before)
+
+  const afterRunning = emits
+  await c.refreshLiveSessions()
+  assert.equal(emits, afterRunning, 'unchanged poll should not emit extra snapshots')
+
+  c.listSessions = async () => ({ ok: true, value: { sessions: [] } })
+  await c.refreshLiveSessions()
+  assert.equal(c.sessions.find((row: { id: string }) => row.id === 'tg-1').running, false)
+  assert.ok(emits > afterRunning)
 })

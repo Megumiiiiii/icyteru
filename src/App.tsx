@@ -240,7 +240,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
         ? <ConnectScreen snapshot={snapshot} />
         : (
           <PhoneNav.Provider value={{ view: phoneView, setView: setPhoneView }}>
-          <div className={`shell ${leftOpen ? '' : 'left-hidden'}`} data-phone={phoneView} style={shellStyle}>
+          <div className={`shell ${leftOpen ? '' : 'left-hidden'}${snapshot.screen === 'settings' ? ' in-settings' : ''}`} data-phone={phoneView} style={shellStyle}>
             <div
               className="resize-handle resize-left"
               role="separator"
@@ -249,9 +249,10 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
               onPointerDown={event => startResize('left', event)}
             />
             <Sidebar snapshot={snapshot} title={leftTitle} muted={muted} onMuted={setMuted} />
-            {snapshot.screen === 'settings'
-              ? <SettingsScreen snapshot={snapshot} appearance={appearance} onAppearance={setAppearance} leftTitle={leftTitle} onLeftTitle={changeLeftTitle} />
-              : <ChatScreen snapshot={snapshot} leftHidden={!leftOpen} onToggleLeft={() => setLeftOpen(open => !open)} />}
+            {snapshot.screen === 'settings' && (
+              <SettingsScreen snapshot={snapshot} appearance={appearance} onAppearance={setAppearance} leftTitle={leftTitle} onLeftTitle={changeLeftTitle} />
+            )}
+            <ChatScreen snapshot={snapshot} hidden={snapshot.screen === 'settings'} leftHidden={!leftOpen} onToggleLeft={() => setLeftOpen(open => !open)} />
             <div
               className="resize-handle resize-right"
               role="separator"
@@ -378,7 +379,7 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
                 onClick={() => {
                   phone.setView('chat')
                   if (snapshot.screen === 'settings') void window.icyteru.showScreen('chat')
-                  void window.icyteru.selectProfile(profile.gatewayId, profile.name)
+                  if (!selected) void window.icyteru.selectProfile(profile.gatewayId, profile.name)
                 }}
               >
                 <Avatar label={profile.label} initial={profile.initial} src={profile.avatar} />

@@ -84,6 +84,7 @@ const ACTIVE_SESSION_KEY = 'icyteru.active-session.v1'
 interface RememberedSession {
   url: string
   id: string
+  profile?: string
 }
 
 export interface GatewayRef {
@@ -123,6 +124,8 @@ export class HermesClient {
   private queuePolling = false
   private clarifyPoll: ReturnType<typeof setInterval> | null = null
   private clarifyPolling = false
+  private sessionPoll: ReturnType<typeof setInterval> | null = null
+  private sessionPolling = false
   private subagentPoll: ReturnType<typeof setInterval> | null = null
   private subagentPolling = false
   private subagentEmptyPolls = 0
@@ -266,7 +269,11 @@ export class HermesClient {
     try {
       const parsed = JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) || '') as Partial<RememberedSession>
       return typeof parsed.url === 'string' && typeof parsed.id === 'string' && parsed.id
-        ? { url: parsed.url, id: parsed.id }
+        ? {
+          url: parsed.url,
+          id: parsed.id,
+          ...(typeof parsed.profile === 'string' && parsed.profile ? { profile: parsed.profile } : {})
+        }
         : null
     } catch {
       return null
@@ -276,7 +283,11 @@ export class HermesClient {
   private rememberSession(id: string): void {
     if (!id || !this.baseUrl || typeof localStorage === 'undefined') return
     try {
-      localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify({ url: this.baseUrl, id }))
+      localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify({
+        url: this.baseUrl,
+        id,
+        ...(this.activeProfile ? { profile: this.activeProfile } : {})
+      }))
     } catch {
       // Private mode/quota: reconnect still works in-memory.
     }
@@ -293,15 +304,22 @@ export class HermesClient {
     // localStorage too: Android can recreate the WebView while the socket is
     // down, losing the in-memory live id.
     const remembered = this.rememberedSession()
-    const sessionToRestore = this.live && this.sameGateway(this.baseUrl, baseUrl)
-      ? (this.live.stored || this.live.live)
-      : remembered && this.sameGateway(remembered.url, baseUrl)
-        ? remembered.id
+    const sameLive = Boolean(this.live && this.sameGateway(this.baseUrl, baseUrl))
+    const sameRemembered = Boolean(!sameLive && remembered && this.sameGateway(remembered.url, baseUrl))
+    const sessionToRestore = sameLive
+      ? (this.live!.stored || this.live!.live)
+      : sameRemembered
+        ? remembered!.id
         : ''
+    const profileToRestore = sameLive
+      ? this.activeProfile
+      : sameRemembered && remembered?.profile
+        ? remembered.profile
+        : this.activeProfile
     this.reconnecting = true
     this.reconnectMerge = Boolean(this.baseUrl && this.sameGateway(this.baseUrl, baseUrl) && this.sessions.length > 0)
     try {
-      await this.connectInner(baseUrl, creds, extras)
+      await this.connectInner(baseUrl, creds, extras, profileToRestore)
       if (sessionToRestore) {
         await this.openSession(sessionToRestore).catch(() => undefined)
       }
@@ -311,8 +329,7 @@ export class HermesClient {
     }
   }
 
-  private async connectInner(baseUrl: string, creds: ConnectionCredentials, extras: GatewayInput[] = []): Promise<void> {
-    const previousProfile = this.activeProfile
+  private async connectInner(baseUrl: string, creds: ConnectionCredentials, extras: GatewayInput[] = [], previousProfile = this.activeProfile): Promise<void> {
     this.disconnect()
     const discovery = await this.discover(baseUrl)
     if (!discovery.ok) throw new Error(discovery.message)
@@ -337,6 +354,7 @@ export class HermesClient {
     await this.refreshSideData()
     await this.refreshSessions()
     this.startClarifyPolling()
+    this.startSessionPolling()
     this.resumeQueuePolling()
   }
 
@@ -433,6 +451,9 @@ export class HermesClient {
     const gateway = this.gateways.find(item => item.id === gatewayId)
     const profile = this.profiles.find(item => item.gatewayId === gatewayId && item.name === name)
     if (!gateway || !profile) throw new Error('That Hermes profile is not on this gateway.')
+    if (this.activeGatewayId === gateway.id && this.activeProfile === profile.name && this.socket?.isOpen) {
+      return
+    }
     if (this.activeGatewayId !== gateway.id || !this.socket?.isOpen) {
       await this.activateGateway(gateway)
     }
@@ -504,6 +525,9 @@ export class HermesClient {
     if (this.clarifyPoll) clearInterval(this.clarifyPoll)
     this.clarifyPoll = null
     this.clarifyPolling = false
+    if (this.sessionPoll) clearInterval(this.sessionPoll)
+    this.sessionPoll = null
+    this.sessionPolling = false
     this.stopSubagentPolling()
     this.remoteClarifies = []
     this.remoteApprovals = []
@@ -522,6 +546,44 @@ export class HermesClient {
     this.clarifyPoll = setInterval(() => {
       void this.refreshRemotePrompts()
     }, 4000)
+  }
+
+  /**
+   * Poll the live session feed so History activity dots appear and clear for
+   * background sessions (Telegram, Discord, other local tabs) without waiting
+   * for a turn to finish.
+   */
+  private startSessionPolling(): void {
+    if (this.sessionPoll) return
+    this.sessionPoll = setInterval(() => {
+      void this.refreshLiveSessions()
+    }, 5000)
+    ;(this.sessionPoll as unknown as { unref?: () => void }).unref?.()
+  }
+
+  private async refreshLiveSessions(): Promise<void> {
+    if (this.sessionPolling || this.reconnecting || !this.socket?.isOpen) return
+    this.sessionPolling = true
+    const profile = this.activeProfile
+    const gatewayId = this.activeGatewayId
+    const epoch = this.profileEpoch
+    try {
+      const params = this.listStyle === 'picker' ? { limit: 200, picker: true } : { limit: 200 }
+      const listed = await this.listSessions(params)
+      if (!listed.ok) return
+      if (this.activeProfile !== profile || this.activeGatewayId !== gatewayId || this.profileEpoch !== epoch) return
+      const liveRows = sortSessions(normalizeSessions(listed.value))
+      const merged = sortSessions(mergeSessionRows(this.sessions, liveRows))
+      const next = this.clearUnconfirmedRunning(merged, liveRows)
+      if (!sessionsActivityEqual(this.sessions, next)) {
+        this.sessions = next
+        this.emit()
+      }
+    } catch {
+      // Transient poll errors never clear the working History list.
+    } finally {
+      this.sessionPolling = false
+    }
   }
 
   private startSubagentPolling(): void {
@@ -793,8 +855,8 @@ export class HermesClient {
         const rest = await this.getJson(this.profileApiPath('/api/sessions?limit=200&order=recent')).catch(() => null)
         if (!current()) return
         const restRows = rest ? sortSessions(normalizeSessions(rest)) : []
-        this.sessions = sortSessions(mergeSessionRows(this.sessions, [...liveRows, ...jobs, ...this.missingSessionRows(restRows)]))
-        if (live.ok) this.sessions = this.clearUnconfirmedRunning(this.sessions, liveRows)
+        this.sessions = sortSessions(mergeSessionRows(this.sessions, [...jobs, ...this.missingSessionRows(restRows), ...liveRows]))
+        if (live.ok) this.sessions = this.clearUnconfirmedRunning(this.sessions, liveRows, jobs)
         this.applyActiveSessionModel()
         this.emit()
         return
@@ -833,9 +895,25 @@ export class HermesClient {
   }
 
   /** A row not present in the live page must not keep an old running dot. */
-  private clearUnconfirmedRunning(rows: SessionRow[], liveRows: SessionRow[]): SessionRow[] {
+  private clearUnconfirmedRunning(rows: SessionRow[], liveRows: SessionRow[], jobRows: SessionRow[] = []): SessionRow[] {
     const confirmed = new Set(liveRows.map(row => row.id))
-    return rows.map(row => !confirmed.has(row.id) && row.running ? { ...row, running: false } : row)
+    for (const row of jobRows) {
+      if (row.running) confirmed.add(row.id)
+    }
+    return rows.map(row => !confirmed.has(row.id) && row.running && row.source !== 'oneshot' ? { ...row, running: false } : row)
+  }
+
+  /** Update the running dot on matching session rows without rebuilding unrelated state. */
+  private setSessionRunning(ids: Array<string | undefined>, running: boolean): boolean {
+    const targets = new Set(ids.filter((id): id is string => Boolean(id)))
+    if (!targets.size) return false
+    let changed = false
+    this.sessions = this.sessions.map(row => {
+      if (!targets.has(row.id) || row.running === running) return row
+      changed = true
+      return { ...row, running }
+    })
+    return changed
   }
 
   /** REST-only rows (for example a closed local session the viewer picker omits). */
@@ -902,8 +980,11 @@ export class HermesClient {
     const rawRows = Array.isArray(body.messages) ? body.messages : null
     const messages = displayRows ?? rawRows
     this.transcript = historyFromRows(messages, displayRows && rawRows ? rawRows : undefined)
-    if (typeof body.running === 'boolean') this.transcript = { ...this.transcript, streaming: body.running }
-    if (body.running === false) this.markSessionIdle()
+    if (typeof body.running === 'boolean') {
+      this.transcript = { ...this.transcript, streaming: body.running }
+      if (body.running) this.setSessionRunning([id, stored, ids.live], true)
+      else this.markSessionIdle()
+    }
     const info = asRecord(body.info)
     const infoModel = typeof info.model === 'string' && info.model ? info.model : ''
     const infoProvider = typeof info.provider === 'string' && info.provider ? info.provider : ''
@@ -1092,6 +1173,7 @@ export class HermesClient {
         : {})
     }))
     this.transcript = appendUser(this.transcript, body, `local-${submissionId}`, displayAttachments)
+    this.setSessionRunning([this.live!.live, this.live!.stored], true)
     this.emit()
     try {
       const liveId = this.live!.live
@@ -1114,6 +1196,7 @@ export class HermesClient {
         streaming: false,
         messages: this.transcript.messages.map(item => item.id === `local-${submissionId}` ? { ...item, error: message } : item)
       }
+      this.setSessionRunning([this.live?.live, this.live?.stored], false)
       this.emit()
       throw error
     }
@@ -2064,15 +2147,18 @@ export class HermesClient {
       // The authoritative turn state. A tool-call preamble can emit
       // `message.complete` while the agent keeps working; a matching
       // session.info with running=true must keep the working/Stop UI alive.
-      if (!this.live || !matchesActive) return
       const payload = asRecord(event.payload)
+      if (!this.live || !matchesActive) {
+        if (typeof sessionId === 'string' && sessionId && typeof payload.running === 'boolean') {
+          if (this.setSessionRunning([sessionId], payload.running)) this.emit()
+        }
+        return
+      }
       if (typeof event.execution_generation === 'number') this.executionGeneration = event.execution_generation
       if (typeof payload.revision === 'number') this.revision = payload.revision
       if (typeof payload.running === 'boolean') {
         this.transcript = { ...this.transcript, streaming: payload.running }
-        this.sessions = this.sessions.map(row =>
-          row.id === this.live?.live || row.id === this.live?.stored ? { ...row, running: payload.running as boolean } : row
-        )
+        this.setSessionRunning([this.live.live, this.live.stored], payload.running)
       }
       this.emit()
       return
@@ -2293,6 +2379,23 @@ function estimateContextTokens(rows: unknown[]): number {
     if (Array.isArray(record.tool_calls)) chars += JSON.stringify(record.tool_calls).length
   }
   return Math.max(0, Math.round(chars / 4))
+}
+
+function sessionsActivityEqual(a: SessionRow[], b: SessionRow[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i]
+    const right = b[i]
+    if (
+      left.id !== right.id
+      || left.running !== right.running
+      || left.title !== right.title
+      || left.messageCount !== right.messageCount
+      || left.updatedAt !== right.updatedAt
+      || left.pinned !== right.pinned
+    ) return false
+  }
+  return true
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

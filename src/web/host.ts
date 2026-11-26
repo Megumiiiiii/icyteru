@@ -198,7 +198,7 @@ async function ensureConnected(): Promise<void> {
   if (!saved.url || reconnecting || phase === 'connecting' || client.state.connected) return
   reconnecting = true
   try {
-    await connectSaved()
+    await connectSaved(true)
   } finally {
     reconnecting = false
   }
@@ -239,14 +239,14 @@ async function syncPushToken(): Promise<void> {
   }
 }
 
-async function connectSaved(): Promise<void> {
+async function connectSaved(preserveScreen = false): Promise<void> {
   if (!saved.url) {
     screen = 'connect'
     phase = 'idle'
     publish()
     return
   }
-  screen = 'chat'
+  if (!preserveScreen || screen === 'connect') screen = 'chat'
   phase = 'connecting'
   error = ''
   status = 'Connecting to Hermes…'

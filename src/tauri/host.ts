@@ -173,7 +173,7 @@ async function ensureConnected(): Promise<void> {
   if (!saved.url || reconnecting || phase === 'connecting' || client.state.connected) return
   reconnecting = true
   try {
-    await connectSaved()
+    await connectSaved(true)
   } finally {
     reconnecting = false
   }
@@ -202,14 +202,14 @@ function noteFeedEvent(sessionId: string): void {
   void client.refreshSessions().catch(() => undefined)
 }
 
-async function connectSaved(): Promise<void> {
+async function connectSaved(preserveScreen = false): Promise<void> {
   if (!saved.url) {
     screen = 'connect'
     phase = 'idle'
     publish()
     return
   }
-  screen = 'chat'
+  if (!preserveScreen || screen === 'connect') screen = 'chat'
   phase = 'connecting'
   error = ''
   status = 'Connecting to Hermes…'
@@ -469,7 +469,10 @@ export async function installTauriHost(): Promise<void> {
       await client.newChat()
       void syncFeedSession()
     },
-    sendMessage: async (text: string, attachments?: OutgoingAttachment[]) => client.send(text, attachments),
+    sendMessage: async (text: string, attachments?: OutgoingAttachment[]) => {
+      await client.send(text, attachments)
+      void syncFeedSession()
+    },
     steer: async (text: string) => client.steer(text),
     queue: async (text: string, attachments?: OutgoingAttachment[]) => client.queue(text, attachments),
     deleteQueued: async (id: string) => client.deleteQueued(id),
@@ -497,7 +500,10 @@ export async function installTauriHost(): Promise<void> {
     cancelSessionModel: () => client.cancelSessionModel(),
     setReasoning: (value: string) => client.setReasoning(value),
     setGlobalReasoning: (value: string) => client.setGlobalReasoning(value),
-    selectProfile: (gatewayId: string, name: string) => client.selectProfile(gatewayId, name),
+    selectProfile: async (gatewayId: string, name: string) => {
+      await client.selectProfile(gatewayId, name)
+      void syncFeedSession()
+    },
     setPinned: (gatewayId: string, name: string, pinned: boolean) => client.setPinned(gatewayId, name, pinned),
     setProfileHidden: (gatewayId: string, name: string, hidden: boolean) => client.setProfileHidden(gatewayId, name, hidden),
     createProfile: (label: string) => client.createProfile(label),
