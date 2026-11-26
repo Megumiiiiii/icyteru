@@ -32,7 +32,7 @@ jobs:
             artifacts: |
               src-tauri/target/release/bundle/deb/*.deb
               src-tauri/target/release/bundle/appimage/*.AppImage
-          - os: macos-14
+          - os: macos-latest
             name: macos
             bundles: dmg
             artifacts: src-tauri/target/release/bundle/dmg/*.dmg
