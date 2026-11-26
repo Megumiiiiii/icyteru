@@ -37,7 +37,11 @@ function syncTauri(version) {
 
   if (fs.existsSync(cargoLockPath)) {
     const lock = fs.readFileSync(cargoLockPath, 'utf8')
-    const nextLock = lock.replace(/(name = "icyteru-desktop"\nversion = ")[^"]+(")/, `$1${version}$2`)
+    // Windows checkouts hand us CRLF, so never match on a bare \n.
+    const nextLock = lock.replace(
+      /(name = "icyteru-desktop"\r?\nversion = ")[^"]+(")/,
+      `$1${version}$2`
+    )
     if (nextLock !== lock) fs.writeFileSync(cargoLockPath, nextLock)
   }
 }
@@ -142,7 +146,9 @@ function check() {
   }
   if (fs.existsSync(cargoLockPath)) {
     const cargoLock = fs.readFileSync(cargoLockPath, 'utf8')
-    if (!new RegExp(`name = "icyteru-desktop"\\nversion = "${version.replace(/\./g, '\\.')}"`).test(cargoLock)) {
+    const block = cargoLock.split('[[package]]').find(section => section.includes('name = "icyteru-desktop"')) || ''
+    const found = /version = "([^"]+)"/.exec(block)?.[1]
+    if (found !== version) {
       problems.push(`src-tauri/Cargo.lock icyteru-desktop version must be ${version}`)
     }
   }
