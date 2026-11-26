@@ -1,3 +1,28 @@
+## v0.0.91
+
+### Fixed
+
+- **Windows notifications open Icyteru again.** Toasts now use protocol activation
+  (`icyteru://open?session=…`, registered per user) so a click from Notification
+  Center focuses the window and opens the session, including after the app was
+  closed to the tray. In-process activation never fired for unpackaged builds,
+  which is why the old trade-off existed.
+- The gateway socket no longer sits dead: a heartbeat that misses two pings
+  closes the socket, and reconnects back off 2s→30s without retrying an auth
+  failure forever.
+- The transcript follows the keyboard on Android (`visualViewport` resize) while
+  the reader is at the bottom.
+
+### Added
+
+- Settings remembers window size, position and maximised state, restoring them
+  only when that monitor still exists.
+- A background update check runs once shortly after launch and marks the Settings
+  gear with a dot when a new version is out.
+- Settings → **Background connection** toggles the Android foreground service.
+- Android release builds enable R8 and resource shrinking (APK ~5.9 MB → 3.45 MB)
+  with keep rules for Capacitor, the Java plugins and the app package.
+
 ## v0.0.90
 
 ### Added
