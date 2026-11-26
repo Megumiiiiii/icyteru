@@ -880,15 +880,17 @@ html[data-backdrop="kraft"] .sky-dim { opacity: 0; }
   display: flex;
   flex-direction: column;
   gap: 4px;
-  opacity: 0;
-  pointer-events: none;
+  /* Always clickable: a rail that only exists on hover cannot be reached,
+     because leaving the bubble hides it before the cursor arrives. */
+  opacity: 0.55;
   transition: opacity 0.14s ease;
   z-index: 3;
 }
-.bubble.assistant .msg-actions { right: -34px; align-items: flex-start; }
-.bubble.user .msg-actions { left: -34px; align-items: flex-end; }
+.bubble.assistant .msg-actions { right: -26px; align-items: flex-start; }
+.bubble.user .msg-actions { left: -26px; align-items: flex-end; }
 .bubble:hover .msg-actions,
-.bubble:focus-within .msg-actions { opacity: 1; pointer-events: auto; }
+.msg-actions:hover,
+.bubble:focus-within .msg-actions { opacity: 1; }
 .msg-action,
 .msg-reaction {
   width: 26px;
@@ -934,7 +936,7 @@ html[data-backdrop="kraft"] .sky-dim { opacity: 0; }
 }
 .msg-react-menu button:hover { background: var(--bg); }
 @media (pointer: coarse) {
-  .msg-actions { opacity: 1; pointer-events: auto; }
+  .msg-actions { opacity: 1; }
   .msg-action, .msg-reaction { width: 32px; height: 32px; }
 }
 
