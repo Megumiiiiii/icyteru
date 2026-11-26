@@ -900,16 +900,16 @@ html[data-backdrop="kraft"] .sky-dim { opacity: 0; }
   place-items: center;
   padding: 0;
   border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel);
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--muted);
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
 }
 .msg-action:hover,
-.msg-reaction:hover { color: var(--ink); border-color: var(--accent); }
-.msg-reaction { font-size: 14px; background: var(--surface); }
+.msg-reaction:hover { color: var(--ink); border-color: transparent; }
+.msg-reaction { font-size: 14px; background: transparent; }
 .msg-react-menu {
   position: absolute;
   top: 50%;
@@ -1942,6 +1942,23 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 .sakuga-toggle-row { margin-top: 14px; }
 .sakuga-progress-wrap { width: 100%; overflow: visible; padding: 2px 0; }
+/* Update download: plain bar when Sakuga is off. */
+.update-progress {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  margin: 10px 0 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.update-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.18s ease;
+}
 .compress-bar, .subagent-detail { overflow: visible; }
 
 :root[data-sakuga="1"] button {

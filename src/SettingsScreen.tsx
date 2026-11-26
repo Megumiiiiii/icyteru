@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
 import { SakugaField } from './SakugaField'
 import { isSakugaEnabled, setSakugaEnabled } from './sakuga'
+import { SakugaProgressBar, useSakugaEnabled } from './SakugaProgressBar'
 import { APP_VERSION } from './version'
 import { autoFocusSearch, findModelChoiceIndex } from '../shared/model-choice'
 import type { AuthMode, FallbackModelEntry, ModelChoice } from '../shared/protocol'
@@ -418,6 +419,7 @@ type UpdateView =
 
 function UpdateCard() {
   const desktop = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+  const sakuga = useSakugaEnabled()
   const [view, setView] = useState<UpdateView>({ kind: 'idle' })
   const [note, setNote] = useState('')
 
@@ -468,6 +470,22 @@ function UpdateCard() {
       </div>
       {view.kind === 'current' && <p className="hint">You are on the latest version.</p>}
       {view.kind === 'available' && <p className="hint">Version {view.version} is available.</p>}
+      {view.kind === 'downloading' && (
+        sakuga ? (
+          <SakugaProgressBar value={view.percent / 100} label={`Downloading ${view.version}`} />
+        ) : (
+          <div
+            className="update-progress"
+            role="progressbar"
+            aria-label={`Downloading ${view.version}`}
+            aria-valuenow={view.percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <span style={{ width: `${view.percent}%` }} />
+          </div>
+        )
+      )}
       {view.kind === 'downloading' && <p className="hint">Downloading {view.version}… {view.percent}%</p>}
       {view.kind === 'installing' && <p className="hint">Installing {view.version}…</p>}
       {view.kind === 'error' && <p className="hint">{view.message}</p>}
