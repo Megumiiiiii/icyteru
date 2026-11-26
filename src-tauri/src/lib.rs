@@ -1,6 +1,7 @@
 mod bridge;
 mod feed;
 mod files;
+mod toast;
 mod vault;
 mod window;
 
@@ -45,6 +46,9 @@ pub fn run() {
             feed::feed_set_active_session,
             window::get_close_behavior,
             window::set_close_behavior,
+            toast::toast_activate,
+            toast::toast_dismiss,
+            toast::toast_current,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Icyteru Canary");

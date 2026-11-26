@@ -9,7 +9,6 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_notification::NotificationExt;
 use tokio::sync::oneshot;
 
 #[derive(Default)]
@@ -126,16 +125,14 @@ pub fn feed_start(
                     continue;
                 }
                 let body = entry.body.chars().take(240).collect::<String>();
-                let _ = app
-                    .notification()
-                    .builder()
-                    .title(if entry.title.is_empty() {
-                        "Icyteru"
-                    } else {
-                        &entry.title
-                    })
-                    .body(&body)
-                    .show();
+                let title = if entry.title.is_empty() {
+                    "Icyteru".to_string()
+                } else {
+                    entry.title.clone()
+                };
+                // Our own card: a Windows toast from an unpackaged app cannot
+                // report the click, and a notification you cannot open is noise.
+                crate::toast::show(&app, &title, &body, &entry.session_id);
                 *pending.lock().unwrap_or_else(|error| error.into_inner()) =
                     Some(entry.session_id.clone());
                 let _ = app.emit(

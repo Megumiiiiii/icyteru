@@ -73,7 +73,7 @@ async def feed_events(request):
     events = []
     if FEED_STARTED % 3 == 0:
         events.append({
-            "session_id": "smoke-session-1",
+            "session_id": "smoke-other-session",
             "title": "Hermes",
             "body": f"smoke event {FEED_STARTED}",
             "at": since + 1,

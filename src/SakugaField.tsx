@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { ensureSakugaElement, sakugaElementReady } from './sakuga-ui'
 
 /**
@@ -49,6 +49,7 @@ export function SakugaField({ value, onChange, placeholder, label, type = 'text'
 
   return (
     <sakuga-input
+      style={{ '--sk-input-width': '100%' } as CSSProperties}
       ref={node => {
         ref.current = node as unknown as HTMLElement & { value: string } | null
       }}
