@@ -1,3 +1,19 @@
+## v0.0.89
+
+### Fixed
+
+- Chat no longer stutters while typing in a long conversation: the composer is
+  uncontrolled, growth is measured at most once per frame, and finished
+  messages, panels and markdown are memoized.
+- The native WebSocket bridge installs a single rustls provider at startup, so a
+  `wss://` gateway can no longer panic the handshake now that both `ring` and
+  `aws-lc-rs` are in the binary, and a stalled handshake gives up after 10s.
+
+### Changed
+
+- Backdrop layers (sky, petals) are cheaper to composite: capped device pixel
+  ratio, `contain: strict`, and fills instead of full-canvas rectangles.
+
 ## v0.0.88
 
 ### Added
