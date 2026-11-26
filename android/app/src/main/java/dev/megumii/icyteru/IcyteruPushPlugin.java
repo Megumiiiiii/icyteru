@@ -69,7 +69,9 @@ public class IcyteruPushPlugin extends Plugin {
         boolean active = Boolean.TRUE.equals(call.getBoolean("active", false));
         Intent service = new Intent(getContext(), IcyteruConnectionService.class);
         if (active) {
-            ContextCompat.startForegroundService(getContext(), service);
+            if (!IcyteruConnectionService.isRunning()) {
+                ContextCompat.startForegroundService(getContext(), service);
+            }
         } else {
             getContext().stopService(service);
         }

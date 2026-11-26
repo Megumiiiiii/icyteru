@@ -81,7 +81,7 @@ pub fn feed_start(
     let (stop, mut stopped) = oneshot::channel::<()>();
     *state.stop.lock().unwrap_or_else(|error| error.into_inner()) = Some(stop);
     let client = reqwest::Client::builder()
-        .user_agent("Icyteru-Canary")
+        .user_agent(format!("Icyteru/{}", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(15))
         .build()

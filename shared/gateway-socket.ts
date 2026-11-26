@@ -30,14 +30,28 @@ export interface RpcHandlers {
   onClose: (message: string) => void
 }
 
+export interface SocketOptions {
+  heartbeatMs?: number
+  pingTimeoutMs?: number
+  maxMissedPings?: number
+}
+
 export class HermesSocket {
   private socket: GatewayWebSocket | null = null
   private nextId = 1
   private readonly pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>()
   private heartbeat: ReturnType<typeof setInterval> | null = null
   private opened = false
+  private missedPings = 0
+  private readonly heartbeatMs: number
+  private readonly pingTimeoutMs: number
+  private readonly maxMissedPings: number
 
-  constructor(private readonly handlers: RpcHandlers) {}
+  constructor(private readonly handlers: RpcHandlers, options: SocketOptions = {}) {
+    this.heartbeatMs = options.heartbeatMs ?? 15000
+    this.pingTimeoutMs = options.pingTimeoutMs ?? 10000
+    this.maxMissedPings = options.maxMissedPings ?? 2
+  }
 
   connect(url: string, protocols: string[] = []): Promise<void> {
     this.close()
@@ -59,16 +73,29 @@ export class HermesSocket {
 
       socket.addEventListener('open', () => {
         this.opened = true
+        this.missedPings = 0
         clearTimeout(timer)
         if (!settled) {
           settled = true
           resolve()
         }
         this.heartbeat = setInterval(() => {
-          void this.request('gateway.ping', {}, 10000).catch(() => undefined)
-        }, 15000)
+          void this.request('gateway.ping', {}, this.pingTimeoutMs)
+            .then(() => {
+              this.missedPings = 0
+            })
+            .catch(() => {
+              if (this.socket !== socket || socket.readyState !== OPEN) return
+              this.missedPings += 1
+              if (this.missedPings >= this.maxMissedPings) {
+                this.stopHeartbeat()
+                socket.close()
+              }
+            })
+        }, this.heartbeatMs)
       })
       socket.addEventListener('message', event => {
+        this.missedPings = 0
         const data = event.data
         this.handleText(typeof data === 'string' ? data : String(data ?? ''))
       })

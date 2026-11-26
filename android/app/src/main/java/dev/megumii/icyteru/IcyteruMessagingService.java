@@ -34,6 +34,7 @@ public class IcyteruMessagingService extends FirebaseMessagingService {
 
     @Override
     public void onMessageReceived(RemoteMessage message) {
+        if (MainActivity.isVisible()) return;
         if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return;
 
         Map<String, String> data = message.getData();
@@ -54,7 +55,6 @@ public class IcyteruMessagingService extends FirebaseMessagingService {
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         if (sessionId != null && !sessionId.isEmpty()) {
             intent.putExtra("icyteru_session_id", sessionId);
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(SESSION_KEY, sessionId).apply();
         }
         PendingIntent pending = PendingIntent.getActivity(
                 this,

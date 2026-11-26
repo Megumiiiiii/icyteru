@@ -53,14 +53,24 @@ pub fn note_notification(app: &AppHandle, title: &str) {
 
 #[derive(Default)]
 pub struct WindowPrefs {
-    behavior: Mutex<Option<String>>,
+    stored: Mutex<Option<Stored>>,
     quitting: AtomicBool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 struct Stored {
     #[serde(default)]
     behavior: String,
+    #[serde(default)]
+    width: Option<u32>,
+    #[serde(default)]
+    height: Option<u32>,
+    #[serde(default)]
+    x: Option<i32>,
+    #[serde(default)]
+    y: Option<i32>,
+    #[serde(default)]
+    maximized: Option<bool>,
 }
 
 fn prefs_path(app: &AppHandle) -> Option<PathBuf> {
@@ -78,39 +88,135 @@ fn normalize(value: &str) -> String {
 }
 
 impl WindowPrefs {
+    fn load_locked<'a>(&self, app: &AppHandle, slot: &'a mut Option<Stored>) -> &'a mut Stored {
+        if slot.is_none() {
+            let mut stored = prefs_path(app)
+                .and_then(|path| fs::read(path).ok())
+                .and_then(|bytes| serde_json::from_slice::<Stored>(&bytes).ok())
+                .unwrap_or_default();
+            stored.behavior = normalize(&stored.behavior);
+            *slot = Some(stored);
+        }
+        slot.as_mut().expect("stored window prefs initialized")
+    }
+
+    fn write_disk(app: &AppHandle, stored: &Stored) -> Result<(), String> {
+        if let Some(path) = prefs_path(app) {
+            let payload = serde_json::to_vec_pretty(stored).map_err(|error| error.to_string())?;
+            fs::write(path, payload).map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+
     /// Read once, then keep in memory: the close handler runs on every click.
     fn behavior(&self, app: &AppHandle) -> String {
         let mut slot = self
-            .behavior
+            .stored
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        if let Some(value) = slot.as_ref() {
-            return value.clone();
-        }
-        let stored = prefs_path(app)
-            .and_then(|path| fs::read(path).ok())
-            .and_then(|bytes| serde_json::from_slice::<Stored>(&bytes).ok())
-            .map(|stored| normalize(&stored.behavior))
-            .unwrap_or_else(|| QUIT.to_string());
-        *slot = Some(stored.clone());
-        stored
+        self.load_locked(app, &mut slot).behavior.clone()
     }
 
     fn set(&self, app: &AppHandle, value: &str) -> Result<String, String> {
         let next = normalize(value);
-        if let Some(path) = prefs_path(app) {
-            let payload = serde_json::to_vec_pretty(&Stored {
-                behavior: next.clone(),
-            })
-            .map_err(|error| error.to_string())?;
-            fs::write(path, payload).map_err(|error| error.to_string())?;
-        }
+        let snapshot = {
+            let mut slot = self
+                .stored
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            let stored = self.load_locked(app, &mut slot);
+            stored.behavior = next.clone();
+            stored.clone()
+        };
+        Self::write_disk(app, &snapshot)?;
+        Ok(next)
+    }
+
+    fn snapshot(&self, app: &AppHandle) -> Stored {
         let mut slot = self
-            .behavior
+            .stored
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        *slot = Some(next.clone());
-        Ok(next)
+        self.load_locked(app, &mut slot).clone()
+    }
+
+    fn capture_window(&self, window: &tauri::Window, flush: bool) {
+        if window.is_minimized().unwrap_or(false) {
+            return;
+        }
+        let app = window.app_handle();
+        let maximized = window.is_maximized().unwrap_or(false);
+        let size = window.inner_size().ok();
+        let pos = window.outer_position().ok();
+        let snapshot = {
+            let mut slot = self
+                .stored
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            let stored = self.load_locked(app, &mut slot);
+            stored.maximized = Some(maximized);
+            if !maximized {
+                if let Some(size) = size {
+                    if size.width >= 400 && size.height >= 300 {
+                        stored.width = Some(size.width);
+                        stored.height = Some(size.height);
+                    }
+                }
+                if let Some(pos) = pos {
+                    if pos.x > -10_000 && pos.y > -10_000 {
+                        stored.x = Some(pos.x);
+                        stored.y = Some(pos.y);
+                    }
+                }
+            }
+            stored.clone()
+        };
+        if flush {
+            let _ = Self::write_disk(app, &snapshot);
+        }
+    }
+
+    fn flush(&self, app: &AppHandle) {
+        let snapshot = self.snapshot(app);
+        let _ = Self::write_disk(app, &snapshot);
+    }
+}
+
+pub fn restore_bounds(window: &tauri::WebviewWindow) {
+    let app = window.app_handle();
+    let Some(prefs) = app.try_state::<WindowPrefs>() else {
+        return;
+    };
+    let saved = prefs.snapshot(app);
+    if let (Some(width), Some(height)) = (saved.width, saved.height) {
+        if width >= 880 && height >= 620 {
+            let _ = window.set_size(tauri::PhysicalSize::new(width, height));
+        }
+    }
+    if let (Some(x), Some(y)) = (saved.x, saved.y) {
+        let on_screen = window
+            .available_monitors()
+            .ok()
+            .map(|monitors| {
+                monitors.is_empty()
+                    || monitors.iter().any(|monitor| {
+                        let origin = monitor.position();
+                        let size = monitor.size();
+                        let max_x = origin.x + size.width as i32;
+                        let max_y = origin.y + size.height as i32;
+                        x >= origin.x - 120
+                            && x <= max_x - 120
+                            && y >= origin.y - 40
+                            && y <= max_y - 120
+                    })
+            })
+            .unwrap_or(false);
+        if on_screen {
+            let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+        }
+    }
+    if saved.maximized == Some(true) {
+        let _ = window.maximize();
     }
 }
 
@@ -192,6 +298,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             "show" => show_main(app),
             "quit" => {
                 if let Some(state) = app.try_state::<WindowPrefs>() {
+                    state.flush(app);
                     state.quitting.store(true, Ordering::Relaxed);
                 }
                 app.exit(0);
@@ -220,7 +327,15 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
 /// notification into a session switch when the user comes back.
 pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
     match event {
+        WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
+            if let Some(prefs) = window.app_handle().try_state::<WindowPrefs>() {
+                prefs.capture_window(window, false);
+            }
+        }
         WindowEvent::CloseRequested { api, .. } => {
+            if let Some(prefs) = window.app_handle().try_state::<WindowPrefs>() {
+                prefs.capture_window(window, true);
+            }
             if intercept_close(window) {
                 api.prevent_close();
             }

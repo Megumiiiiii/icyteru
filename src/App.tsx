@@ -30,6 +30,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
     }
   })
   const [leftTitle, setLeftTitle] = useState(() => localStorage.getItem('icyteru-left-title') || 'Agents')
+  const [updateAvailable, setUpdateAvailable] = useState<string | null>(null)
   const [muted, setMuted] = useState(() => {
     try {
       // Older builds started muted; unmute once so desktop notifications are
@@ -66,6 +67,27 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   useEffect(() => {
     syncSakugaPalette(mode)
   }, [mode])
+  useEffect(() => {
+    if (!('__TAURI_INTERNALS__' in window)) return
+    let cancelled = false
+    let unsubscribe: (() => void) | null = null
+    const timer = window.setTimeout(() => {
+      void import('./updater').then(async mod => {
+        if (cancelled) return
+        const cached = mod.getCachedUpdate()
+        if (cached) setUpdateAvailable(cached.version)
+        unsubscribe = mod.subscribeUpdate(next => {
+          if (!cancelled) setUpdateAvailable(next ? next.version : null)
+        })
+        await mod.checkForUpdate()
+      }).catch(() => undefined)
+    }, 5000)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+      unsubscribe?.()
+    }
+  }, [])
   useEffect(() => {
     sizeRef.current = { left: leftWidth, right: rightWidth }
   }, [leftWidth, rightWidth])
@@ -248,7 +270,7 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
               aria-label="Resize agents panel"
               onPointerDown={event => startResize('left', event)}
             />
-            <Sidebar snapshot={snapshot} title={leftTitle} muted={muted} onMuted={setMuted} />
+            <Sidebar snapshot={snapshot} title={leftTitle} muted={muted} onMuted={setMuted} updateAvailable={updateAvailable} />
             {snapshot.screen === 'settings' && (
               <SettingsScreen snapshot={snapshot} appearance={appearance} onAppearance={setAppearance} leftTitle={leftTitle} onLeftTitle={changeLeftTitle} />
             )}
@@ -267,7 +289,13 @@ export function App({ snapshot }: { snapshot: Snapshot }) {
   )
 }
 
-function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; title: string; muted: boolean; onMuted: (muted: boolean) => void }) {
+function Sidebar({ snapshot, title, muted, onMuted, updateAvailable }: {
+  snapshot: Snapshot
+  title: string
+  muted: boolean
+  onMuted: (muted: boolean) => void
+  updateAvailable: string | null
+}) {
   const phone = useContext(PhoneNav)
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
@@ -446,8 +474,17 @@ function Sidebar({ snapshot, title, muted, onMuted }: { snapshot: Snapshot; titl
           </span>
           <span className="settings-label">Hidden</span>
         </button>
-        <button className="settings-link" onClick={() => { phone.setView('chat'); setHiddenOpen(false); void window.icyteru.showScreen('settings') }} type="button" aria-label="Settings">
-          <Gear />
+        <button
+          className="settings-link"
+          onClick={() => { phone.setView('chat'); setHiddenOpen(false); void window.icyteru.showScreen('settings') }}
+          type="button"
+          title={updateAvailable ? `Settings · Update ${updateAvailable} available` : 'Settings'}
+          aria-label={updateAvailable ? `Settings, update ${updateAvailable} available` : 'Settings'}
+        >
+          <span className="settings-gear-wrap">
+            <Gear />
+            {updateAvailable && <span className="update-dot" aria-hidden="true" />}
+          </span>
           <span className="settings-label">Settings</span>
         </button>
       </div>

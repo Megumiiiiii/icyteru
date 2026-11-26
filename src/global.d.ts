@@ -60,6 +60,8 @@ declare global {
       setBackdrop: (dim: number, blur: number) => Promise<{ dim: number; blur: number; light: string | null; dark: string | null }>
       getCloseBehavior?: () => Promise<'quit' | 'tray'>
       setCloseBehavior?: (value: 'quit' | 'tray') => Promise<'quit' | 'tray'>
+      getBackgroundConnection?: () => Promise<boolean>
+      setBackgroundConnection?: (enabled: boolean) => Promise<boolean>
       addGateway: (input: ConnectionInput) => Promise<Snapshot>
       removeGateway: (id: string) => Promise<Snapshot>
       onSnapshot: (listener: (snapshot: Snapshot) => void) => () => void

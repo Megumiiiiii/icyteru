@@ -27,6 +27,7 @@ pub fn run() {
         .setup(|app| {
             window::install(app.handle())?;
             if let Some(window) = app.get_webview_window("main") {
+                window::restore_bounds(&window);
                 let _ = window.show();
                 let _ = window.set_focus();
             }
@@ -55,5 +56,5 @@ pub fn run() {
             window::set_close_behavior,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Icyteru Canary");
+        .expect("error while running Icyteru");
 }

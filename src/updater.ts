@@ -16,13 +16,35 @@ export type UpdateState =
   | { kind: 'error'; message: string }
 
 let pending: Update | null = null
+let cachedAvailable: { version: string; notes: string } | null = null
+const updateListeners = new Set<(available: { version: string; notes: string } | null) => void>()
+
+function publishAvailable(next: { version: string; notes: string } | null): void {
+  cachedAvailable = next
+  updateListeners.forEach(listener => listener(next))
+}
+
+export function getCachedUpdate(): { version: string; notes: string } | null {
+  return cachedAvailable
+}
+
+export function subscribeUpdate(listener: (available: { version: string; notes: string } | null) => void): () => void {
+  updateListeners.add(listener)
+  return () => updateListeners.delete(listener)
+}
 
 export async function checkForUpdate(): Promise<UpdateState> {
   try {
     const update = await check()
-    if (!update) return { kind: 'current' }
+    if (!update) {
+      pending = null
+      publishAvailable(null)
+      return { kind: 'current' }
+    }
     pending = update
-    return { kind: 'available', version: update.version, notes: update.body || '', update }
+    const info = { version: update.version, notes: update.body || '' }
+    publishAvailable(info)
+    return { kind: 'available', version: info.version, notes: info.notes, update }
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
     // Before the first updater-aware release there is no manifest at all.

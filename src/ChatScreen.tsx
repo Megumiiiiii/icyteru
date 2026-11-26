@@ -500,8 +500,17 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
       }
     }
     node.addEventListener('scroll', onScroll, { passive: true })
+    const viewport = window.visualViewport
+    const onViewportResize = () => {
+      if (!atBottomRef.current) return
+      requestAnimationFrame(() => {
+        if (atBottomRef.current) node.scrollTop = node.scrollHeight
+      })
+    }
+    viewport?.addEventListener('resize', onViewportResize)
     return () => {
       node.removeEventListener('scroll', onScroll)
+      viewport?.removeEventListener('resize', onViewportResize)
       if (scrollTimer.current) clearTimeout(scrollTimer.current)
     }
   }, [])

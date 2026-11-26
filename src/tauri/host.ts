@@ -59,10 +59,37 @@ let publishTimer: ReturnType<typeof setTimeout> | null = null
 let publishPending = false
 const listeners = new Set<(snapshot: Snapshot) => void>()
 
+const RECONNECT_DELAYS_MS = [2000, 4000, 8000, 15000, 30000]
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let reconnectAttempt = 0
+
+function isAuthError(message: string): boolean {
+  return /token|password|sign in|unauthorized|forbidden|401|403|refused the/i.test(message)
+}
+
+function clearReconnectTimer(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+}
+
+function scheduleReconnect(): void {
+  if (!saved.url || reconnectTimer || reconnecting || phase === 'connecting' || client.state.connected) return
+  if (error && isAuthError(error)) return
+  const delay = RECONNECT_DELAYS_MS[Math.min(reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)]
+  reconnectAttempt += 1
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    void ensureConnected()
+  }, delay)
+}
+
 const client = new HermesClient(() => {
   if (client.lastError) {
     phase = 'error'
     error = client.lastError
+    scheduleReconnect()
   }
   publish()
 })
@@ -229,6 +256,7 @@ function noteFeedEvent(sessionId: string): void {
 }
 
 async function connectSaved(preserveScreen = false): Promise<void> {
+  clearReconnectTimer()
   if (!saved.url) {
     screen = 'connect'
     phase = 'idle'
@@ -251,11 +279,13 @@ async function connectSaved(preserveScreen = false): Promise<void> {
     status = ''
     error = ''
     client.lastError = ''
+    reconnectAttempt = 0
     void startFeed()
   } catch (err) {
     phase = 'error'
     error = err instanceof Error ? err.message : 'Could not connect to Hermes.'
     status = ''
+    scheduleReconnect()
   }
   publish()
 }
@@ -470,6 +500,8 @@ export async function installTauriHost(): Promise<void> {
       return snapshot()
     },
     forgetConnection: async () => {
+      clearReconnectTimer()
+      reconnectAttempt = 0
       client.disconnect()
       client.lastError = ''
       void invoke('feed_stop').catch(() => undefined)
@@ -628,6 +660,13 @@ export async function installTauriHost(): Promise<void> {
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return
+    clearReconnectTimer()
+    reconnectAttempt = 0
+    void ensureConnected()
+  })
+  window.addEventListener('online', () => {
+    clearReconnectTimer()
+    reconnectAttempt = 0
     void ensureConnected()
   })
 

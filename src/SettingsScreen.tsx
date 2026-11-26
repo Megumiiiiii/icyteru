@@ -396,6 +396,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
           {approvalNote && <p className="hint">{approvalNote}</p>}
         </section>
         <UpdateCard />
+        <BackgroundConnectionCard />
         <section>
           <h2>About</h2>
           <p>
@@ -422,6 +423,25 @@ function UpdateCard() {
   const sakuga = useSakugaEnabled()
   const [view, setView] = useState<UpdateView>({ kind: 'idle' })
   const [note, setNote] = useState('')
+
+  useEffect(() => {
+    if (!desktop) return
+    let cancelled = false
+    let unsubscribe: (() => void) | null = null
+    void import('./updater').then(mod => {
+      if (cancelled) return
+      const cached = mod.getCachedUpdate()
+      if (cached) setView(current => (current.kind === 'idle' ? { kind: 'available', version: cached.version } : current))
+      unsubscribe = mod.subscribeUpdate(next => {
+        if (cancelled) return
+        if (next) setView(current => (current.kind === 'idle' || current.kind === 'current' ? { kind: 'available', version: next.version } : current))
+      })
+    }).catch(() => undefined)
+    return () => {
+      cancelled = true
+      unsubscribe?.()
+    }
+  }, [desktop])
 
   if (!desktop) return null
 
@@ -540,6 +560,52 @@ function WindowCloseCard() {
         tray icon, or choose Quit from that menu to close it for real.
       </p>
       {note && <p className="hint">{note}</p>}
+    </section>
+  )
+}
+
+function BackgroundConnectionCard() {
+  const api = typeof window.icyteru.getBackgroundConnection === 'function' ? window.icyteru : null
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (!api?.getBackgroundConnection) return
+    let cancelled = false
+    void api.getBackgroundConnection()
+      .then(value => {
+        if (!cancelled) setEnabled(value)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (!api || enabled === null) return null
+
+  const toggle = () => {
+    const next = !enabled
+    setEnabled(next)
+    void api.setBackgroundConnection?.(next).then(saved => setEnabled(saved)).catch(() => setEnabled(!next))
+  }
+
+  return (
+    <section>
+      <h2>Background connection</h2>
+      <div className="row">
+        <button
+          className={enabled ? 'solid' : 'ghost'}
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          onClick={toggle}
+        >
+          Keep socket alive in background: {enabled ? 'On' : 'Off'}
+        </button>
+      </div>
+      <p className="hint">
+        Shows a quiet ongoing notification so Android does not freeze your live chat socket when you switch apps. Turn off to save battery and rely on push notifications instead.
+      </p>
     </section>
   )
 }

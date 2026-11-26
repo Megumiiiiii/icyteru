@@ -69,3 +69,27 @@ test('closeMessage explains auth, origin, normal, and dropped closes', () => {
   assert.match(closeMessage(1006, ''), /dropped/)
   assert.match(closeMessage(4999, 'custom'), /custom/)
 })
+
+test('consecutive heartbeat timeouts close a dead zombie socket', async () => {
+  const original = globalThis.WebSocket
+  ;(globalThis as any).WebSocket = FakeSocket
+  let closedReason = ''
+  const socket = new HermesSocket({
+    onEvent: () => undefined,
+    onQuestion: () => undefined,
+    onClose: text => { closedReason = text }
+  }, { heartbeatMs: 15, pingTimeoutMs: 10, maxMissedPings: 2 })
+  try {
+    const connected = socket.connect('ws://gw/api/ws')
+    const fake = FakeSocket.last!
+    fake.readyState = 1
+    fake.emit('open')
+    await connected
+    await new Promise(resolve => setTimeout(resolve, 90))
+    assert.equal(fake.readyState, 3)
+    assert.ok(closedReason.length > 0)
+  } finally {
+    socket.close()
+    ;(globalThis as any).WebSocket = original
+  }
+})

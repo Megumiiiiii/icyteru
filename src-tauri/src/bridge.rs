@@ -26,6 +26,7 @@ impl Bridge {
     pub fn new() -> Result<Self, String> {
         let http = Client::builder()
             .user_agent(format!("Icyteru/{}", env!("CARGO_PKG_VERSION")))
+            .connect_timeout(Duration::from_secs(10))
             .redirect(reqwest::redirect::Policy::limited(5))
             .build()
             .map_err(|error| error.to_string())?;

@@ -59,8 +59,10 @@ export interface AppearanceState {
 
 const CONNECTION_KEY = 'icyteru-connection'
 const BACKDROP_KEY = 'icyteru-backdrop'
+const BG_CONNECTION_KEY = 'icyteru-android-bg-connection'
 const DB_NAME = 'icyteru'
 const STORE = 'backgrounds'
+const RECONNECT_DELAYS_MS = [2000, 4000, 8000, 15000, 30000]
 
 let saved: SavedConnection = loadConnection()
 let screen: AppScreen = saved.url ? 'chat' : 'connect'
@@ -69,12 +71,45 @@ let error = ''
 let status = ''
 let publishTimer: ReturnType<typeof setTimeout> | null = null
 let publishPending = false
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let reconnectAttempt = 0
 const listeners = new Set<(snapshot: Snapshot) => void>()
+
+function isAuthError(message: string): boolean {
+  return /token|password|sign in|unauthorized|forbidden|401|403|refused the/i.test(message)
+}
+
+function clearReconnectTimer(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+}
+
+function scheduleReconnect(): void {
+  if (!saved.url || reconnectTimer || reconnecting || phase === 'connecting' || client.state.connected) return
+  if (error && isAuthError(error)) return
+  const delay = RECONNECT_DELAYS_MS[Math.min(reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)]
+  reconnectAttempt += 1
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    void ensureConnected()
+  }, delay)
+}
+
+function readBackgroundConnectionPref(): boolean {
+  try {
+    return localStorage.getItem(BG_CONNECTION_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
 
 const client = new HermesClient(() => {
   if (client.lastError) {
     phase = 'error'
     error = client.lastError
+    scheduleReconnect()
   }
   publish()
 })
@@ -188,11 +223,12 @@ function publish(): void {
 }
 
 let connectionServiceActive = false
+let backgroundConnectionEnabled = readBackgroundConnectionPref()
 
-async function syncConnectionService(): Promise<void> {
+async function syncConnectionService(force = false): Promise<void> {
   if (Capacitor.getPlatform() !== 'android') return
-  const active = phase === 'ready' && Boolean(saved.url)
-  if (active === connectionServiceActive) return
+  const active = backgroundConnectionEnabled && phase === 'ready' && Boolean(saved.url)
+  if (!force && active === connectionServiceActive) return
   connectionServiceActive = active
   try {
     await IcyteruPush.setConnectionActive({ active })
@@ -249,6 +285,7 @@ async function syncPushToken(): Promise<void> {
 }
 
 async function connectSaved(preserveScreen = false): Promise<void> {
+  clearReconnectTimer()
   if (!saved.url) {
     screen = 'connect'
     phase = 'idle'
@@ -271,11 +308,13 @@ async function connectSaved(preserveScreen = false): Promise<void> {
     status = ''
     error = ''
     client.lastError = ''
+    reconnectAttempt = 0
     await syncPushToken()
   } catch (err) {
     phase = 'error'
     error = err instanceof Error ? err.message : 'Could not connect to Hermes.'
     status = ''
+    scheduleReconnect()
   }
   publish()
 }
@@ -376,6 +415,8 @@ export function installWebHost(): void {
       return snapshot()
     },
     forgetConnection: async () => {
+      clearReconnectTimer()
+      reconnectAttempt = 0
       if (Capacitor.getPlatform() === 'android') {
         try {
           const { token } = await IcyteruPush.getToken()
@@ -474,6 +515,19 @@ export function installWebHost(): void {
       }))
       return appearance()
     },
+    ...(Capacitor.getPlatform() === 'android' ? {
+      getBackgroundConnection: async () => backgroundConnectionEnabled,
+      setBackgroundConnection: async (enabled: boolean) => {
+        backgroundConnectionEnabled = Boolean(enabled)
+        try {
+          localStorage.setItem(BG_CONNECTION_KEY, backgroundConnectionEnabled ? '1' : '0')
+        } catch {
+          // Ignore storage quota errors; runtime state still updates.
+        }
+        await syncConnectionService(true)
+        return backgroundConnectionEnabled
+      }
+    } : {}),
     addGateway: async (input: ConnectionInput) => {
       const url = (input.url || '').trim()
       const next = credentials(input)
@@ -518,7 +572,15 @@ export function installWebHost(): void {
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return
+    clearReconnectTimer()
+    reconnectAttempt = 0
     void ensureConnected()
+    void syncConnectionService(true)
     if (phase === 'ready') void syncPushToken()
+  })
+  window.addEventListener('online', () => {
+    clearReconnectTimer()
+    reconnectAttempt = 0
+    void ensureConnected()
   })
 }

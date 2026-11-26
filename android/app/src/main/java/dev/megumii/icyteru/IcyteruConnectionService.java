@@ -19,6 +19,11 @@ import androidx.core.app.NotificationCompat;
 public class IcyteruConnectionService extends Service {
     private static final String CHANNEL_ID = "icyteru-connection";
     private static final int NOTIFICATION_ID = 2401;
+    private static volatile boolean running = false;
+
+    public static boolean isRunning() {
+        return running;
+    }
 
     @Override
     public void onCreate() {
@@ -46,17 +51,20 @@ public class IcyteruConnectionService extends Service {
                 .build();
 
         startForeground(NOTIFICATION_ID, notification);
+        running = true;
         return START_NOT_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        running = false;
         super.onDestroy();
         stopForeground(true);
     }
 
     @Override
     public void onTimeout(int startId, int fgsType) {
+        running = false;
         super.onTimeout(startId, fgsType);
         stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelf(startId);
