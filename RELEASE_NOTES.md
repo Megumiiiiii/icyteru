@@ -1,3 +1,23 @@
+## v0.0.88
+
+### Added
+
+- **Auto-update.** The desktop app now checks the GitHub release manifest, shows
+  the new version in Settings → Updates with download progress, installs it, and
+  restarts itself. Update packages are signed with Icyteru's own key and the
+  manifest only lists assets that carry a signature.
+- Queue rows gained **Send now** (steers the message into the running turn),
+  **Edit** (inline editor) and **Remove**.
+- Message bubbles have copy and reaction controls on their outer edge; the
+  assistant's sit on the right, the user's copy on the left.
+
+### Fixed
+
+- The sign-in card no longer disappears under the Sakura and Antartika theme
+  decorations, and a short window scrolls instead of hiding the fields.
+- Copy/react were unreachable when they only appeared on hover.
+- The Sakuga composer textarea shrinks again after a message is sent.
+
 ## v0.0.87
 
 ### Added

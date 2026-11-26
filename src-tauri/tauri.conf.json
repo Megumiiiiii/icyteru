@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Icyteru",
   "mainBinaryName": "icyteru",
-  "version": "0.0.87",
+  "version": "0.0.88",
   "identifier": "dev.megumii.icyteru",
   "build": {
     "beforeDevCommand": "npm run dev:web",
@@ -50,7 +50,7 @@
     ],
     "category": "Productivity",
     "shortDescription": "Desktop client for a Hermes Agent gateway",
-    "copyright": "Copyright \u00a9 2026 Megumiiiiii",
+    "copyright": "Copyright © 2026 Megumiiiiii",
     "publisher": "Megumiiiiii",
     "createUpdaterArtifacts": true,
     "macOS": {
