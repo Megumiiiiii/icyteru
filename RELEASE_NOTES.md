@@ -1,3 +1,17 @@
+## v0.0.87
+
+### Added
+
+- Notifications now leave an actionable entry in the tray menu: **Open: <title>**
+  jumps to the session that sent it, and the taskbar button flashes. A Windows
+  toast from an unpackaged app cannot report a click, so the tray is the honest
+  place for that action.
+
+### Fixed
+
+- `version:check` no longer passes while `src-tauri/Cargo.lock` is stale on a
+  Windows checkout (CRLF), which used to fail the release before it started.
+
 ## v0.0.86
 
 ### Changed

@@ -12,13 +12,44 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use tauri::{
-    AppHandle, Manager, WindowEvent,
+    AppHandle, Emitter, Manager, WindowEvent,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 
 pub const QUIT: &str = "quit";
 pub const TRAY: &str = "tray";
+
+/// Handles the tray menu needs to keep updating after the app is running.
+pub struct Tray {
+    open: MenuItem<tauri::Wry>,
+}
+
+fn shorten(text: &str) -> String {
+    let trimmed = text.trim();
+    let mut out: String = trimmed.chars().take(48).collect();
+    if trimmed.chars().count() > 48 {
+        out.push('…');
+    }
+    out
+}
+
+/// Called for every notification: an OS toast cannot be clicked, so the tray
+/// menu carries the actionable entry and the taskbar button flashes.
+pub fn note_notification(app: &AppHandle, title: &str) {
+    if let Some(tray) = app.try_state::<Tray>() {
+        let label = if title.trim().is_empty() {
+            "Open last notification".to_string()
+        } else {
+            format!("Open: {}", shorten(title))
+        };
+        let _ = tray.open.set_text(label);
+        let _ = tray.open.set_enabled(true);
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+    }
+}
 
 #[derive(Default)]
 pub struct WindowPrefs {
@@ -117,9 +148,10 @@ pub fn intercept_close(window: &tauri::Window) -> bool {
 }
 
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
+    let open = MenuItem::with_id(app, "open", "No new notifications", false, None::<&str>)?;
     let show = MenuItem::with_id(app, "show", "Show Icyteru", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Icyteru", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &show, &quit])?;
     let icon = app
         .default_window_icon()
         .cloned()
@@ -129,6 +161,13 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .tooltip("Icyteru")
         .on_menu_event(|app, event| match event.id().as_ref() {
+            "open" => {
+                let session = crate::feed::take_pending(app).unwrap_or_default();
+                show_main(app);
+                if !session.is_empty() {
+                    let _ = app.emit("icyteru-feed-open", session);
+                }
+            }
             "show" => show_main(app),
             "quit" => {
                 if let Some(state) = app.try_state::<WindowPrefs>() {
@@ -152,6 +191,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         builder = builder.icon(icon);
     }
     builder.build(app)?;
+    app.manage(Tray { open });
     Ok(())
 }
 

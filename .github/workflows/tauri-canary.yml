@@ -1,4 +1,4 @@
-name: Tauri Canary
+name: Desktop build
 
 # Manual + branch build: packages the Tauri desktop shell as downloadable
 # artifacts. Not a release job — the public release line stays on Electron
@@ -77,7 +77,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: IcyteruCanary-${{ matrix.name }}-${{ github.run_number }}
+          name: Icyteru-desktop-${{ matrix.name }}-${{ github.run_number }}
           path: ${{ matrix.artifacts }}
           retention-days: 3
           if-no-files-found: error

@@ -128,16 +128,24 @@ pub fn feed_start(
                 let body = entry.body.chars().take(240).collect::<String>();
                 // An overlay window froze the app on Windows, so this is a plain
                 // OS toast again. It cannot report a click; that is the trade.
+                let title = if entry.title.is_empty() {
+                    "Icyteru".to_string()
+                } else {
+                    entry.title.clone()
+                };
+                let title = if entry.title.is_empty() {
+                    "Icyteru".to_string()
+                } else {
+                    entry.title.clone()
+                };
                 let _ = app
                     .notification()
                     .builder()
-                    .title(if entry.title.is_empty() {
-                        "Icyteru"
-                    } else {
-                        &entry.title
-                    })
+                    .title(&title)
                     .body(&body)
                     .show();
+                // The toast cannot report a click; the tray entry can.
+                crate::window::note_notification(&app, &title);
                 *pending.lock().unwrap_or_else(|error| error.into_inner()) =
                     Some(entry.session_id.clone());
                 let _ = app.emit(
