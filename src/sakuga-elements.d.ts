@@ -8,6 +8,7 @@ type SakugaProps = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> &
   placeholder?: string
   value?: string
   duration?: string | number
+  type?: string
 }
 
 declare module 'react' {

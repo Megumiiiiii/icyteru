@@ -59,4 +59,10 @@ Copyright (c) 2026 Justin Finkelman
 optional canvas-based anime/manga UI visual effects layer. Sakuga VFX is MIT
 licensed.
 
+The optional UI components under `src/sakuga-button.js`, `src/sakuga-input.js`,
+`src/sakuga-toast.js` and `src/sakuga-textarea.js` come from the same project
+(`button/`, `input/`, `toast/`). The embedded copy of `core.js` in each file is
+removed so they reuse `src/sakuga-core.js`; `sakuga-textarea.js` is a local fork
+of `input.js` with a multiline `<textarea>` instead of a single-line `<input>`.
+
 Source: https://github.com/finktheartist/sakuga-vfx

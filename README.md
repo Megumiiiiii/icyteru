@@ -61,6 +61,24 @@ npm run dist:win     # NSIS installer, on Windows
 
 The app is Electron, so one project runs on Windows, macOS, and Linux. Build each installer on that platform.
 
+### Tauri canary (separate shell)
+
+`tauri-test` also carries a second desktop shell built with **Tauri 2**, shipped
+as `Icyteru Canary`. It installs side by side with the Electron app (different
+identifier, `dev.megumii.icyteru.canary`), so the two can be compared without
+touching each other's login or chats. The Android build still comes from
+Capacitor; only the desktop shell differs.
+
+```bash
+npm run tauri:dev            # Vite + the Rust shell
+npm run tauri:build          # bundles for the current OS
+```
+
+The `Tauri Canary` workflow builds Windows, Linux, and macOS installers on
+demand and on every push to `tauri-test`; download them from the workflow run's
+artifacts (kept three days). Canary installers are unsigned too, and they
+appear under `Icyteru Canary` in the Start menu.
+
 **Unsigned desktop builds.** The Windows NSIS installer and the macOS DMG/zip are not code-signed or notarized yet. Windows SmartScreen may show **Windows protected your PC**; choose **More info → Run anyway**. On macOS, right-click the app → **Open**, or allow it in **System Settings → Privacy & Security**. Real signing needs an Apple Developer ID + notarization credentials and a Windows code-signing certificate in the repository's Actions secrets; never paste those into chat.
 
 The token is stored in the app's user-data folder. When the operating system keychain is available, it is encrypted with Electron `safeStorage`. Otherwise it is kept in a file that is readable only by your user. A background picture you choose in Settings is copied into that same folder. It is not sent to Hermes.

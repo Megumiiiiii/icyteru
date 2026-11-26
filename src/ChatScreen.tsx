@@ -12,6 +12,7 @@ import { Avatar } from './Avatar'
 import { Markdown, copyText } from './Markdown'
 import { PinIcon } from './PinIcon'
 import { SakugaProgressBar, useSakugaEnabled } from './SakugaProgressBar'
+import { SakugaField } from './SakugaField'
 import { ensureSakugaElement, playSendEffect, showSakugaToast } from './sakuga-ui'
 import { ago } from './time'
 
@@ -1506,12 +1507,12 @@ function QuestionCard({ question }: { question: NonNullable<Snapshot['question']
               onChange={event => setAnswers(current => ({ ...current, [item.id]: event.target.value }))}
             />
           )}
-          <input
+          <SakugaField
             className="custom-answer"
             value={custom[item.id] || ''}
-            onChange={event => setCustom(current => ({ ...current, [item.id]: event.target.value }))}
+            onChange={next => setCustom(current => ({ ...current, [item.id]: next }))}
             placeholder="Or type your own answer"
-            aria-label="Custom answer"
+            label="Custom answer"
           />
         </div>
       ))}
@@ -1663,11 +1664,11 @@ function RemoteClarifyCard({ clarify, more }: { clarify: RemoteClarify; more: nu
             })}
           </div>
         )}
-        <input
+        <SakugaField
           value={custom}
-          onChange={event => setCustom(event.target.value)}
+          onChange={setCustom}
           placeholder={clarify.choices.length ? 'Or type your own answer' : 'Type your answer'}
-          aria-label="Answer"
+          label="Answer"
         />
       </div>
       <div className="question-actions">

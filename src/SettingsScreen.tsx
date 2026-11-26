@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
+import { SakugaField } from './SakugaField'
 import { isSakugaEnabled, setSakugaEnabled } from './sakuga'
 import { APP_VERSION } from './version'
 import { autoFocusSearch, findModelChoiceIndex } from '../shared/model-choice'
@@ -152,7 +153,7 @@ export function SettingsScreen({ snapshot, appearance, onAppearance, leftTitle, 
           <h2>Connection</h2>
           <label>
             Gateway URL
-            <input value={url} onChange={event => setUrl(event.target.value)} spellCheck={false} />
+            <SakugaField value={url} onChange={setUrl} label="Gateway URL" />
           </label>
           <div className="auth-tabs" role="tablist" aria-label="Sign in method">
             <button

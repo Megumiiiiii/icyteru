@@ -19,7 +19,7 @@ class SakugaTextarea extends fx.Base {
       outline: none; caret-color: var(--sk-ink); box-shadow: var(--sk-sh);
       will-change: transform;
     }
-    textarea::placeholder { color: var(--sk-dim); }
+    textarea::placeholder { color: var(--sk-ink); opacity: .42; }
     textarea:disabled { opacity: .5; }`;
 
   get value() { return this.ta ? this.ta.value : this.getAttribute('value') || ''; }

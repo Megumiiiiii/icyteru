@@ -16,6 +16,31 @@ const lockPath = path.join(root, 'package-lock.json')
 const gradlePath = path.join(root, 'android/app/build.gradle')
 const versionPath = path.join(root, 'src/version.ts')
 const readmePath = path.join(root, 'README.md')
+const tauriConfPath = path.join(root, 'src-tauri/tauri.conf.json')
+const cargoTomlPath = path.join(root, 'src-tauri/Cargo.toml')
+const cargoLockPath = path.join(root, 'src-tauri/Cargo.lock')
+
+/** The Tauri shell carries the same version; leaving it behind silently ships a stale canary. */
+function syncTauri(version) {
+  const conf = readJson(tauriConfPath)
+  if (conf.version !== version) {
+    conf.version = version
+    writeJson(tauriConfPath, conf)
+  }
+
+  const toml = fs.readFileSync(cargoTomlPath, 'utf8')
+  const nextToml = toml.replace(/(\[package\][\s\S]*?\nversion\s*=\s*")[^"]+(")/, `$1${version}$2`)
+  if (nextToml === toml && !toml.includes(`version = "${version}"`)) {
+    throw new Error('Could not find [package] version in src-tauri/Cargo.toml')
+  }
+  if (nextToml !== toml) fs.writeFileSync(cargoTomlPath, nextToml)
+
+  if (fs.existsSync(cargoLockPath)) {
+    const lock = fs.readFileSync(cargoLockPath, 'utf8')
+    const nextLock = lock.replace(/(name = "icyteru-desktop"\nversion = ")[^"]+(")/, `$1${version}$2`)
+    if (nextLock !== lock) fs.writeFileSync(cargoLockPath, nextLock)
+  }
+}
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -73,6 +98,8 @@ function sync() {
   const nextReadme = syncReadme(readme, version)
   if (nextReadme !== readme) fs.writeFileSync(readmePath, nextReadme)
 
+  syncTauri(version)
+
   console.log(`version synced: ${version} (versionCode ${code})`)
 }
 
@@ -103,6 +130,21 @@ function check() {
   const readme = fs.readFileSync(readmePath, 'utf8')
   if (!readme.includes(`Icyteru-${version}.apk`)) {
     problems.push(`README.md must mention Icyteru-${version}.apk`)
+  }
+
+  if (readJson(tauriConfPath).version !== version) {
+    problems.push(`src-tauri/tauri.conf.json version must be ${version}`)
+  }
+  const cargoToml = fs.readFileSync(cargoTomlPath, 'utf8')
+  const packageSection = cargoToml.split(/^\[/m).find(section => section.startsWith('package]')) || ''
+  if (!new RegExp(`version\\s*=\\s*"${version.replace(/\./g, '\\.')}"`).test(packageSection)) {
+    problems.push(`src-tauri/Cargo.toml [package] version must be ${version}`)
+  }
+  if (fs.existsSync(cargoLockPath)) {
+    const cargoLock = fs.readFileSync(cargoLockPath, 'utf8')
+    if (!new RegExp(`name = "icyteru-desktop"\\nversion = "${version.replace(/\./g, '\\.')}"`).test(cargoLock)) {
+      problems.push(`src-tauri/Cargo.lock icyteru-desktop version must be ${version}`)
+    }
   }
 
   if (problems.length) {
