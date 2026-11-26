@@ -848,6 +848,7 @@ html[data-backdrop="kraft"] .sky-dim { opacity: 0; }
 .welcome h2 { margin: 0 0 8px; font-weight: 560; }
 .welcome p { color: var(--muted); line-height: 1.5; }
 .bubble {
+  position: relative;
   width: fit-content;
   max-width: min(740px, 86%);
   min-width: 0;
@@ -869,6 +870,74 @@ html[data-backdrop="kraft"] .sky-dim { opacity: 0; }
   border-radius: 18px;
   padding: 14px 16px;
 }
+
+/* Copy / react rail: assistant bubbles own the right edge, the user's copy the
+   left edge, always vertically centred and out of the text flow. */
+.msg-actions {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+  z-index: 3;
+}
+.bubble.assistant .msg-actions { right: -34px; align-items: flex-start; }
+.bubble.user .msg-actions { left: -34px; align-items: flex-end; }
+.bubble:hover .msg-actions,
+.bubble:focus-within .msg-actions { opacity: 1; pointer-events: auto; }
+.msg-action,
+.msg-reaction {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.msg-action:hover,
+.msg-reaction:hover { color: var(--ink); border-color: var(--accent); }
+.msg-reaction { font-size: 14px; background: var(--surface); }
+.msg-react-menu {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.bubble.assistant .msg-react-menu { right: calc(100% + 6px); }
+.bubble.user .msg-react-menu { left: calc(100% + 6px); }
+.msg-react-menu button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+}
+.msg-react-menu button:hover { background: var(--bg); }
+@media (pointer: coarse) {
+  .msg-actions { opacity: 1; pointer-events: auto; }
+  .msg-action, .msg-reaction { width: 32px; height: 32px; }
+}
+
 .bubble .md > :last-child { margin-bottom: 0; }
 .bubble .md pre:last-child { margin-bottom: 0; }
 .bubble .incoming-attachments { margin: 12px 0 0; max-width: 100%; }

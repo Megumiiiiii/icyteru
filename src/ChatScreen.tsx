@@ -13,6 +13,7 @@ import { Markdown, copyText } from './Markdown'
 import { PinIcon } from './PinIcon'
 import { SakugaProgressBar, useSakugaEnabled } from './SakugaProgressBar'
 import { SakugaField } from './SakugaField'
+import { MessageActions } from './MessageActions'
 import { ensureSakugaElement, playSendEffect, showSakugaToast } from './sakuga-ui'
 import { ago } from './time'
 
@@ -928,6 +929,7 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
                     {part.tools.length > 0 && <div className="tool-standalone"><ToolGroup tools={part.tools} /></div>}
                     {(media.text.trim() || media.attachments.length > 0) && (
                       <article className={`bubble ${message.role}`}>
+                        <MessageActions id={`${message.id}:${i}`} role={message.role === 'user' ? 'user' : 'assistant'} text={media.text} />
                         {media.text.trim() && <Markdown text={media.text} />}
                         {media.attachments.length > 0 && (
                           <div className="incoming-attachments">
