@@ -35,7 +35,7 @@ thiserror = "2"
 url = "2"
 
 [target.'cfg(windows)'.dependencies]
-tauri-winrt-notification = "0.8"
+windows = { version = "0.62", features = ["Data_Xml_Dom", "UI_Notifications"] }
 
 [features]
 default = ["custom-protocol"]

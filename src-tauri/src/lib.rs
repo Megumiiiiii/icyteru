@@ -16,8 +16,9 @@ pub fn run() {
     let bridge = bridge::Bridge::new().expect("failed to create native gateway bridge");
     tauri::Builder::default()
         // Registered first: a second launch must never race the first one's vault file.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            window::show_main(app);
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            let session_id = notify::session_from_args(&args);
+            window::activate_from_notification(app, session_id.as_deref());
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -25,6 +26,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            notify::register_protocol();
             window::install(app.handle())?;
             if let Some(window) = app.get_webview_window("main") {
                 window::restore_bounds(&window);
