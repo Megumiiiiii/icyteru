@@ -1,4 +1,4 @@
-import { Fragment, useContext, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { Fragment, useContext, useEffect, useMemo, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Capacitor } from '@capacitor/core'
 import { PhoneNav } from './phone'
@@ -411,6 +411,8 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
   const scroller = useRef<HTMLDivElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
+  const sakugaComposerRef = useRef<HTMLElement & { value: string } | null>(null)
+  const [sakugaComposer, setSakugaComposer] = useState(false)
   const queueWrap = useRef<HTMLDivElement>(null)
   const sendMenuRef = useRef<HTMLDivElement>(null)
   const atBottomRef = useRef(true)
@@ -514,6 +516,50 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
     node.style.height = `${Math.max(next, 48)}px`
     node.style.overflowY = node.scrollHeight > 280 ? 'auto' : 'hidden'
   }, [draft])
+
+  // The Sakuga textarea owns its own auto-grow; only its value needs mirroring.
+  useEffect(() => {
+    const node = sakugaComposerRef.current
+    if (node && node.value !== draft) node.value = draft
+  }, [draft, sakugaComposer])
+
+  useEffect(() => {
+    if (!sakugaOn) {
+      setSakugaComposer(false)
+      return
+    }
+    let cancelled = false
+    void ensureSakugaElement('sakuga-textarea').then(ready => {
+      if (!cancelled) setSakugaComposer(ready)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [sakugaOn])
+
+  function composerKeyDown(event: ReactKeyboardEvent<HTMLElement>): void {
+    if (event.key !== 'Enter' || event.shiftKey || isAndroid) return
+    event.preventDefault()
+    // Enter submits without a click, so the send button's burst has to be played here.
+    const form = event.currentTarget.closest('form')
+    playSendEffect(form?.querySelector('button[type="submit"]') ?? null)
+    void send()
+  }
+
+  function composerPaste(event: ReactClipboardEvent<HTMLElement>): void {
+    const items = event.clipboardData?.items
+    if (!items) return
+    const pasted: File[] = []
+    for (const item of Array.from(items)) {
+      if (item.kind !== 'file') continue
+      const file = item.getAsFile()
+      if (file) pasted.push(file)
+    }
+    if (pasted.length) {
+      event.preventDefault()
+      void addFiles(pasted)
+    }
+  }
 
   async function addFiles(list: FileList | File[] | null): Promise<void> {
     if (!list || !list.length) return
@@ -1067,36 +1113,31 @@ export function ChatScreen({ snapshot, hidden = false, leftHidden = false, onTog
               </span>
             )}
           </div>
-          <textarea
-            ref={composer}
-            value={draft}
-            placeholder={snapshot.phase === 'ready' ? `Message ${snapshot.profileName}` : 'Connect to Hermes to send a message'}
-            disabled={snapshot.phase !== 'ready'}
-            rows={1}
-            onChange={event => setDraft(event.target.value)}
-            onPaste={event => {
-              const items = event.clipboardData?.items
-              if (!items) return
-              const pasted: File[] = []
-              for (const item of Array.from(items)) {
-                if (item.kind !== 'file') continue
-                const file = item.getAsFile()
-                if (file) pasted.push(file)
-              }
-              if (pasted.length) {
-                event.preventDefault()
-                void addFiles(pasted)
-              }
-            }}
-            onKeyDown={event => {
-              if (event.key === 'Enter' && !event.shiftKey && !isAndroid) {
-                event.preventDefault()
-                // Enter skips the real click, so the button's Sakuga burst never fires.
-                playSendEffect(event.currentTarget.form?.querySelector('button[type="submit"]') ?? null)
-                void send()
-              }
-            }}
-          />
+          {sakugaComposer ? (
+            <sakuga-textarea
+              ref={node => {
+                sakugaComposerRef.current = node as unknown as HTMLElement & { value: string } | null
+              }}
+              placeholder={snapshot.phase === 'ready' ? `Message ${snapshot.profileName}` : 'Connect to Hermes to send a message'}
+              disabled={snapshot.phase !== 'ready'}
+              rows={1}
+              label={snapshot.phase === 'ready' ? `Message ${snapshot.profileName}` : 'Message'}
+              onInput={event => setDraft((event.target as unknown as { value: string }).value)}
+              onPaste={composerPaste}
+              onKeyDown={composerKeyDown}
+            />
+          ) : (
+            <textarea
+              ref={composer}
+              value={draft}
+              placeholder={snapshot.phase === 'ready' ? `Message ${snapshot.profileName}` : 'Connect to Hermes to send a message'}
+              disabled={snapshot.phase !== 'ready'}
+              rows={1}
+              onChange={event => setDraft(event.target.value)}
+              onPaste={composerPaste}
+              onKeyDown={composerKeyDown}
+            />
+          )}
           {streaming && !draft.trim() && files.length === 0
             ? <button className="solid" onClick={() => void window.icyteru.interrupt()} type="button">Stop</button>
             : <button className="solid" disabled={snapshot.phase !== 'ready' || sending || (!draft.trim() && files.length === 0)} type="submit">Send</button>}

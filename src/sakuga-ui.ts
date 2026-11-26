@@ -5,11 +5,12 @@
  */
 import { isSakugaEnabled } from './sakuga'
 
-type SakugaTag = 'sakuga-button' | 'sakuga-input' | 'sakuga-toast'
+type SakugaTag = 'sakuga-button' | 'sakuga-input' | 'sakuga-textarea' | 'sakuga-toast'
 
 const loaders: Record<SakugaTag, () => Promise<unknown>> = {
   'sakuga-button': () => import('./sakuga-button.js'),
   'sakuga-input': () => import('./sakuga-input.js'),
+  'sakuga-textarea': () => import('./sakuga-textarea.js'),
   'sakuga-toast': () => import('./sakuga-toast.js')
 }
 

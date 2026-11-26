@@ -15,6 +15,7 @@ declare module 'react' {
     interface IntrinsicElements {
       'sakuga-button': SakugaProps
       'sakuga-input': SakugaProps
+      'sakuga-textarea': SakugaProps & { rows?: number | string }
       'sakuga-toast': SakugaProps
     }
   }
