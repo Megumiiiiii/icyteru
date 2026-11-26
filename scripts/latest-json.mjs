@@ -41,8 +41,9 @@ const add = (key, matcher) => {
 }
 
 add('windows-x86_64', /_x64-setup\.exe$/i)
-add('darwin-aarch64', /aarch64.*\.app\.tar\.gz$|aarch64.*\.tar\.gz$/i)
-add('darwin-x86_64', /x64.*\.app\.tar\.gz$|_x64.*\.tar\.gz$/i)
+// macOS bundles are not architecture-tagged; macos-latest is arm64.
+add('darwin-aarch64', /(aarch64|x86_64|x64).*\.app\.tar\.gz$/i)
+add('darwin-aarch64', /\.app\.tar\.gz$/i)
 add('linux-x86_64', /amd64\.AppImage$/i)
 
 if (!Object.keys(platforms).length) {
