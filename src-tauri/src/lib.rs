@@ -49,6 +49,7 @@ pub fn run() {
             toast::toast_activate,
             toast::toast_dismiss,
             toast::toast_current,
+            toast::toast_show,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Icyteru Canary");

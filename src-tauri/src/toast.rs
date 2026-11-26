@@ -96,6 +96,11 @@ pub fn toast_current() -> Option<serde_json::Value> {
 }
 
 #[tauri::command]
+pub fn toast_show(app: AppHandle, title: String, body: String, session: String) {
+    show(&app, &title, &body, &session);
+}
+
+#[tauri::command]
 pub fn toast_dismiss(app: AppHandle) {
     hide(&app);
 }

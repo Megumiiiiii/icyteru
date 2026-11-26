@@ -526,8 +526,13 @@ export async function installTauriHost(): Promise<void> {
     testApproval: async () => client.testApproval(),
     enableNotifications: () => enableDesktopNotifications(),
     notify: async (payload: NotificationPayload) => {
-      if (!await enableDesktopNotifications()) return
-      sendDesktopNotification({ title: payload.title, body: payload.body })
+      // Route through our own card: an OS toast from an unpackaged app cannot
+      // report the click, so a notification you cannot open is just noise.
+      await invoke('toast_show', {
+        title: payload.title,
+        body: payload.body,
+        session: client.state.activeSessionId || ''
+      }).catch(() => undefined)
     },
     interrupt: () => client.interrupt(),
     answer: (id: string, result: unknown) => client.answer(id, result),
