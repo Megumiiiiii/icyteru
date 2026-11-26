@@ -59,7 +59,7 @@ jobs:
             bundles: nsis
           - os: macos-latest
             name: macos
-            bundles: dmg
+            bundles: dmg,app
           - os: ubuntu-22.04
             name: linux
             bundles: deb,appimage
