@@ -1,3 +1,14 @@
+## v0.0.92
+
+### Fixed
+
+- **Media preview works again.** The image/video lightbox was rendered inside the
+  transcript, which carries `contain: layout style`; that made the transcript the
+  containing block for the fixed overlay, so the modal was confined to the chat
+  box and clipped. Images could not be opened or zoomed and videos showed no
+  player even though the gateway served the file. The preview now portals to
+  `document.body`, covering the viewport with zoom, download and close controls.
+
 ## v0.0.91
 
 ### Fixed
