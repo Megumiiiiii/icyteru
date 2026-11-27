@@ -343,7 +343,7 @@ function MediaAttachment({ path, name, image, src }: IncomingAttachment & { src?
           </a>
           {saveNote && <span className="media-save-note">{saveNote}</span>}
         </div>
-        {previewOpen && (
+        {previewOpen && typeof document !== 'undefined' && createPortal(
           <div className="media-preview" role="dialog" aria-modal="true" aria-label={`${name} preview`}>
             <div className="media-preview-backdrop" onClick={() => setPreviewOpen(false)} />
             <div className="media-preview-card">
@@ -372,7 +372,8 @@ function MediaAttachment({ path, name, image, src }: IncomingAttachment & { src?
                 )}
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </>
     )
